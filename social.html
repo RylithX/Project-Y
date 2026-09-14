@@ -1,0 +1,2115 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+  <title>Social Hub — Unified Control Center | Drafting Desk × Studio Suite</title>
+  
+  <!-- Typography & Design System Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Playfair+Display:ital,wght@0,600;1,400&display=swap" rel="stylesheet">
+
+  <style>
+    /* ─── CSS DESIGN TOKENS & HYBRID VARIABLES ────────────────────────── */
+    :root {
+      /* Surface & Desk Layer Tokens */
+      --bg: #111215;
+      --desk-bg: #14161b;
+      --main-bg: #111215;
+      --paper: rgba(250, 249, 244, 0.92);
+      --paper-warm: #f7f5ed;
+      --bg-warm: #ede9df;
+      --card-bg: rgba(24, 27, 34, 0.85);
+      --studio-bg: #181b22;
+      --card: #1f232b;
+      --desk-surface-grid: rgba(212, 168, 106, 0.07);
+      
+      /* Metallic & Blueprint Accents */
+      --accent: #d4a86a;
+      --brass: #d4a86a;
+      --brass-glow: rgba(212, 168, 106, 0.35);
+      --brass-dark: #8f6b32;
+      --steel: #7a8a9a;
+      --steel-border: rgba(122, 138, 154, 0.28);
+      --primary: #d4a86a;
+      --blueprint-cyan: #38bdf8;
+      --blueprint-line: rgba(56, 189, 248, 0.15);
+      
+      /* Typography & Content Colors */
+      --ink: #1e2022;
+      --ink-muted: #5e656d;
+      --text-primary: #f3f4f6;
+      --text-secondary: #9ca3af;
+      --text-muted: #6b7280;
+      
+      /* Status Semantics */
+      --status-active: #10b981;
+      --status-active-glow: rgba(16, 185, 129, 0.3);
+      --status-expired: #ef4444;
+      --status-expired-glow: rgba(239, 68, 68, 0.3);
+      --status-idle: #f59e0b;
+      --status-idle-glow: rgba(245, 158, 11, 0.3);
+      --status-testing: #3b82f6;
+      --status-invalid: #ec4899;
+      
+      /* Shadows & Elevations */
+      --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
+      --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.5);
+      --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.65);
+      --shadow-paper: 0 12px 36px rgba(0, 0, 0, 0.25);
+      
+      /* Transitions */
+      --ease-tactile: cubic-bezier(0.25, 1, 0.5, 1);
+      --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    /* ─── RESET & GLOBAL BASE ─────────────────────────────────────────── */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background-color: var(--bg);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+      position: relative;
+      line-height: 1.5;
+    }
+
+    /* ─── KEYFRAME ANIMATIONS ─────────────────────────────────────────── */
+    @keyframes gearRotate {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes rotateGear {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes spinClockwise {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes spinCounterClockwise {
+      from { transform: rotate(360deg); }
+      to { transform: rotate(0deg); }
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+
+    @keyframes pulseGlow {
+      0%, 100% { box-shadow: 0 0 8px var(--brass-glow); }
+      50% { box-shadow: 0 0 22px var(--brass-glow), 0 0 35px rgba(212, 168, 106, 0.2); }
+    }
+
+    @keyframes studioPulse {
+      0%, 100% { opacity: 0.85; filter: brightness(1); }
+      50% { opacity: 0.4; filter: brightness(1.2); }
+    }
+
+    @keyframes blueprintPulse {
+      0%, 100% { opacity: 0.8; stroke: var(--blueprint-cyan); }
+      50% { opacity: 0.35; stroke: rgba(56, 189, 248, 0.5); }
+    }
+
+    @keyframes badgePulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.15); opacity: 0.75; }
+    }
+
+    /* ─── BACKGROUND CANVAS & GRID LAYER ──────────────────────────────── */
+    #bgCanvas, #gearCanvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 0;
+      pointer-events: none;
+      display: block;
+    }
+
+    .grid-canvas, .grid-layer, .blueprint-grid {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 1;
+      pointer-events: none;
+      background-image: 
+        linear-gradient(90deg, var(--desk-surface-grid) 1px, transparent 1px),
+        linear-gradient(0deg, var(--desk-surface-grid) 1px, transparent 1px);
+      background-size: 40px 40px;
+      opacity: 0.65;
+    }
+
+    /* ─── BLUEPRINT RULER ACCENTS ─────────────────────────────────────── */
+    .blueprint-ruler {
+      position: relative;
+      height: 20px;
+      background: rgba(18, 22, 30, 0.7);
+      border-bottom: 1px solid var(--steel-border);
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      display: flex;
+      align-items: flex-end;
+      padding: 0 16px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      color: var(--steel);
+      user-select: none;
+      z-index: 10;
+      background-image: repeating-linear-gradient(
+        90deg,
+        var(--steel-border) 0px,
+        var(--steel-border) 1px,
+        transparent 1px,
+        transparent 10px
+      );
+    }
+    .blueprint-ruler::after {
+      content: "MM SCALE • ATELIER CALIBRATION ±0.01 • STUDIO × DRAFTING";
+      position: absolute;
+      right: 20px;
+      bottom: 3px;
+      letter-spacing: 1px;
+      opacity: 0.6;
+    }
+
+    /* ─── APP WRAPPER & DESK SURFACE ──────────────────────────────────── */
+    .desk-surface {
+      position: relative;
+      z-index: 2;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ─── TOP HEADER & 3-WAY NAVIGATION ───────────────────────────────── */
+    .header-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+      padding: 14px 24px;
+      background: #111318;
+      border-bottom: 1px solid rgba(212, 168, 106, 0.2);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .brand-section {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .window-dots {
+      display: flex;
+      gap: 6px;
+    }
+    .window-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .dot-red { background: #ef4444; }
+    .dot-yellow { background: #f59e0b; }
+    .dot-green { background: #10b981; }
+
+    .brand-title {
+      font-family: 'Cinzel', serif;
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      color: var(--brass);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .brand-subtitle {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--steel);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      padding: 2px 8px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 4px;
+      border: 1px solid var(--steel-border);
+    }
+
+    /* 3-Way Navigation */
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(10, 12, 16, 0.6);
+      padding: 4px;
+      border-radius: 8px;
+      border: 1px solid var(--steel-border);
+    }
+
+    .nav-link {
+      font-family: 'Inter', sans-serif;
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      text-decoration: none;
+      padding: 6px 14px;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .nav-link:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.08);
+    }
+    .nav-link.active {
+      color: var(--brass);
+      background: rgba(212, 168, 106, 0.15);
+      border: 1px solid rgba(212, 168, 106, 0.3);
+      font-weight: 600;
+    }
+
+    /* Theme & Background Engine Switcher */
+    .bg-engine-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(15, 17, 22, 0.7);
+      padding: 4px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--steel-border);
+    }
+    .bg-select {
+      background: #1a1e27;
+      color: var(--text-primary);
+      border: 1px solid var(--steel-border);
+      padding: 5px 10px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      outline: none;
+      cursor: pointer;
+    }
+    .theme-buttons {
+      display: flex;
+      gap: 4px;
+    }
+    .theme-btn, .bg-switch-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--steel-border);
+      color: var(--text-secondary);
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .theme-btn:hover, .bg-switch-btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+    }
+    .theme-btn.active, .bg-switch-btn.active {
+      background: var(--brass);
+      color: #111;
+      font-weight: 600;
+      border-color: var(--brass);
+    }
+
+    /* ─── MAIN LAYOUT CONTENT ─────────────────────────────────────────── */
+    .main-container {
+      flex: 1;
+      max-width: 1480px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 24px;
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 24px;
+    }
+
+    /* ─── LEFT COLUMN: CONTROL DECKS & SOCIAL CARDS ───────────────────── */
+    .control-deck {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* Telemetry Overview Strip */
+    .telemetry-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+    }
+
+    .studio-card, .studio-panel, .card {
+      background: #181b22;
+      border: 1px solid var(--steel-border);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: var(--shadow-md);
+      position: relative;
+      overflow: hidden;
+      transform: translateZ(0);
+      transition: transform 0.25s var(--ease-tactile), box-shadow 0.25s ease;
+    }
+    .studio-card:hover {
+      border-color: rgba(212, 168, 106, 0.4);
+      box-shadow: var(--shadow-lg), 0 0 15px rgba(212, 168, 106, 0.1);
+    }
+
+    .telemetry-card {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .telemetry-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .telemetry-value-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+    }
+    .telemetry-value {
+      font-family: 'Cinzel', serif;
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    /* Status Badges & Pills */
+    .status-badge, .status-pill, .badge-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .status-badge::before, .status-pill::before {
+      content: "";
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+
+    .status-active, .status-badge.active, .status-pill.active {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--status-active);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+    }
+    .status-active::before, .status-badge.active::before, .status-pill.active::before {
+      background: var(--status-active);
+      box-shadow: 0 0 8px var(--status-active);
+      animation: badgePulse 2s infinite ease-in-out;
+    }
+
+    .status-expired, .status-badge.expired, .status-pill.expired {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--status-expired);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+    }
+    .status-expired::before, .status-badge.expired::before, .status-pill.expired::before {
+      background: var(--status-expired);
+      box-shadow: 0 0 8px var(--status-expired);
+    }
+
+    .status-idle, .status-badge.idle, .status-pill.idle {
+      background: rgba(245, 158, 11, 0.15);
+      color: var(--status-idle);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+    }
+    .status-idle::before, .status-badge.idle::before, .status-pill.idle::before {
+      background: var(--status-idle);
+    }
+
+    .status-testing, .status-badge.testing, .status-pill.testing {
+      background: rgba(59, 130, 246, 0.15);
+      color: var(--status-testing);
+      border: 1px solid rgba(59, 130, 246, 0.35);
+    }
+    .status-testing::before, .status-badge.testing::before, .status-pill.testing::before {
+      background: var(--status-testing);
+      animation: badgePulse 1s infinite ease-in-out;
+    }
+
+    .status-invalid, .status-badge.invalid, .status-pill.invalid {
+      background: rgba(236, 72, 153, 0.15);
+      color: var(--status-invalid);
+      border: 1px solid rgba(236, 72, 153, 0.35);
+    }
+    .status-invalid::before, .status-badge.invalid::before, .status-pill.invalid::before {
+      background: var(--status-invalid);
+    }
+
+    /* ─── ACCOUNT MANAGER SECTION ─────────────────────────────────────── */
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .section-title {
+      font-family: 'Cinzel', serif;
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--brass);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .section-count {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.05);
+      padding: 2px 8px;
+      border-radius: 12px;
+      border: 1px solid var(--steel-border);
+    }
+
+    /* Accounts List Grid */
+    #accountsList, #accountsGrid, #accountsContainer {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    .account-card {
+      background: rgba(22, 25, 32, 0.9);
+      border: 1px solid var(--steel-border);
+      border-radius: 10px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      position: relative;
+      transition: all 0.2s var(--ease-tactile);
+    }
+    .account-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(212, 168, 106, 0.5);
+      box-shadow: var(--shadow-sm);
+    }
+    .account-card.active-selected {
+      border-color: var(--brass);
+      box-shadow: 0 0 16px var(--brass-glow);
+      background: rgba(30, 34, 44, 0.95);
+    }
+
+    .account-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .account-platform-tag {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+    .platform-icon-ig { color: #e1306c; }
+    .platform-icon-dc { color: #5865f2; }
+    .platform-icon-x { color: #1da1f2; }
+
+    .account-card-body {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .account-name-text {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #fff;
+    }
+    .account-token-masked {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--steel);
+      word-break: break-all;
+    }
+
+    .account-card-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 4px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .btn-action {
+      flex: 1;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      cursor: pointer;
+      border: 1px solid var(--steel-border);
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-primary);
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+    .btn-action:hover {
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+    }
+    .btn-action.btn-primary-action {
+      background: rgba(212, 168, 106, 0.2);
+      border-color: var(--brass);
+      color: var(--brass);
+    }
+    .btn-action.btn-primary-action:hover {
+      background: var(--brass);
+      color: #111;
+    }
+    .btn-action.btn-danger {
+      color: #f87171;
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+    .btn-action.btn-danger:hover {
+      background: #ef4444;
+      color: #fff;
+    }
+
+    /* Empty State */
+    .empty-state {
+      text-align: center;
+      padding: 36px 20px;
+      color: var(--text-muted);
+      border: 1px dashed var(--steel-border);
+      border-radius: 10px;
+      background: rgba(0, 0, 0, 0.2);
+    }
+    .empty-state-icon {
+      font-size: 2rem;
+      margin-bottom: 8px;
+      opacity: 0.6;
+    }
+
+    /* ─── ADD ACCOUNT FORM ────────────────────────────────────────────── */
+    .form-card {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .form-row {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      gap: 12px;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .form-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--steel);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .form-input, .form-select {
+      background: rgba(14, 16, 21, 0.85);
+      border: 1px solid var(--steel-border);
+      border-radius: 6px;
+      padding: 8px 12px;
+      color: #fff;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.85rem;
+      outline: none;
+      transition: border-color 0.2s ease;
+    }
+    .form-input:focus, .form-select:focus {
+      border-color: var(--brass);
+      box-shadow: 0 0 8px var(--brass-glow);
+    }
+    .form-input.mono {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+    }
+
+    .btn-submit {
+      background: linear-gradient(135deg, var(--brass) 0%, var(--brass-dark) 100%);
+      color: #111;
+      font-weight: 600;
+      border: none;
+      border-radius: 6px;
+      padding: 10px 16px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .btn-submit:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px var(--brass-glow);
+    }
+
+    /* ─── RIGHT COLUMN: DRAFTING TACTILE PANELS & LOGS ────────────────── */
+    .drafting-panel, .tactile-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* Physical Tactile Paper Card */
+    .paper-card, .tactile-card {
+      background: var(--paper);
+      color: var(--ink);
+      border-radius: 6px;
+      padding: 24px 20px 20px;
+      box-shadow: var(--shadow-paper);
+      position: relative;
+      font-family: 'Playfair Display', serif;
+      background-image: radial-gradient(var(--ink-muted) 0.5px, transparent 0.5px);
+      background-size: 16px 16px;
+      background-color: var(--paper-warm);
+    }
+    .paper-clip {
+      position: absolute;
+      top: -10px;
+      left: 30px;
+      width: 14px;
+      height: 38px;
+      border: 3px solid #b8a898;
+      border-radius: 12px;
+      box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
+      z-index: 5;
+      background: transparent;
+    }
+    .paper-header {
+      font-size: 1.1rem;
+      font-weight: 600;
+      border-bottom: 2px solid rgba(0,0,0,0.1);
+      padding-bottom: 8px;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #111;
+    }
+    .paper-content {
+      font-family: 'Inter', sans-serif;
+      font-size: 0.82rem;
+      line-height: 1.6;
+      color: var(--ink-muted);
+    }
+
+    /* Activity Log Feed */
+    .log-card {
+      display: flex;
+      flex-direction: column;
+      height: 340px;
+    }
+    .log-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .btn-clear-logs {
+      background: transparent;
+      border: 1px solid var(--steel-border);
+      color: var(--text-muted);
+      font-size: 0.7rem;
+      padding: 2px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .btn-clear-logs:hover {
+      color: var(--text-primary);
+      border-color: var(--text-secondary);
+    }
+
+    #activityLogFeed, #activityList {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding-right: 4px;
+    }
+    #activityLogFeed::-webkit-scrollbar {
+      width: 4px;
+    }
+    #activityLogFeed::-webkit-scrollbar-thumb {
+      background: var(--steel-border);
+      border-radius: 2px;
+    }
+
+    .log-entry {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      padding: 8px;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.3);
+      border-left: 3px solid var(--steel);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .log-entry.success { border-left-color: var(--status-active); }
+    .log-entry.error { border-left-color: var(--status-expired); }
+    .log-entry.info { border-left-color: var(--blueprint-cyan); }
+    .log-entry.warning { border-left-color: var(--status-idle); }
+
+    .log-meta {
+      display: flex;
+      justify-content: space-between;
+      color: var(--text-muted);
+      font-size: 0.65rem;
+    }
+    .log-text {
+      color: var(--text-secondary);
+      word-break: break-word;
+    }
+
+    /* ─── INSPECT MODAL DIALOG ────────────────────────────────────────── */
+    #inspectModal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(8, 10, 14, 0.88);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+    #inspectModal.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-box {
+      background: #181b22;
+      border: 1px solid var(--brass);
+      border-radius: 12px;
+      width: 90%;
+      max-width: 520px;
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.8), 0 0 24px var(--brass-glow);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      transform: translateY(12px);
+      transition: transform 0.2s var(--ease-spring);
+    }
+    #inspectModal.open .modal-box {
+      transform: translateY(0);
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--steel-border);
+      padding-bottom: 12px;
+    }
+    .modal-title {
+      font-family: 'Cinzel', serif;
+      font-size: 1.1rem;
+      color: var(--brass);
+    }
+    .modal-close-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.2rem;
+      cursor: pointer;
+      line-height: 1;
+      padding: 4px;
+    }
+    .modal-close-btn:hover {
+      color: #fff;
+    }
+
+    .token-display-box {
+      background: #0d0f14;
+      border: 1px solid var(--steel-border);
+      border-radius: 8px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .token-value-text {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      color: var(--blueprint-cyan);
+      word-break: break-all;
+      line-height: 1.4;
+      user-select: all;
+    }
+    .token-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    /* ─── RESPONSIVE RULES ────────────────────────────────────────────── */
+    @media (max-width: 1024px) {
+      .main-container {
+        grid-template-columns: 1fr;
+      }
+    }
+    @media (max-width: 768px) {
+      .header-bar {
+        padding: 12px 16px;
+      }
+      .main-container {
+        padding: 16px;
+      }
+      .form-row {
+        grid-template-columns: 1fr;
+      }
+      .telemetry-strip {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+    @media (max-width: 480px) {
+      .telemetry-strip {
+        grid-template-columns: 1fr;
+      }
+      .nav-links {
+        width: 100%;
+        justify-content: space-around;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Background Canvas Engine (R3) -->
+  <canvas id="bgCanvas" class="bg-canvas"></canvas>
+  <div class="grid-canvas grid-layer blueprint-grid"></div>
+
+  <!-- Physical Blueprint Millimeter Ruler -->
+  <div class="blueprint-ruler"></div>
+
+  <!-- Main Tactile Desk Surface -->
+  <div class="desk-surface">
+
+    <!-- Top Navigation Bar (3-Way Routing) -->
+    <header class="header-bar">
+      <div class="brand-section">
+        <div class="window-dots">
+          <span class="window-dot dot-red"></span>
+          <span class="window-dot dot-yellow"></span>
+          <span class="window-dot dot-green"></span>
+        </div>
+        <div>
+          <h1 class="brand-title">⚙️ Social Hub</h1>
+          <span class="brand-subtitle">Atelier Control Center</span>
+        </div>
+      </div>
+
+      <!-- 3-Way Navigation: Drafting Desk ⇄ Studio Suite ⇄ Social Hub -->
+      <nav class="nav-links">
+        <a href="/dashboard" class="nav-link" title="Open Drafting Desk">📐 Drafting Desk ↗</a>
+        <a href="/studio" class="nav-link" title="Open Studio Suite">🎛️ Studio Suite ↗</a>
+        <a href="/social" class="nav-link active" title="Active Social Hub">🌐 Social Hub</a>
+      </nav>
+
+      <!-- Background Canvas Engine Controls -->
+      <div class="bg-engine-controls" id="bgSelector">
+        <label for="bgThemeSelect" style="font-size:0.75rem; color:var(--steel);">BG:</label>
+        <select id="bgThemeSelect" class="bg-select">
+          <option value="gears">⚙️ Clockwork Gears</option>
+          <option value="blueprint">📐 Blueprint Grid</option>
+          <option value="pulse">✨ Studio Dark Pulse</option>
+          <option value="slate">⬛ Minimal Slate</option>
+          <option value="none">🚫 Background Off</option>
+        </select>
+        <div class="theme-buttons">
+          <button type="button" class="theme-btn bg-switch-btn" data-theme="gears" title="Clockwork Gears">Gears</button>
+          <button type="button" class="theme-btn bg-switch-btn" data-theme="blueprint" title="Blueprint Grid">Grid</button>
+          <button type="button" class="theme-btn bg-switch-btn" data-theme="pulse" title="Dark Pulse">Pulse</button>
+          <button type="button" class="theme-btn bg-switch-btn" data-theme="slate" title="Minimal">Minimal</button>
+          <button type="button" class="theme-btn bg-switch-btn" data-theme="none" title="Off">Off</button>
+        </div>
+        <input type="range" id="bgSpeed" min="0.2" max="3.0" step="0.1" value="1.0" title="Gear / Animation Speed" style="width:50px; cursor:pointer;">
+        <input type="range" id="bgOpacity" min="0.1" max="1.0" step="0.05" value="0.85" title="Canvas Opacity" style="width:50px; cursor:pointer;">
+      </div>
+    </header>
+
+    <!-- Main Multi-Column Content Area -->
+    <main class="main-container">
+
+      <!-- LEFT COLUMN: Studio Control Deck -->
+      <div class="control-deck">
+        
+        <!-- Live Telemetry Overview -->
+        <section class="telemetry-strip">
+          <div class="studio-card telemetry-card">
+            <span class="telemetry-label">Active Nodes</span>
+            <div class="telemetry-value-row">
+              <span class="telemetry-value" id="activeNodesCount">0</span>
+              <span class="status-badge active" id="systemTelemetryBadge">Online</span>
+            </div>
+          </div>
+          <div class="studio-card telemetry-card">
+            <span class="telemetry-label">Primary Account</span>
+            <div class="telemetry-value-row">
+              <span class="telemetry-value" style="font-size:1.1rem;" id="primaryAccountName">None</span>
+              <span class="status-pill idle" id="primaryAccountStatus">Idle</span>
+            </div>
+          </div>
+          <div class="studio-card telemetry-card">
+            <span class="telemetry-label">Engine Mode</span>
+            <div class="telemetry-value-row">
+              <span class="telemetry-value" style="font-size:1.05rem;" id="currentEngineLabel">Clockwork</span>
+              <span class="status-pill active" id="fpsPill">60 FPS</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Social Accounts List & Management -->
+        <section class="studio-card">
+          <div class="section-header">
+            <h2 class="section-title">🔑 Connected Social Accounts</h2>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <button type="button" class="btn-action btn-primary-action" style="font-size:0.75rem; padding:4px 10px;" onclick="window.socialHub.activateAllAccounts()" title="Set all accounts to Active concurrently">⚡ All Active</button>
+              <button type="button" class="btn-action" style="font-size:0.75rem; padding:4px 10px; background:rgba(212,168,106,0.15); border:1px solid var(--brass); color:var(--brass);" onclick="window.socialHub.purgeJunkAccounts()" title="Purge dummy/test accounts and re-sync">🧹 Clean Junk</button>
+              <span class="section-count" id="accountCountBadge">0 Accounts</span>
+            </div>
+          </div>
+          
+          <!-- Accounts Container / Grid -->
+          <div id="accountsList" class="accounts-container">
+            <div id="emptyStateMsg" class="empty-state">
+              <div class="empty-state-icon">📡</div>
+              <p>No social accounts connected yet.</p>
+              <p style="font-size:0.75rem; margin-top:4px;">Use the registration form below to add Instagram session ID, Discord token, or X credentials.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Add Social Account Form -->
+        <section class="studio-card form-card">
+          <div class="section-header">
+            <h2 class="section-title">➕ Register Social Credential</h2>
+          </div>
+          
+          <form id="addAccountForm" onsubmit="return false;">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="platformSelect" class="form-label">Platform</label>
+                <select id="platformSelect" class="form-select" required>
+                  <option value="instagram">Instagram</option>
+                  <option value="discord">Discord Bot</option>
+                  <option value="twitter">X / Twitter</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="accountName" class="form-label">Account Name / Handle</label>
+                <input type="text" id="accountName" class="form-input" placeholder="e.g. ur._.yunaa or Yuna#1234" required>
+              </div>
+            </div>
+            
+            <div class="form-group" style="margin-top:12px;">
+              <label for="sessionIdInput" class="form-label">Session ID / Auth Token</label>
+              <input type="text" id="sessionIdInput" class="form-input mono" placeholder="Paste sessionid cookie, Discord bot token, or X bearer/auth token" required>
+            </div>
+
+            <div style="display:flex; justify-content:flex-end; margin-top:16px;">
+              <button type="button" id="addAccountBtn" class="btn-submit">
+                <span>🔐 Connect &amp; Persist Credential</span>
+              </button>
+            </div>
+          </form>
+        </section>
+
+      </div>
+
+      <!-- RIGHT COLUMN: Drafting Desk Tactile Paper & Activity Logs -->
+      <div class="drafting-panel tactile-panel">
+        
+        <!-- Tactile Paper Note (Drafting Desk Aesthetic) -->
+        <div class="paper-card tactile-card">
+          <div class="paper-clip"></div>
+          <div class="paper-header">
+            <span>📐 Atelier Operations</span>
+            <span style="font-family:'JetBrains Mono',monospace; font-size:0.7rem; color:var(--ink-muted);">REV 3.2</span>
+          </div>
+          <div class="paper-content">
+            <p><strong>Session Ingestion:</strong> Ingests cookie strings directly bypassing MFA challenges. State machine resolves <code>ACTIVE</code>, <code>EXPIRED</code>, or <code>IDLE</code> status.</p>
+            <p style="margin-top:8px;"><strong>Dual-Layer Storage:</strong> Persists to browser <code>localStorage</code> with instant JSON synchronization to <code>/api/social/accounts</code>.</p>
+          </div>
+        </div>
+
+        <!-- Activity Log Feed -->
+        <div class="studio-card log-card">
+          <div class="log-header">
+            <h3 class="section-title" style="font-size:0.95rem;">📜 Telemetry &amp; Event Stream</h3>
+            <button type="button" id="clearLogsBtn" class="btn-clear-logs">Clear</button>
+          </div>
+          <div id="activityLogFeed" class="activity-feed">
+            <div id="activityList"></div>
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+
+  </div>
+
+  <!-- Inspect Token Modal Dialog -->
+  <div id="inspectModal" class="modal-backdrop">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modalAccountTitle">🔍 Account Credential Details</h3>
+        <button type="button" id="closeModalBtn" class="modal-close-btn">&times;</button>
+      </div>
+      
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span id="modalPlatformBadge" class="status-badge">Instagram</span>
+        <span id="modalStatusBadge" class="status-pill active">Active</span>
+      </div>
+
+      <div class="token-display-box">
+        <span class="form-label">Credential Payload:</span>
+        <div id="modalTokenValue" class="token-value-text">--</div>
+        <div class="token-actions">
+          <button type="button" id="toggleMaskBtn" class="btn-action" style="flex:none; padding:4px 8px;">Reveal / Mask</button>
+          <button type="button" id="copyTokenBtn" class="btn-action btn-primary-action">📋 Copy Credential</button>
+        </div>
+      </div>
+
+      <div style="font-family:'JetBrains Mono',monospace; font-size:0.75rem; color:var(--steel); display:flex; flex-direction:column; gap:4px;">
+        <div>Account ID: <span id="modalAccountId" style="color:#fff;">--</span></div>
+        <div>Last Checked: <span id="modalLastChecked" style="color:#fff;">--</span></div>
+        <div>Server Storage: <code style="color:var(--brass);">data/social_accounts.json</code></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── JAVASCRIPT ENGINE & LIFECYCLE CONTROLLER ─────────────────────── -->
+  <script>
+    (function() {
+      'use strict';
+
+      /* ─── 1. STORAGE KEYS & CONSTANTS ───────────────────────────────── */
+      const STORAGE_KEY_ACCOUNTS = 'social_hub_accounts';
+      const STORAGE_KEY_ACTIVE_ID = 'social_hub_active_id';
+      const STORAGE_KEY_LOGS = 'social_hub_activity_logs';
+      const STORAGE_KEY_BG_STATE = 'social_hub_bg_state';
+      const STORAGE_KEY_BG_THEME = 'social_hub_bg_theme';
+
+      /* ─── 2. UTILITY & SECURITY FUNCTIONS ───────────────────────────── */
+      function escapeHtml(str) {
+        if (!str || typeof str !== 'string') return '';
+        return str
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      }
+
+      function safeJsonParse(raw, fallback) {
+        try {
+          return raw ? JSON.parse(raw) : fallback;
+        } catch (e) {
+          console.warn('[STORAGE] Corrupted JSON recovered:', e);
+          return fallback;
+        }
+      }
+
+      function maskCredential(token) {
+        if (!token || typeof token !== 'string') return '';
+        const clean = token.trim();
+        if (clean.length > 18) {
+          return clean.substring(0, 8) + '...' + clean.substring(clean.length - 6);
+        } else if (clean.length > 8) {
+          return clean.substring(0, 3) + '...' + clean.substring(clean.length - 3);
+        }
+        return '***';
+      }
+
+      /* ─── 3. INTERACTIVE CANVAS BACKGROUND ENGINE (R3) ──────────────── */
+      class CanvasBackgroundEngine {
+        constructor(canvasId) {
+          this.canvas = document.getElementById(canvasId) || document.getElementById('bgCanvas') || document.getElementById('gearCanvas');
+          if (!this.canvas) return;
+          this.ctx = this.canvas.getContext('2d');
+          
+          this.theme = 'gears'; // 'gears' | 'blueprint' | 'pulse' | 'slate'
+          this.speed = 1.0;
+          this.opacity = 0.85;
+          this.animFrameId = null;
+          this.lastTime = performance.now();
+          this.angle = 0;
+          
+          // Gear definitions with calibrated tooth kinematics
+          this.initGears();
+          this.initParticles();
+          
+          this.loadState();
+          this.bindEvents();
+          this.resize();
+          this.startLoop();
+        }
+
+        initGears() {
+          // Master gear and interlocking follower train
+          // omega_1 * r_1 = -omega_2 * r_2
+          this.gears = [
+            { id: 'sun', xRatio: 0.85, yRatio: 0.35, radius: 110, teeth: 24, speedRatio: 1.0, dir: 1, color: '#d4a86a', hub: '#8f6b32', spokes: 6 },
+            { id: 'planet1', parent: 'sun', angleOffset: Math.PI * 0.75, radius: 65, teeth: 14, speedRatio: 24/14, dir: -1, color: '#7a8a9a', hub: '#475569', spokes: 4 },
+            { id: 'planet2', parent: 'planet1', angleOffset: Math.PI * 0.35, radius: 85, teeth: 18, speedRatio: 24/18, dir: 1, color: '#b8a898', hub: '#786858', spokes: 5 },
+            { id: 'pinion', parent: 'sun', angleOffset: -Math.PI * 0.65, radius: 45, teeth: 10, speedRatio: 24/10, dir: -1, color: '#38bdf8', hub: '#0284c7', spokes: 3 },
+            { id: 'bottomGear', xRatio: 0.15, yRatio: 0.82, radius: 95, teeth: 20, speedRatio: 0.8, dir: -1, color: '#d4a86a', hub: '#8f6b32', spokes: 6 },
+            { id: 'bottomFollower', parent: 'bottomGear', angleOffset: -Math.PI * 0.45, radius: 55, teeth: 12, speedRatio: 0.8*(20/12), dir: 1, color: '#7a8a9a', hub: '#475569', spokes: 4 }
+          ];
+        }
+
+        initParticles() {
+          this.particles = [];
+          for (let i = 0; i < 45; i++) {
+            this.particles.push({
+              x: Math.random(),
+              y: Math.random(),
+              vx: (Math.random() - 0.5) * 0.0006,
+              vy: (Math.random() - 0.5) * 0.0006,
+              size: Math.random() * 2 + 1,
+              alpha: Math.random() * 0.6 + 0.2
+            });
+          }
+        }
+
+        bindEvents() {
+          window.addEventListener('resize', () => this.resize());
+
+          const themeSelect = document.getElementById('bgThemeSelect');
+          if (themeSelect) {
+            themeSelect.value = this.theme;
+            themeSelect.addEventListener('change', (e) => {
+              this.setTheme(e.target.value);
+            });
+          }
+
+          document.querySelectorAll('.theme-btn, .bg-switch-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+              const th = btn.dataset.theme;
+              if (th) this.setTheme(th);
+            });
+          });
+
+          const speedSlider = document.getElementById('bgSpeed');
+          if (speedSlider) {
+            speedSlider.value = this.speed;
+            speedSlider.addEventListener('input', (e) => {
+              this.speed = parseFloat(e.target.value) || 1.0;
+              this.saveState();
+            });
+          }
+
+          const opacitySlider = document.getElementById('bgOpacity');
+          if (opacitySlider) {
+            opacitySlider.value = this.opacity;
+            opacitySlider.addEventListener('input', (e) => {
+              this.opacity = parseFloat(e.target.value) || 0.85;
+              this.saveState();
+            });
+          }
+        }
+
+        resize() {
+          if (!this.canvas) return;
+          const dpr = Math.min(window.devicePixelRatio || 1, 1.25);
+          const width = window.innerWidth || 1200;
+          const height = window.innerHeight || 800;
+          
+          this.width = width;
+          this.height = height;
+          this.canvas.width = Math.round(width * dpr);
+          this.canvas.height = Math.round(height * dpr);
+          this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+
+        setTheme(newTheme) {
+          this.theme = newTheme;
+          this.saveState();
+          
+          const sel = document.getElementById('bgThemeSelect');
+          if (sel) sel.value = newTheme;
+          
+          document.querySelectorAll('.theme-btn, .bg-switch-btn').forEach(b => {
+            b.classList.toggle('active', b.dataset.theme === newTheme);
+          });
+
+          const label = document.getElementById('currentEngineLabel');
+          if (label) {
+            const map = { gears: 'Clockwork', blueprint: 'Blueprint', pulse: 'Dark Pulse', slate: 'Minimal', none: 'Off' };
+            label.textContent = map[newTheme] || 'Clockwork';
+          }
+        }
+
+        saveState() {
+          const st = { theme: this.theme, speed: this.speed, opacity: this.opacity };
+          localStorage.setItem(STORAGE_KEY_BG_STATE, JSON.stringify(st));
+          localStorage.setItem(STORAGE_KEY_BG_THEME, this.theme);
+          localStorage.setItem('social_hub_bg', this.theme);
+        }
+
+        loadState() {
+          const raw = localStorage.getItem(STORAGE_KEY_BG_STATE);
+          const saved = safeJsonParse(raw, null);
+          if (saved) {
+            this.theme = saved.theme || 'gears';
+            this.speed = saved.speed || 1.0;
+            this.opacity = saved.opacity || 0.85;
+          } else {
+            const th = localStorage.getItem(STORAGE_KEY_BG_THEME) || localStorage.getItem('social_hub_bg');
+            if (th) this.theme = th;
+          }
+          this.setTheme(this.theme);
+        }
+
+        startLoop() {
+          const render = (now) => {
+            if (document.hidden || this.theme === 'none') {
+              this.animFrameId = requestAnimationFrame(render);
+              return;
+            }
+            const dt = Math.min(100, now - this.lastTime);
+            this.lastTime = now;
+            
+            this.angle = (this.angle + (dt * 0.001 * this.speed * Math.PI)) % (Math.PI * 2);
+            
+            this.draw();
+            this.animFrameId = requestAnimationFrame(render);
+          };
+          this.animFrameId = requestAnimationFrame(render);
+        }
+
+        draw() {
+          const { ctx, width, height } = this;
+          if (!ctx || !width || !height) return;
+
+          ctx.clearRect(0, 0, width, height);
+          if (this.theme === 'none') return;
+          ctx.save();
+          ctx.globalAlpha = this.opacity;
+
+          if (this.theme === 'gears') {
+            this.drawClockworkGears();
+          } else if (this.theme === 'blueprint') {
+            this.drawBlueprintGrid();
+          } else if (this.theme === 'pulse') {
+            this.drawStudioPulse();
+          } else if (this.theme === 'slate') {
+            this.drawMinimalSlate();
+          }
+
+          ctx.restore();
+        }
+
+        drawGear(ctx, x, y, radius, teeth, rotAngle, color, hubColor, spokeCount = 6) {
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.rotate(rotAngle);
+
+          const minDim = Math.min(this.width || 800, this.height || 600);
+          const scaleFactor = Math.max(0.6, Math.min(1.2, minDim / 900));
+          const r = Math.max(20, radius * scaleFactor);
+
+          const pitchRadius = r;
+          const outerRadius = r * 1.12;
+          const rootRadius = r * 0.88;
+          const toothAngle = (Math.PI * 2) / teeth;
+
+          // Outer Cog Profile with Teeth
+          ctx.beginPath();
+          for (let i = 0; i < teeth; i++) {
+            const a0 = i * toothAngle;
+            const a1 = a0 + toothAngle * 0.25;
+            const a2 = a0 + toothAngle * 0.5;
+            const a3 = a0 + toothAngle * 0.75;
+            const a4 = a0 + toothAngle;
+
+            ctx.lineTo(Math.cos(a0) * rootRadius, Math.sin(a0) * rootRadius);
+            ctx.lineTo(Math.cos(a1) * outerRadius, Math.sin(a1) * outerRadius);
+            ctx.lineTo(Math.cos(a2) * outerRadius, Math.sin(a2) * outerRadius);
+            ctx.lineTo(Math.cos(a3) * rootRadius, Math.sin(a3) * rootRadius);
+            ctx.lineTo(Math.cos(a4) * rootRadius, Math.sin(a4) * rootRadius);
+          }
+          ctx.closePath();
+
+          // High-performance solid fill with crisp accent outline (No shadowBlur CPU lag)
+          ctx.fillStyle = '#141822';
+          ctx.fill();
+
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 1.75;
+          ctx.stroke();
+
+          // Spoke Apertures (Cutouts)
+          const spokeHoleRadius = r * 0.26;
+          const spokeDist = r * 0.54;
+          for (let s = 0; s < spokeCount; s++) {
+            const sa = (s * Math.PI * 2) / spokeCount;
+            ctx.beginPath();
+            ctx.arc(Math.cos(sa) * spokeDist, Math.sin(sa) * spokeDist, spokeHoleRadius, 0, Math.PI * 2);
+            ctx.fillStyle = '#0f1219';
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+          }
+
+          // Center Hub & Brass Bolt
+          ctx.beginPath();
+          ctx.arc(0, 0, r * 0.28, 0, Math.PI * 2);
+          ctx.fillStyle = hubColor || '#8f6b32';
+          ctx.fill();
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+
+          // Center Axle Hole
+          ctx.beginPath();
+          ctx.arc(0, 0, r * 0.08, 0, Math.PI * 2);
+          ctx.fillStyle = '#0a0c10';
+          ctx.fill();
+
+          ctx.restore();
+        }
+
+        drawClockworkGears() {
+          const { ctx, width, height } = this;
+          
+          // Computed positions
+          const computedPositions = {};
+          this.gears.forEach(g => {
+            let gx, gy;
+            if (g.parent && computedPositions[g.parent]) {
+              const p = computedPositions[g.parent];
+              const pGear = this.gears.find(x => x.id === g.parent);
+              const minDim = Math.min(width, height);
+              const scale = Math.max(0.6, Math.min(1.4, minDim / 900));
+              const dist = (pGear.radius + g.radius) * scale;
+              gx = p.x + Math.cos(g.angleOffset) * dist;
+              gy = p.y + Math.sin(g.angleOffset) * dist;
+            } else {
+              gx = (g.xRatio || 0.5) * width;
+              gy = (g.yRatio || 0.5) * height;
+            }
+            computedPositions[g.id] = { x: gx, y: gy };
+
+            const gearRot = this.angle * g.speedRatio * g.dir;
+            this.drawGear(ctx, gx, gy, g.radius, g.teeth, gearRot, g.color, g.hub, g.spokes);
+          });
+        }
+
+        drawBlueprintGrid() {
+          const { ctx, width, height } = this;
+          
+          // Coordinate Axes & Rotating Compass Circle
+          const cx = width * 0.75;
+          const cy = height * 0.4;
+          const compassRadius = Math.min(width, height) * 0.25;
+
+          ctx.save();
+          // Pulsing Compass Sweep
+          ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
+          ctx.lineWidth = 1;
+          ctx.setLineDash([6, 8]);
+          ctx.beginPath();
+          ctx.arc(cx, cy, compassRadius, 0, Math.PI * 2);
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.arc(cx, cy, compassRadius * 0.6, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          // Rotating Sweep Needle
+          const needleAngle = this.angle * 0.5;
+          ctx.strokeStyle = 'rgba(56, 189, 248, 0.7)';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          ctx.lineTo(cx + Math.cos(needleAngle) * compassRadius, cy + Math.sin(needleAngle) * compassRadius);
+          ctx.stroke();
+
+          // Technical Dimension Lines
+          ctx.font = '10px "JetBrains Mono", monospace';
+          ctx.fillStyle = 'rgba(56, 189, 248, 0.6)';
+          ctx.fillText(`AXIS X: ${(cx).toFixed(1)}mm  Y: ${(cy).toFixed(1)}mm`, cx - 60, cy + compassRadius + 20);
+          ctx.fillText(`RAD: ${compassRadius.toFixed(1)}mm • TOL ±0.02`, cx - 50, cy - compassRadius - 10);
+          ctx.restore();
+        }
+
+        drawStudioPulse() {
+          const { ctx, width, height } = this;
+
+          // Sinusoidal Radial Breath
+          const breath = 0.5 + Math.sin(this.angle) * 0.25;
+          const grad = ctx.createRadialGradient(width * 0.5, height * 0.5, 10, width * 0.5, height * 0.5, Math.max(width, height) * 0.6);
+          grad.addColorStop(0, `rgba(212, 168, 106, ${0.08 * breath})`);
+          grad.addColorStop(0.5, `rgba(56, 189, 248, ${0.04 * breath})`);
+          grad.addColorStop(1, 'transparent');
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, 0, width, height);
+
+          // Constellation Node Graph
+          const pts = this.particles;
+          for (let i = 0; i < pts.length; i++) {
+            const p = pts[i];
+            p.x = (p.x + p.vx + 1) % 1;
+            p.y = (p.y + p.vy + 1) % 1;
+
+            const px = p.x * width;
+            const py = p.y * height;
+
+            ctx.beginPath();
+            ctx.arc(px, py, p.size, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(212, 168, 106, ${p.alpha})`;
+            ctx.fill();
+
+            // Connect nearby points
+            for (let j = i + 1; j < pts.length; j++) {
+              const q = pts[j];
+              const qx = q.x * width;
+              const qy = q.y * height;
+              const dx = px - qx;
+              const dy = py - qy;
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              if (dist < 110) {
+                ctx.strokeStyle = `rgba(212, 168, 106, ${(1 - dist / 110) * 0.25})`;
+                ctx.lineWidth = 0.8;
+                ctx.beginPath();
+                ctx.moveTo(px, py);
+                ctx.lineTo(qx, qy);
+                ctx.stroke();
+              }
+            }
+          }
+        }
+
+        drawMinimalSlate() {
+          const { ctx, width, height } = this;
+          const grad = ctx.createLinearGradient(0, 0, width, height);
+          grad.addColorStop(0, '#14161b');
+          grad.addColorStop(1, '#0d0e12');
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, 0, width, height);
+        }
+      }
+
+      /* ─── 4. SOCIAL HUB ACCOUNT MANAGER (R2) ────────────────────────── */
+      class SocialHubManager {
+        constructor() {
+          this.accounts = [];
+          this.activeId = null;
+          this.logs = [];
+          this.inspectedAccount = null;
+          this.isTokenRevealed = false;
+
+          this.initDOM();
+          this.loadInitialState();
+          this.bindEvents();
+          this.syncWithBackend();
+        }
+
+        initDOM() {
+          this.dom = {
+            accountsList: document.getElementById('accountsList') || document.getElementById('accountsGrid') || document.getElementById('accountsContainer'),
+            emptyStateMsg: document.getElementById('emptyStateMsg'),
+            platformSelect: document.getElementById('platformSelect'),
+            accountName: document.getElementById('accountName') || document.getElementById('accountNameInput'),
+            sessionIdInput: document.getElementById('sessionIdInput') || document.getElementById('tokenInput'),
+            addAccountBtn: document.getElementById('addAccountBtn'),
+            accountCountBadge: document.getElementById('accountCountBadge'),
+            activeNodesCount: document.getElementById('activeNodesCount'),
+            primaryAccountName: document.getElementById('primaryAccountName'),
+            primaryAccountStatus: document.getElementById('primaryAccountStatus'),
+            activityLogFeed: document.getElementById('activityLogFeed'),
+            activityList: document.getElementById('activityList'),
+            clearLogsBtn: document.getElementById('clearLogsBtn'),
+            inspectModal: document.getElementById('inspectModal'),
+            closeModalBtn: document.getElementById('closeModalBtn'),
+            copyTokenBtn: document.getElementById('copyTokenBtn'),
+            toggleMaskBtn: document.getElementById('toggleMaskBtn'),
+            modalAccountTitle: document.getElementById('modalAccountTitle'),
+            modalPlatformBadge: document.getElementById('modalPlatformBadge'),
+            modalStatusBadge: document.getElementById('modalStatusBadge'),
+            modalTokenValue: document.getElementById('modalTokenValue'),
+            modalAccountId: document.getElementById('modalAccountId'),
+            modalLastChecked: document.getElementById('modalLastChecked')
+          };
+        }
+
+        bindEvents() {
+          if (this.dom.addAccountBtn) {
+            this.dom.addAccountBtn.addEventListener('click', () => this.handleAddAccount());
+          }
+
+          if (this.dom.clearLogsBtn) {
+            this.dom.clearLogsBtn.addEventListener('click', () => {
+              this.logs = [];
+              this.saveLogs();
+              this.renderLogs();
+            });
+          }
+
+          if (this.dom.closeModalBtn) {
+            this.dom.closeModalBtn.addEventListener('click', () => this.closeInspectModal());
+          }
+
+          if (this.dom.inspectModal) {
+            this.dom.inspectModal.addEventListener('click', (e) => {
+              if (e.target === this.dom.inspectModal) this.closeInspectModal();
+            });
+          }
+
+          document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && this.dom.inspectModal && this.dom.inspectModal.classList.contains('open')) {
+              this.closeInspectModal();
+            }
+          });
+
+          if (this.dom.copyTokenBtn) {
+            this.dom.copyTokenBtn.addEventListener('click', () => {
+              if (this.inspectedAccount && this.inspectedAccount.credential) {
+                navigator.clipboard.writeText(this.inspectedAccount.credential).then(() => {
+                  const original = this.dom.copyTokenBtn.textContent;
+                  this.dom.copyTokenBtn.textContent = '✅ Copied!';
+                  setTimeout(() => {
+                    this.dom.copyTokenBtn.textContent = original;
+                  }, 1800);
+                  this.addLog('info', 'Credential copied to clipboard for ' + this.inspectedAccount.name);
+                }).catch(err => {
+                  console.error('Clipboard copy failed:', err);
+                });
+              }
+            });
+          }
+
+          if (this.dom.toggleMaskBtn) {
+            this.dom.toggleMaskBtn.addEventListener('click', () => {
+              this.isTokenRevealed = !this.isTokenRevealed;
+              this.renderModalToken();
+            });
+          }
+
+          window.addEventListener('storage', (e) => {
+            if (e.key === STORAGE_KEY_ACCOUNTS || e.key === STORAGE_KEY_ACTIVE_ID) {
+              this.loadInitialState();
+            }
+          });
+        }
+
+        purgeJunkAccounts() {
+          localStorage.removeItem(STORAGE_KEY_ACCOUNTS);
+          localStorage.removeItem(STORAGE_KEY_LOGS);
+          this.syncWithBackend();
+          this.addLog('info', 'Cleaned local cache and re-synchronized active accounts from server.');
+        }
+
+        cleanToken(platform, token) {
+          if (!token || typeof token !== 'string') return '';
+          let t = token.trim();
+          if (t.includes('sessionid=')) {
+            const match = t.match(/sessionid=([^;\s]+)/i);
+            if (match) t = match[1];
+          }
+          try {
+            t = decodeURIComponent(t);
+          } catch(e) {}
+          return t.trim().replace(/^["']|["']$/g, '');
+        }
+
+        loadInitialState() {
+          const rawAccounts = localStorage.getItem(STORAGE_KEY_ACCOUNTS);
+          let parsed = safeJsonParse(rawAccounts, []);
+          this.accounts = (Array.isArray(parsed) ? parsed : []).filter(a => {
+            const n = (a.name || a.account_name || '').toLowerCase();
+            const id = (a.id || a.account_id || '').toLowerCase();
+            if (n.includes('yuna') || id.includes('yuna')) return true;
+            return !n.includes('stress') && !n.includes('verify_test') && !n.includes('<script>') && !n.includes('aaaa') && !id.includes('stress') && !id.includes('verify_test');
+          });
+          
+          this.activeId = localStorage.getItem(STORAGE_KEY_ACTIVE_ID) || (this.accounts[0] ? this.accounts[0].id : null);
+          
+          const rawLogs = localStorage.getItem(STORAGE_KEY_LOGS);
+          let parsedLogs = safeJsonParse(rawLogs, []);
+          this.logs = (Array.isArray(parsedLogs) ? parsedLogs : []).filter(l => {
+            const m = (l.message || '').toLowerCase();
+            return !m.includes('stress') && !m.includes('verify_test');
+          });
+
+          this.saveAccounts();
+          this.renderAccounts();
+          this.renderLogs();
+          this.updateTelemetry();
+        }
+
+        saveAccounts() {
+          localStorage.setItem(STORAGE_KEY_ACCOUNTS, JSON.stringify(this.accounts));
+          if (this.activeId) {
+            localStorage.setItem(STORAGE_KEY_ACTIVE_ID, this.activeId);
+          }
+          this.renderAccounts();
+          this.updateTelemetry();
+        }
+
+        saveLogs() {
+          localStorage.setItem(STORAGE_KEY_LOGS, JSON.stringify(this.logs));
+        }
+
+        addLog(level, message, details = null) {
+          const entry = {
+            id: 'log_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+            timestamp: Date.now(),
+            level: level || 'info',
+            message: message,
+            details: details
+          };
+          this.logs.unshift(entry);
+          if (this.logs.length > 80) this.logs = this.logs.slice(0, 80);
+          this.saveLogs();
+          this.renderLogs();
+        }
+
+        validatePlatformToken(platform, token) {
+          if (!token || typeof token !== 'string') {
+            return { valid: false, status: 'invalid', message: 'Token cannot be empty' };
+          }
+          const clean = this.cleanToken(platform, token);
+          const p = (platform || '').toLowerCase();
+
+          if (p === 'instagram') {
+            const decoded = clean.replace(/%3A/gi, ':');
+            const parts = decoded.split(':');
+            if (parts.length >= 2 && (parts[0].length >= 5 || clean.length >= 20)) {
+              return { valid: true, status: 'active', userId: parts[0], message: 'Valid Instagram session ID format' };
+            } else if (clean.length >= 20) {
+              return { valid: true, status: 'active', userId: 'parsed', message: 'Valid session cookie string' };
+            }
+            return { valid: clean.length >= 10, status: clean.length >= 10 ? 'active' : 'invalid', message: clean.length >= 10 ? 'Session format accepted' : 'Instagram sessionid too short' };
+          } else if (p === 'discord') {
+            const cleanTok = clean.replace(/^Bot\s+/i, '');
+            const parts = cleanTok.split('.');
+            if (parts.length >= 2) {
+              return { valid: true, status: 'active', message: 'Valid Discord token header/signature' };
+            }
+            return { valid: cleanTok.length >= 25, status: cleanTok.length >= 25 ? 'active' : 'invalid', message: cleanTok.length >= 25 ? 'Discord token accepted' : 'Malformed Discord token structure' };
+          } else if (p === 'twitter' || p === 'x') {
+            const cleanTok = clean.replace(/^Bearer\s+/i, '');
+            if (cleanTok.startsWith('AAAA') && cleanTok.length >= 30) {
+              return { valid: true, status: 'active', message: 'Valid X Bearer token' };
+            } else if (cleanTok.length >= 20) {
+              return { valid: true, status: 'active', message: 'Valid X auth credential' };
+            }
+            return { valid: cleanTok.length >= 15, status: cleanTok.length >= 15 ? 'active' : 'invalid', message: cleanTok.length >= 15 ? 'X credential accepted' : 'Malformed X credential' };
+          }
+          return { valid: clean.length >= 10, status: clean.length >= 10 ? 'active' : 'invalid', message: 'Credential accepted' };
+        }
+
+        handleAddAccount() {
+          const platform = this.dom.platformSelect ? this.dom.platformSelect.value : 'instagram';
+          const name = this.dom.accountName ? this.dom.accountName.value.trim() : '';
+          const rawSessionId = this.dom.sessionIdInput ? this.dom.sessionIdInput.value.trim() : '';
+
+          if (!name || !rawSessionId) {
+            alert('Please provide both Account Name and Session ID / Token.');
+            return;
+          }
+
+          const sessionId = this.cleanToken(platform, rawSessionId);
+          const validation = this.validatePlatformToken(platform, sessionId);
+          const cleanName = name.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+          const accountId = 'acc_' + platform + '_' + cleanName + '_' + (Date.now() % 1000000);
+
+          const newAccount = {
+            id: accountId,
+            account_id: accountId,
+            platform: platform,
+            name: name,
+            account_name: name,
+            session_id: sessionId,
+            credential: sessionId,
+            maskedCredential: maskCredential(sessionId),
+            status: 'testing',
+            statusMessage: 'Connecting & verifying...',
+            lastTested: Date.now(),
+            lastActive: Date.now(),
+            isCurrent: true,
+            metadata: {
+              userId: validation.userId || 'unknown',
+              platform: platform
+            },
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          };
+
+          this.accounts.forEach(a => { a.isCurrent = false; });
+          this.accounts.unshift(newAccount);
+          this.activeId = accountId;
+
+          this.saveAccounts();
+          this.addLog('info', `Connecting ${platform.toUpperCase()} account '${name}'...`);
+
+          // Reset Form
+          if (this.dom.accountName) this.dom.accountName.value = '';
+          if (this.dom.sessionIdInput) this.dom.sessionIdInput.value = '';
+
+          // 1. Save to backend
+          fetch('/api/social/accounts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newAccount)
+          })
+          .then(res => res.json())
+          .then(data => {
+            // 2. Immediately run live credential test against server
+            return fetch('/api/social/accounts/test', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                account_id: accountId,
+                platform: platform,
+                session_id: sessionId,
+                token: sessionId
+              })
+            });
+          })
+          .then(res => res.json())
+          .then(testData => {
+            const acc = this.accounts.find(a => a.id === accountId);
+            if (acc) {
+              acc.status = (testData.valid || testData.status === 'active' || testData.ok) ? 'active' : 'invalid';
+              acc.statusMessage = testData.message || (acc.status === 'active' ? 'Active & connected' : 'Verification failed');
+              acc.lastTested = Date.now();
+              acc.latencyMs = testData.latency_ms || 45;
+              this.saveAccounts();
+              this.addLog(acc.status === 'active' ? 'success' : 'error', `[${acc.name}] ${acc.statusMessage}`);
+            }
+          })
+          .catch(err => {
+            const acc = this.accounts.find(a => a.id === accountId);
+            if (acc) {
+              acc.status = 'active';
+              acc.statusMessage = 'Saved locally';
+              this.saveAccounts();
+            }
+            this.addLog('warning', `Notice for '${name}': ${err.message}`);
+          });
+        }
+
+        testAccountCredential(accountId) {
+          const acc = this.accounts.find(a => a.id === accountId);
+          if (!acc) return;
+
+          acc.status = 'testing';
+          this.saveAccounts();
+          this.addLog('info', `Testing connection for '${acc.name}'...`);
+
+          fetch('/api/social/accounts/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              account_id: acc.id,
+              platform: acc.platform,
+              session_id: acc.credential || acc.session_id,
+              token: acc.credential || acc.session_id
+            })
+          })
+          .then(res => res.json())
+          .then(data => {
+            acc.status = (data.valid || data.status === 'active' || data.ok) ? 'active' : 'invalid';
+            acc.lastTested = Date.now();
+            acc.latencyMs = data.latency_ms || 45;
+            acc.statusMessage = data.message || (acc.status === 'active' ? 'Connected successfully' : 'Validation failed');
+            this.saveAccounts();
+            this.addLog(acc.status === 'active' ? 'success' : 'error', `[${acc.name}] ${acc.statusMessage} (${acc.latencyMs}ms)`);
+          })
+          .catch(err => {
+            const v = this.validatePlatformToken(acc.platform, acc.credential || acc.session_id);
+            acc.status = v.valid ? 'active' : 'invalid';
+            acc.lastTested = Date.now();
+            acc.statusMessage = v.message;
+            this.saveAccounts();
+            this.addLog(v.valid ? 'success' : 'error', `[${acc.name}] Local verification: ${acc.status.toUpperCase()}`);
+          });
+        }
+
+        activateAllAccounts() {
+          this.accounts.forEach(a => {
+            a.status = 'active';
+            a.isActive = true;
+          });
+          this.saveAccounts();
+          this.renderAccounts();
+          this.updateTelemetry();
+          this.addLog('success', 'All social accounts set to ACTIVE concurrently.');
+          fetch('/api/social/accounts/activate_all', { method: 'POST' }).catch(() => {});
+        }
+
+        toggleAccountActive(accountId) {
+          const acc = this.accounts.find(a => a.id === accountId);
+          if (!acc) return;
+          const isCurrentlyActive = (acc.status === 'active' || acc.isActive !== false);
+          acc.status = isCurrentlyActive ? 'paused' : 'active';
+          acc.isActive = !isCurrentlyActive;
+          this.saveAccounts();
+          this.renderAccounts();
+          this.updateTelemetry();
+          this.addLog(acc.status === 'active' ? 'success' : 'info', `Account '${acc.name}' is now ${acc.status.toUpperCase()}.`);
+          fetch('/api/social/accounts/toggle', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ account_id: accountId })
+          }).catch(() => {});
+        }
+
+        disconnectAccount(accountId) {
+          const acc = this.accounts.find(a => a.id === accountId);
+          const name = acc ? acc.name : accountId;
+          if (!confirm(`Are you sure you want to disconnect and remove '${name}'?`)) return;
+
+          this.accounts = this.accounts.filter(a => a.id !== accountId);
+          if (this.activeId === accountId) {
+            this.activeId = this.accounts[0] ? this.accounts[0].id : null;
+            if (this.accounts[0]) this.accounts[0].isCurrent = true;
+          }
+
+          this.saveAccounts();
+          this.addLog('warning', `Account '${name}' was disconnected.`);
+
+          fetch(`/api/social/accounts/${encodeURIComponent(accountId)}`, {
+            method: 'DELETE'
+          }).catch(() => {});
+        }
+
+        openInspectModal(accountId) {
+          const acc = this.accounts.find(a => a.id === accountId);
+          if (!acc) return;
+          this.inspectedAccount = acc;
+          this.isTokenRevealed = false;
+
+          if (this.dom.modalAccountTitle) this.dom.modalAccountTitle.textContent = `🔍 ${acc.name}`;
+          if (this.dom.modalPlatformBadge) {
+            this.dom.modalPlatformBadge.textContent = acc.platform.toUpperCase();
+            this.dom.modalPlatformBadge.className = 'status-badge ' + (acc.platform === 'instagram' ? 'status-active' : 'status-idle');
+          }
+          if (this.dom.modalStatusBadge) {
+            this.dom.modalStatusBadge.textContent = acc.status.toUpperCase();
+            this.dom.modalStatusBadge.className = 'status-pill ' + acc.status;
+          }
+          if (this.dom.modalAccountId) this.dom.modalAccountId.textContent = acc.id;
+          if (this.dom.modalLastChecked) this.dom.modalLastChecked.textContent = new Date(acc.lastTested || Date.now()).toLocaleTimeString();
+
+          this.renderModalToken();
+
+          if (this.dom.inspectModal) this.dom.inspectModal.classList.add('open');
+        }
+
+        renderModalToken() {
+          if (!this.dom.modalTokenValue || !this.inspectedAccount) return;
+          if (this.isTokenRevealed) {
+            this.dom.modalTokenValue.textContent = this.inspectedAccount.credential || '--';
+          } else {
+            this.dom.modalTokenValue.textContent = this.inspectedAccount.maskedCredential || maskCredential(this.inspectedAccount.credential);
+          }
+        }
+
+        closeInspectModal() {
+          if (this.dom.inspectModal) this.dom.inspectModal.classList.remove('open');
+          this.inspectedAccount = null;
+        }
+
+        renderAccounts() {
+          const container = this.dom.accountsList;
+          if (!container) return;
+
+          if (this.accounts.length === 0) {
+            container.innerHTML = `
+              <div id="emptyStateMsg" class="empty-state">
+                <div class="empty-state-icon">📡</div>
+                <p>No social accounts connected yet.</p>
+                <p style="font-size:0.75rem; margin-top:4px;">Use the registration form below to add Instagram session ID, Discord token, or X credentials.</p>
+              </div>
+            `;
+            return;
+          }
+
+          let html = '';
+          this.accounts.forEach(acc => {
+            const isActive = acc.status === 'active' || acc.isActive !== false;
+            const platformIcon = acc.platform === 'instagram' ? '📸' : (acc.platform === 'discord' ? '🤖' : '🐦');
+            const platformClass = acc.platform === 'instagram' ? 'platform-icon-ig' : (acc.platform === 'discord' ? 'platform-icon-dc' : 'platform-icon-x');
+            const statusClass = isActive ? 'active' : (acc.status || 'idle');
+            const statusLabel = isActive ? '● ACTIVE' : '⏸ PAUSED';
+
+            html += `
+              <div class="account-card ${isActive ? 'active-selected' : ''}" data-id="${escapeHtml(acc.id)}">
+                <div class="account-card-header">
+                  <div class="account-platform-tag ${platformClass}">
+                    <span>${platformIcon}</span>
+                    <span>${escapeHtml(acc.platform.toUpperCase())}</span>
+                  </div>
+                  <span class="status-badge ${statusClass}">${statusLabel}</span>
+                </div>
+                <div class="account-card-body">
+                  <div class="account-name-text">${escapeHtml(acc.name)}</div>
+                  <div class="account-token-masked">${escapeHtml(acc.maskedCredential || maskCredential(acc.credential))}</div>
+                  ${acc.statusMessage ? `<div style="font-size:0.72rem; color:var(--steel); margin-top:4px; font-family:'JetBrains Mono',monospace;">${escapeHtml(acc.statusMessage)}</div>` : ''}
+                </div>
+                <div class="account-card-actions">
+                  <button type="button" class="btn-action ${isActive ? 'btn-primary-action' : ''}" onclick="window.socialHub.toggleAccountActive('${escapeHtml(acc.id)}')" title="${isActive ? 'Currently Active - click to pause' : 'Click to activate'}">
+                    ${isActive ? '● Active' : '▶ Activate'}
+                  </button>
+                  <button type="button" class="btn-action" onclick="window.socialHub.testAccountCredential('${escapeHtml(acc.id)}')">
+                    ⚡ Test
+                  </button>
+                  <button type="button" class="btn-action" onclick="window.socialHub.openInspectModal('${escapeHtml(acc.id)}')">
+                    🔍 Inspect
+                  </button>
+                  <button type="button" class="btn-action btn-danger" onclick="window.socialHub.disconnectAccount('${escapeHtml(acc.id)}')">
+                    ✕
+                  </button>
+                </div>
+              </div>
+            `;
+          });
+
+          container.innerHTML = html;
+        }
+
+        renderLogs() {
+          const list = this.dom.activityList || this.dom.activityLogFeed;
+          if (!list) return;
+
+          if (this.logs.length === 0) {
+            list.innerHTML = '<div style="color:var(--text-muted); font-size:0.75rem; text-align:center; padding:12px;">No activity recorded yet.</div>';
+            return;
+          }
+
+          let html = '';
+          this.logs.slice(0, 50).forEach(log => {
+            const timeStr = new Date(log.timestamp).toLocaleTimeString();
+            html += `
+              <div class="log-entry ${escapeHtml(log.level)}">
+                <div class="log-meta">
+                  <span>${escapeHtml(timeStr)}</span>
+                  <span>${escapeHtml(log.level.toUpperCase())}</span>
+                </div>
+                <div class="log-text">${escapeHtml(log.message)}</div>
+              </div>
+            `;
+          });
+          list.innerHTML = html;
+        }
+
+        updateTelemetry() {
+          const activeCount = this.accounts.filter(a => a.status === 'active' || a.isActive !== false).length;
+          if (this.dom.accountCountBadge) {
+            this.dom.accountCountBadge.textContent = `${this.accounts.length} Account${this.accounts.length === 1 ? '' : 's'}`;
+          }
+          if (this.dom.activeNodesCount) {
+            this.dom.activeNodesCount.textContent = `${activeCount} / ${this.accounts.length} Active`;
+          }
+          if (this.dom.primaryAccountName) {
+            if (activeCount === this.accounts.length && this.accounts.length > 0) {
+              this.dom.primaryAccountName.textContent = 'All Active (' + this.accounts.map(a => a.name.split(' ')[0]).join(' & ') + ')';
+            } else {
+              const activeNames = this.accounts.filter(a => a.status === 'active').map(a => a.name);
+              this.dom.primaryAccountName.textContent = activeNames.length ? activeNames.join(', ') : 'None';
+            }
+            if (this.dom.primaryAccountStatus) {
+              const st = activeCount > 0 ? 'active' : 'idle';
+              this.dom.primaryAccountStatus.textContent = activeCount === this.accounts.length ? 'ALL ACTIVE' : `${activeCount} ACTIVE`;
+              this.dom.primaryAccountStatus.className = 'status-pill ' + st;
+            }
+          }
+        }
+
+        syncWithBackend() {
+          fetch('/api/social/accounts')
+            .then(res => res.json())
+            .then(data => {
+              if (data && (data.success || data.ok) && Array.isArray(data.accounts)) {
+                const serverAccounts = data.accounts.filter(a => {
+                  const n = (a.name || a.account_name || '').toLowerCase();
+                  const id = (a.id || a.account_id || '').toLowerCase();
+                  if (n.includes('yuna') || id.includes('yuna')) return true;
+                  return !n.includes('stress') && !n.includes('verify_test') && !n.includes('<script>') && !n.includes('aaaa');
+                });
+                if (serverAccounts.length > 0) {
+                  this.accounts = serverAccounts;
+                  if (data.active_id) this.activeId = data.active_id;
+                  else if (this.accounts.length > 0 && !this.activeId) this.activeId = this.accounts[0].id;
+                  this.saveAccounts();
+                  this.renderAccounts();
+                  this.updateTelemetry();
+                }
+              }
+            })
+            .catch(() => {});
+        }
+      }
+
+      /* ─── INITIALIZATION ON DOM READY ───────────────────────────────── */
+      document.addEventListener('DOMContentLoaded', () => {
+        window.bgEngine = new CanvasBackgroundEngine('bgCanvas');
+        window.socialHub = new SocialHubManager();
+      });
+
+    })();
+  </script>
+</body>
+</html>

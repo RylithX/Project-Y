@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.StudioSuite" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="android:statusBarColor">@color/studio_bg</item>
+        <item name="android:navigationBarColor">@color/studio_bg</item>
+        <item name="android:windowBackground">@color/studio_bg</item>
+        <item name="colorPrimary">@color/studio_accent</item>
+        <item name="colorSecondary">@color/studio_accent_glow</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

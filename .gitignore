@@ -1,0 +1,49 @@
+# Secrets & sensitive environment
+.env
+*.env
+.env.*
+
+# Local runtime data & bot state (protects against GitHub Push Protection)
+config.json
+bots.json
+contexts.json*
+user_profiles.json*
+interacted_users.json
+user_bots/
+bot.log
+*.log
+supervisor.log
+yuna_activity.log
+data/
+memories/
+
+# Python cache & build
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+.venv/
+venv/
+env/
+
+# Dependencies
+node_modules/
+
+# Backups & Temp files
+.bak/
+*.bak
+*.bak_*
+*.tmp*
+tmp/
+
+# Large binaries & models
+*.zip
+extracted_zip/
+*.vrm
+*.tar*
+
+# Gradle cache
+StudioKotlin/.gradle/
+StudioKotlin/app/build/
+StudioKotlin/build/
+.gradle/

@@ -1,0 +1,375 @@
+{
+  "index.html": [
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/index.html",
+      "project": "hype-x",
+      "rel": "index.html"
+    },
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/filetree/index.html",
+      "project": "hype-x",
+      "rel": "filetree/index.html"
+    },
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/settings/index.html",
+      "project": "hype-x",
+      "rel": "settings/index.html"
+    },
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/colorpicker/index.html",
+      "project": "hype-x",
+      "rel": "colorpicker/index.html"
+    },
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/libs/index.html",
+      "project": "hype-x",
+      "rel": "libs/index.html"
+    }
+  ],
+  "patch_langs.py": [
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/patch_langs.py",
+      "project": "hype-x",
+      "rel": "patch_langs.py"
+    }
+  ],
+  "manifest.json": [
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/manifest.json",
+      "project": "hype-x",
+      "rel": "manifest.json"
+    }
+  ],
+  "patch-manifest.py": [
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/patch-manifest.py",
+      "project": "hype-x",
+      "rel": "patch-manifest.py"
+    }
+  ],
+  "find-sha256.sh": [
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/find-sha256.sh",
+      "project": "hype-x",
+      "rel": "find-sha256.sh"
+    }
+  ],
+  "sw.js": [
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/sw.js",
+      "project": "hype-x",
+      "rel": "sw.js"
+    }
+  ],
+  "patch-sw.py": [
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/patch-sw.py",
+      "project": "hype-x",
+      "rel": "patch-sw.py"
+    }
+  ],
+  "fix-sw.py": [
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/fix-sw.py",
+      "project": "hype-x",
+      "rel": "fix-sw.py"
+    }
+  ],
+  "neonbreach.html": [
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/neonbreach.html",
+      "project": "hype-x",
+      "rel": "neonbreach.html"
+    }
+  ],
+  "ft-block.html": [
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/ft-block.html",
+      "project": "hype-x",
+      "rel": "ft-block.html"
+    }
+  ],
+  "style.css": [
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/css/style.css",
+      "project": "hype-x",
+      "rel": "css/style.css"
+    },
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/filetree/style.css",
+      "project": "hype-x",
+      "rel": "filetree/style.css"
+    },
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/settings/style.css",
+      "project": "hype-x",
+      "rel": "settings/style.css"
+    },
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/colorpicker/style.css",
+      "project": "hype-x",
+      "rel": "colorpicker/style.css"
+    },
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/libs/style.css",
+      "project": "hype-x",
+      "rel": "libs/style.css"
+    }
+  ],
+  "shared.css": [
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/css/shared.css",
+      "project": "hype-x",
+      "rel": "css/shared.css"
+    }
+  ],
+  "matrix.js": [
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/js/matrix.js",
+      "project": "hype-x",
+      "rel": "js/matrix.js"
+    }
+  ],
+  "filesystem.js": [
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/js/filesystem.js",
+      "project": "hype-x",
+      "rel": "js/filesystem.js"
+    }
+  ],
+  "editor.js": [
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/js/editor.js",
+      "project": "hype-x",
+      "rel": "js/editor.js"
+    }
+  ],
+  "app.js": [
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/js/app.js",
+      "project": "hype-x",
+      "rel": "js/app.js"
+    }
+  ],
+  "engines.js": [
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/js/engines.js",
+      "project": "hype-x",
+      "rel": "js/engines.js"
+    }
+  ],
+  "lang-runner.js": [
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/js/lang-runner.js",
+      "project": "hype-x",
+      "rel": "js/lang-runner.js"
+    }
+  ],
+  "three.min.js": [
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/js/three.min.js",
+      "project": "hype-x",
+      "rel": "js/three.min.js"
+    }
+  ],
+  "aura.js": [
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/js/aura.js",
+      "project": "hype-x",
+      "rel": "js/aura.js"
+    }
+  ],
+  "breakcore-visualizer.js": [
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/js/breakcore-visualizer.js",
+      "project": "hype-x",
+      "rel": "js/breakcore-visualizer.js"
+    }
+  ],
+  "shared.js": [
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/js/shared.js",
+      "project": "hype-x",
+      "rel": "js/shared.js"
+    }
+  ],
+  "project.json": [
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/.vercel/project.json",
+      "project": "hype-x",
+      "rel": ".vercel/project.json"
+    }
+  ],
+  "README.txt": [
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/.vercel/README.txt",
+      "project": "hype-x",
+      "rel": ".vercel/README.txt"
+    }
+  ],
+  "assetlinks.json": [
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/.well-known/assetlinks.json",
+      "project": "hype-x",
+      "rel": ".well-known/assetlinks.json"
+    }
+  ],
+  "script.js": [
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/filetree/script.js",
+      "project": "hype-x",
+      "rel": "filetree/script.js"
+    },
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/settings/script.js",
+      "project": "hype-x",
+      "rel": "settings/script.js"
+    },
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/colorpicker/script.js",
+      "project": "hype-x",
+      "rel": "colorpicker/script.js"
+    },
+    {
+      "path": "/data/data/com.termux/files/home/hype-x/libs/script.js",
+      "project": "hype-x",
+      "rel": "libs/script.js"
+    }
+  ],
+  "dashboard.html": [
+    {
+      "path": "/storage/emulated/0/discord-bot/dashboard.html",
+      "project": "discord-bot",
+      "rel": "dashboard.html"
+    }
+  ],
+  "vrm_viewer.html": [
+    {
+      "path": "/storage/emulated/0/discord-bot/vrm_viewer.html",
+      "project": "discord-bot",
+      "rel": "vrm_viewer.html"
+    },
+    {
+      "path": "/storage/emulated/0/discord-bot/user_bots/vrm_viewer.html",
+      "project": "discord-bot",
+      "rel": "user_bots/vrm_viewer.html"
+    }
+  ],
+  "config.json": [
+    {
+      "path": "/storage/emulated/0/discord-bot/config.json",
+      "project": "discord-bot",
+      "rel": "config.json"
+    }
+  ],
+  "bots.json": [
+    {
+      "path": "/storage/emulated/0/discord-bot/bots.json",
+      "project": "discord-bot",
+      "rel": "bots.json"
+    }
+  ],
+  "contexts.json": [
+    {
+      "path": "/storage/emulated/0/discord-bot/contexts.json",
+      "project": "discord-bot",
+      "rel": "contexts.json"
+    }
+  ],
+  "user_profiles.json": [
+    {
+      "path": "/storage/emulated/0/discord-bot/user_profiles.json",
+      "project": "discord-bot",
+      "rel": "user_profiles.json"
+    }
+  ],
+  "interacted_users.json": [
+    {
+      "path": "/storage/emulated/0/discord-bot/interacted_users.json",
+      "project": "discord-bot",
+      "rel": "interacted_users.json"
+    }
+  ],
+  "project_index.json": [
+    {
+      "path": "/storage/emulated/0/discord-bot/project_index.json",
+      "project": "discord-bot",
+      "rel": "project_index.json"
+    }
+  ],
+  "bot.py": [
+    {
+      "path": "/storage/emulated/0/discord-bot/bot.py",
+      "project": "discord-bot",
+      "rel": "bot.py"
+    }
+  ],
+  "package.json": [
+    {
+      "path": "/storage/emulated/0/discord-bot/package.json",
+      "project": "discord-bot",
+      "rel": "package.json"
+    }
+  ],
+  "mc_bridge_1786019628.js": [
+    {
+      "path": "/storage/emulated/0/discord-bot/mc_bridge_1786019628.js",
+      "project": "discord-bot",
+      "rel": "mc_bridge_1786019628.js"
+    }
+  ],
+  "README.md": [
+    {
+      "path": "/storage/emulated/0/discord-bot/README.md",
+      "project": "discord-bot",
+      "rel": "README.md"
+    }
+  ],
+  "patch_bot.py": [
+    {
+      "path": "/storage/emulated/0/discord-bot/patch_bot.py",
+      "project": "discord-bot",
+      "rel": "patch_bot.py"
+    }
+  ],
+  "code_index.json": [
+    {
+      "path": "/storage/emulated/0/discord-bot/code_index.json",
+      "project": "discord-bot",
+      "rel": "code_index.json"
+    }
+  ],
+  "1533213082158108702.json": [
+    {
+      "path": "/storage/emulated/0/discord-bot/user_bots/1533213082158108702.json",
+      "project": "discord-bot",
+      "rel": "user_bots/1533213082158108702.json"
+    }
+  ],
+  "conversations.json": [
+    {
+      "path": "/storage/emulated/0/discord-bot/memories/bot_ek0ldel3/users/966725838252933190/conversations.json",
+      "project": "discord-bot",
+      "rel": "memories/bot_ek0ldel3/users/966725838252933190/conversations.json"
+    },
+    {
+      "path": "/storage/emulated/0/discord-bot/memories/bot_ek0ldel3/users/954003399442042950/conversations.json",
+      "project": "discord-bot",
+      "rel": "memories/bot_ek0ldel3/users/954003399442042950/conversations.json"
+    }
+  ],
+  "facts.json": [
+    {
+      "path": "/storage/emulated/0/discord-bot/memories/bot_ek0ldel3/users/966725838252933190/facts.json",
+      "project": "discord-bot",
+      "rel": "memories/bot_ek0ldel3/users/966725838252933190/facts.json"
+    }
+  ],
+  "summaries.json": [
+    {
+      "path": "/storage/emulated/0/discord-bot/memories/bot_ek0ldel3/users/966725838252933190/summaries.json",
+      "project": "discord-bot",
+      "rel": "memories/bot_ek0ldel3/users/966725838252933190/summaries.json"
+    }
+  ]
+}

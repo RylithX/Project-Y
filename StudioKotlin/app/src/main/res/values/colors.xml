@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="studio_bg">#0F0F0F</color>
+    <color name="studio_bg_secondary">#1A1A1A</color>
+    <color name="studio_card_bg">#252525</color>
+    <color name="studio_accent">#E85D5D</color>
+    <color name="studio_accent_glow">#FF6B6B</color>
+    <color name="studio_text_primary">#FFFFFF</color>
+    <color name="studio_text_secondary">#AAAAAA</color>
+    <color name="studio_progress_bg">#333333</color>
+</resources>

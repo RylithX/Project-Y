@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">Studio Suite</string>
+    <string name="server_settings">Server Settings</string>
+    <string name="server_url_label">Backend Server URL:</string>
+    <string name="server_url_hint">e.g. http://127.0.0.1:5000 or Bundled Assets</string>
+    <string name="btn_use_bundled">Use Bundled Assets</string>
+    <string name="btn_use_local_server">Use Local Bot Server (127.0.0.1:5000)</string>
+    <string name="btn_save">Save</string>
+    <string name="btn_cancel">Cancel</string>
+    <string name="permission_rationale">Studio needs microphone and camera permissions for real-time voice calls and avatar creation.</string>
+    <string name="grant_permission">Grant</string>
+    <string name="exit_confirm">Press back again to exit Studio Suite</string>
+</resources>
