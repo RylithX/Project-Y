@@ -30,6 +30,32 @@ class StudioWebViewClient(
         request: WebResourceRequest?
     ): WebResourceResponse? {
         val url = request?.url ?: return null
+        val host = url.host?.lowercase() ?: ""
+        val path = url.path ?: ""
+
+        // Forward /api/ calls from bundled pages directly to local server if reachable
+        if (host == "appassets.androidplatform.net" && path.startsWith("/api/")) {
+            try {
+                val target = "http://127.0.0.1:5000" + path + (if (url.query != null) "?" + url.query else "")
+                val conn = java.net.URL(target).openConnection() as java.net.HttpURLConnection
+                conn.requestMethod = request.method ?: "GET"
+                conn.connectTimeout = 3000
+                conn.readTimeout = 10000
+                request.requestHeaders?.forEach { (k, v) -> conn.setRequestProperty(k, v) }
+                val mime = conn.contentType?.substringBefore(";") ?: "application/json"
+                return WebResourceResponse(
+                    mime,
+                    conn.contentEncoding ?: "UTF-8",
+                    conn.responseCode,
+                    conn.responseMessage ?: "OK",
+                    emptyMap(),
+                    conn.inputStream
+                )
+            } catch (e: Exception) {
+                Log.w(TAG, "Proxying /api/ to local server failed: ${e.message}")
+            }
+        }
+
         // Route assets cleanly through WebViewAssetLoader (bypasses CORS restrictions for local assets)
         val response = assetLoader.shouldInterceptRequest(url)
         if (response != null) return response
@@ -42,9 +68,20 @@ class StudioWebViewClient(
         val scheme = uri.scheme?.lowercase() ?: ""
         val host = uri.host?.lowercase() ?: ""
 
-        // Keep local app assets and local server in-app
-        if (host == "appassets.androidplatform.net" ||
-            host == "127.0.0.1" ||
+        // Virtual appassets domain: keep /assets/ in-app, reroute everything else (/dashboard, /social, etc.) to local bot
+        if (host == "appassets.androidplatform.net") {
+            val path = uri.path ?: ""
+            if (!path.startsWith("/assets/")) {
+                val targetUrl = "http://127.0.0.1:5000" + path + (if (uri.query != null) "?" + uri.query else "")
+                Log.d(TAG, "Rerouting virtual appassets URL to local bot server: $targetUrl")
+                view?.loadUrl(targetUrl)
+                return true
+            }
+            return false
+        }
+
+        // Keep local server in-app
+        if (host == "127.0.0.1" ||
             host == "localhost" ||
             scheme == "file"
         ) {
@@ -129,6 +166,14 @@ class StudioWebViewClient(
         request: WebResourceRequest?,
         error: WebResourceError?
     ) {
+        val failingUrl = request?.url?.toString() ?: ""
+        if (failingUrl.contains("appassets.androidplatform.net") && !failingUrl.contains("/assets/")) {
+            val path = request?.url?.path ?: ""
+            Log.w(TAG, "Self-healing from appassets DNS failure: redirecting to http://127.0.0.1:5000$path")
+            view?.post { view.loadUrl("http://127.0.0.1:5000$path") }
+            return
+        }
+
         super.onReceivedError(view, request, error)
         if (request?.isForMainFrame == true) {
             Log.e(TAG, "Main frame failed to load: ${error?.description}")

@@ -4,6 +4,48 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Bot SaaS — Studio Suite</title>
+<script src="studio_android_bridge.js"></script>
+<script>
+(function() {
+  const isAndroidApp = window.location.hostname === 'appassets.androidplatform.net' || window.location.protocol === 'file:';
+  
+  if (isAndroidApp) {
+    // Transparently rewrite relative API fetches to hit the local bot server on 127.0.0.1:5000
+    const originalFetch = window.fetch;
+    window.fetch = function(url, options) {
+      if (typeof url === 'string' && url.startsWith('/api/')) {
+        url = 'http://127.0.0.1:5000' + url;
+      }
+      return originalFetch.call(this, url, options);
+    };
+
+    // Auto-detect local bot server and redirect into local server mode automatically
+    try {
+      fetch('http://127.0.0.1:5000/api/status', { method: 'GET', mode: 'cors' })
+        .then(function(r) {
+          if (r.ok) {
+            console.log('[Studio] Live bot server at 127.0.0.1:5000 detected. Switching to live bot...');
+            window.location.replace('http://127.0.0.1:5000');
+          }
+        })
+        .catch(function() {});
+    } catch(e) {}
+
+    // Rewrite internal page navigation links so they never target non-existent appassets subpaths
+    document.addEventListener('DOMContentLoaded', function() {
+      document.querySelectorAll('a[href="/dashboard"], a[href="/dashboard.html"]').forEach(function(a) {
+        a.href = 'http://127.0.0.1:5000/dashboard';
+      });
+      document.querySelectorAll('a[href="/social"], a[href="/social.html"]').forEach(function(a) {
+        a.href = 'http://127.0.0.1:5000/social';
+      });
+      document.querySelectorAll('a[href="/studio"], a[href="/studio.html"], a[href="/"]').forEach(function(a) {
+        a.href = 'http://127.0.0.1:5000/';
+      });
+    });
+  }
+})();
+</script>
 <script type="importmap">
 {
   "imports": {
@@ -4018,8 +4060,10 @@ function userLogout() {
   localStorage.removeItem('bot_saas_user_id');
   localStorage.removeItem('bot_saas_user_email');
   localStorage.removeItem('supabase.auth.token');
-  showToast('Logged out successfully');
-  setTimeout(() => { window.location.href = '/dashboard.html'; }, 500);
+  setTimeout(() => {
+    const isAndroid = window.location.hostname === 'appassets.androidplatform.net';
+    window.location.href = isAndroid ? 'http://127.0.0.1:5000/dashboard.html' : '/dashboard.html';
+  }, 500);
 }
 window.userLogout = userLogout;
 

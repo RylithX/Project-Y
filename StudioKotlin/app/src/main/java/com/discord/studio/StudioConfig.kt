@@ -22,7 +22,7 @@ class StudioConfig(context: Context) {
     }
 
     var serverMode: String
-        get() = prefs.getString(KEY_SERVER_MODE, MODE_BUNDLED) ?: MODE_BUNDLED
+        get() = prefs.getString(KEY_SERVER_MODE, MODE_LOCAL) ?: MODE_LOCAL
         set(value) = prefs.edit().putString(KEY_SERVER_MODE, value).apply()
 
     var customUrl: String
