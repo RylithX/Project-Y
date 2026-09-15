@@ -86,8 +86,8 @@
   document.addEventListener('DOMContentLoaded', function() {
     console.log('[StudioNative] Attaching Android Native handlers');
 
-    // Voice input mic buttons
-    const micBtn = document.getElementById('chatMicBtn') || document.querySelector('.mic-btn');
+    // Voice input mic button (if explicitly added for chat input)
+    const micBtn = document.getElementById('chatMicBtn');
     if (micBtn && window.AndroidBridge) {
       micBtn.addEventListener('click', function(e) {
         if (window.triggerNativeVoiceInput()) {

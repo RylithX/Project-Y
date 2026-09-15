@@ -418,6 +418,8 @@ DEBUG_MODE = _check_terminal_debug()
 OWNER_ID = os.getenv("OWNER_ID")
 GEMINI_KEY = os.getenv("GEMINI_KEY")
 GROQ_KEY = os.getenv("GROQ_KEY")
+groq_blocked_until = 0.0
+groq_stt_blocked_until = 0.0
 MISTRAL_KEY = os.getenv("MISTRAL_KEY", "").strip()
 OPENAI_KEY = os.getenv("OPENAI_KEY", os.getenv("OPENAI_API_KEY", "")).strip()
 DEEPSEEK_KEY = os.getenv("DEEPSEEK_KEY", os.getenv("DEEPSEEK_API_KEY", "")).strip()
@@ -2713,9 +2715,11 @@ def normalize_stt_model(model_name: str) -> str:
     return m
 
 
-async def transcribe_audio(audio_bytes: bytes, filename: str = "audio.ogg", model: str = None, **kwargs) -> tuple:
+async def transcribe_audio(audio_bytes: bytes, filename: str = "audio.ogg", model: str = None, groq_key: str = None, **kwargs) -> tuple:
+    global groq_stt_blocked_until
     ext = Path(filename).suffix.lower() or ".ogg"
     req_model = normalize_stt_model(model or config.get("stt_model", "auto"))
+    effective_groq_key = (groq_key or kwargs.get("groq_key") or GROQ_KEY or os.getenv("GROQ_KEY") or "").strip()
 
     raw_text = None
 
@@ -2744,7 +2748,7 @@ async def transcribe_audio(audio_bytes: bytes, filename: str = "audio.ogg", mode
             if raw_text:
                 break
 
-            if prov == "groq" and GROQ_KEY and time.time() >= groq_blocked_until and size_mb <= MAX_AUDIO_SIZE_MB:
+            if prov == "groq" and effective_groq_key and time.time() >= groq_stt_blocked_until and size_mb <= MAX_AUDIO_SIZE_MB:
                 try:
                     async with aiohttp.ClientSession() as session:
                         with open(tmp_path, "rb") as _audio_f:
@@ -2756,10 +2760,10 @@ async def transcribe_audio(audio_bytes: bytes, filename: str = "audio.ogg", mode
                             data.add_field("model", m_name)
                             data.add_field("language", "en")  # Force Whisper to ONLY hear English
                             data.add_field("temperature", "0.0")
-                            data.add_field("prompt", "Clear conversational English speech, standard vocabulary.")
+                            # Omit artificial prompt to prevent Whisper prompt echo on silent frames
                             async with session.post(
                                 "https://api.groq.com/openai/v1/audio/transcriptions",
-                                headers={"Authorization": f"Bearer {GROQ_KEY}"},
+                                headers={"Authorization": f"Bearer {effective_groq_key}"},
                                 data=data,
                                 timeout=aiohttp.ClientTimeout(total=12)
                             ) as resp:
@@ -2773,12 +2777,25 @@ async def transcribe_audio(audio_bytes: bytes, filename: str = "audio.ogg", mode
                                             "please subscribe", "like and subscribe", "subscribe to my channel",
                                             "see you next time", "the end",
                                             "music", "applause", "silence", "captions by", "subtitles by",
-                                            "subscribed", "watching"
+                                            "subscribed", "watching", "english speech standard vocabulary",
+                                            "clear conversational english speech", "standard vocabulary"
                                         }
                                         if clean_check in hallucinations or len(clean_check) < 2:
                                             print(f"[TRANSCRIPTION] Filtered Whisper silence hallucination on {m_name}: '{got_text}'")
                                             return "", None
                                         raw_text = got_text
+                                        groq_stt_blocked_until = 0.0
+                                elif resp.status == 429:
+                                    ra = resp.headers.get("Retry-After")
+                                    retry_after = 60
+                                    if ra:
+                                        try: retry_after = int(float(ra))
+                                        except: pass
+                                    groq_stt_blocked_until = time.time() + min(retry_after, 180)
+                                    print(f"[TRANSCRIPTION] Groq STT 429 rate limited, cooling down for {retry_after}s")
+                                else:
+                                    resp_txt = await resp.text()
+                                    print(f"[TRANSCRIPTION] Groq STT HTTP {resp.status} on {m_name}: {resp_txt[:150]}")
                 except Exception as ge:
                     print(f"[TRANSCRIPTION] Groq STT ({m_name}) note: {ge}")
 
@@ -2807,13 +2824,17 @@ async def transcribe_audio(audio_bytes: bytes, filename: str = "audio.ogg", mode
 
     if raw_text:
         # AI-Powered Phonetic & Semantic Mishearing Corrector (e.g. 'my eyes heard' -> 'my eyes hurt')
-        corrected = await correct_speech_transcript(raw_text, groq_key=GROQ_KEY, gemini_key=GEMINI_KEY)
+        corrected = await correct_speech_transcript(raw_text, groq_key=effective_groq_key, gemini_key=GEMINI_KEY)
         if corrected and corrected != raw_text:
             print(f"[TRANSCRIPTION AI CORRECT] \"{raw_text}\" -> \"{corrected}\"")
             raw_text = corrected
         return raw_text, None
 
-    return None, "All transcription services failed or unavailable."
+    if not effective_groq_key and not GEMINI_KEY:
+        return None, "No STT provider configured (need GROQ_KEY or GEMINI_KEY)"
+
+    # Audio was processed, but was silence or ambient noise
+    return "", None
 
 # ─── VTUBER WEBSOCKET BRIDGE ──────────────────────────
 vtuber_clients = set()
@@ -11939,10 +11960,12 @@ def api_speech_to_text():
     try:
         audio_bytes = None
         filename = "audio.wav"
+        data = {}
         if "file" in request.files:
             f = request.files["file"]
             audio_bytes = f.read()
             filename = f.filename or "audio.wav"
+            data = request.form.to_dict() if request.form else {}
         else:
             data = request.get_json(silent=True) or {}
             b64_audio = data.get("audio_data") or data.get("audio")
@@ -11950,15 +11973,21 @@ def api_speech_to_text():
                 if "," in b64_audio:
                     b64_audio = b64_audio.split(",", 1)[1]
                 audio_bytes = base64.b64decode(b64_audio)
-                filename = data.get("filename", "audio.webm")
+                filename = data.get("filename", "audio.wav")
         if not audio_bytes:
             return jsonify({"ok": False, "error": "No audio data provided"}), 400
 
+        req_groq_key = (data.get("groq_key") or data.get("key") or "").strip()
+        auth_hdr = request.headers.get("Authorization", "").strip()
+        if not req_groq_key and auth_hdr.lower().startswith("bearer "):
+            req_groq_key = auth_hdr[7:].strip()
+        req_model = data.get("model") or data.get("stt_model")
+
         now_str = time.strftime("%H:%M:%S")
-        print(f"\033[96m[{now_str}] [VOICE LOG] [STT_REQUEST] Received audio ({len(audio_bytes)} bytes, filename='{filename}')\033[0m")
+        print(f"\033[96m[{now_str}] [VOICE LOG] [STT_REQUEST] Received audio ({len(audio_bytes)} bytes, filename='{filename}', model='{req_model or 'auto'}')\033[0m")
 
         async def _do_stt():
-            return await transcribe_audio(audio_bytes, filename)
+            return await transcribe_audio(audio_bytes, filename, model=req_model, groq_key=req_groq_key)
 
         loop = None
         try:

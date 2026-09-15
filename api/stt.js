@@ -32,9 +32,11 @@ exports.handler = async (event, context) => {
     }
 
     const SHARED_GROQ_KEY = process.env.GROQ_KEY || '';
-    const groqKey = body.groq_key || SHARED_GROQ_KEY;
+    const rawAuth = (event && event.headers && (event.headers.authorization || event.headers.Authorization)) || '';
+    const authHeader = typeof rawAuth === 'string' ? rawAuth.replace(/^Bearer\s+/i, '').trim() : '';
+    const groqKey = (body.groq_key || body.key || authHeader || SHARED_GROQ_KEY).trim();
     if (!groqKey) {
-      return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'Groq API key not configured for STT' }) };
+      return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'Groq API key not configured for STT. Please enter a Groq API key in Settings or set GROQ_KEY.' }) };
     }
 
     const audioBuffer = Buffer.from(audioBase64, 'base64');

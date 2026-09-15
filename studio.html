@@ -7678,10 +7678,12 @@ async function dispatchLivePcmToWhisper(wavB64) {
   addVoiceLog('stt', 'PCM_STT', 'Sending 16kHz WAV buffer to Whisper STT');
 
   try {
-    const resp = await fetch('/api/stt', {
+    const userGroq = (typeof userGroqKey !== 'undefined' && userGroqKey) || localStorage.getItem('groq_key') || '';
+    const sttEndpoint = (window.location.protocol === 'file:' || !window.location.host) ? 'http://127.0.0.1:5000/api/stt' : '/api/stt';
+    const resp = await fetch(sttEndpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ audio_data: wavB64, filename: 'mic_input.wav' })
+      body: JSON.stringify({ audio_data: wavB64, filename: 'mic_input.wav', groq_key: userGroq })
     });
     if (resp.ok) {
       const data = await resp.json();
@@ -9207,7 +9209,8 @@ function startTheaterVideoAudioIngestion(mediaStreamOrElement) {
               }
 
               const groqKey = userGroqKey || localStorage.getItem('groq_key') || '';
-              const res = await fetch('/api/stt', {
+              const sttEndpoint = (window.location.protocol === 'file:' || !window.location.host) ? 'http://127.0.0.1:5000/api/stt' : '/api/stt';
+              const res = await fetch(sttEndpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ audio: base64Audio, groq_key: groqKey, filename: 'video_audio.webm' })
