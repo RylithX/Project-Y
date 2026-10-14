@@ -48,3 +48,4 @@ StudioKotlin/app/build/
 StudioKotlin/build/
 .gradle/
 build_apk/
+*.apk

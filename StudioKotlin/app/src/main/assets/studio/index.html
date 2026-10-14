@@ -2288,62 +2288,34 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* LIQUID AMBIENT CANVAS */
+/* LIQUID AMBIENT CANVAS — FAST 60FPS HARDWARE-ACCELERATED MESH */
 .liquid-canvas {
   position: fixed;
   inset: 0;
   pointer-events: none;
   z-index: 0;
   overflow: hidden;
-  background: radial-gradient(circle at 50% 0%, #151624 0%, var(--yuna-bg) 60%, var(--yuna-bg-deep) 100%);
-}
-.liquid-mesh-orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(85px);
-  opacity: 0.5;
-  will-change: transform;
-}
-.orb-sakura {
-  top: -12%;
-  left: 15%;
-  width: 520px;
-  height: 520px;
-  background: radial-gradient(circle, rgba(255, 121, 198, 0.32) 0%, rgba(255, 101, 163, 0) 70%);
-  animation: liquid-drift 14s infinite alternate ease-in-out;
-}
-.orb-lavender {
-  bottom: -5%;
-  right: -8%;
-  width: 560px;
-  height: 560px;
-  background: radial-gradient(circle, rgba(189, 147, 249, 0.25) 0%, rgba(139, 233, 253, 0) 70%);
-  animation: liquid-drift 18s infinite alternate-reverse ease-in-out;
-}
-.orb-cyan {
-  top: 38%;
-  left: -12%;
-  width: 460px;
-  height: 460px;
-  background: radial-gradient(circle, rgba(139, 233, 253, 0.2) 0%, rgba(139, 233, 253, 0) 70%);
-  animation: liquid-drift 22s infinite alternate ease-in-out;
-}
-@keyframes liquid-drift {
-  0% { transform: translate(0, 0) scale(1) rotate(0deg); }
-  50% { transform: translate(35px, -25px) scale(1.1) rotate(10deg); }
-  100% { transform: translate(-25px, 35px) scale(0.95) rotate(-10deg); }
+  background: 
+    radial-gradient(circle at 18% 12%, rgba(255, 121, 198, 0.14) 0%, transparent 45%),
+    radial-gradient(circle at 86% 88%, rgba(189, 147, 249, 0.12) 0%, transparent 48%),
+    radial-gradient(circle at 80% 22%, rgba(139, 233, 253, 0.10) 0%, transparent 40%),
+    radial-gradient(circle at 20% 80%, rgba(97, 175, 239, 0.08) 0%, transparent 45%),
+    #0b0d14;
 }
 
-/* TOP APPLE DYNAMIC ISLAND CAPSULE */
+/* TOP APPLE DYNAMIC ISLAND CAPSULE — ONLY ON HOME HUB */
 .ios-dynamic-island-wrap {
   position: fixed;
   top: max(12px, env(safe-area-inset-top));
   left: 50%;
   transform: translateX(-50%);
   z-index: 1000;
-  display: flex;
+  display: none;
   flex-direction: column;
   align-items: center;
+}
+body.view-is-deck .ios-dynamic-island-wrap {
+  display: flex !important;
 }
 .ios-dynamic-island {
   display: flex;
@@ -2863,17 +2835,22 @@ body.sidebar-hidden .main-viewport {
   margin-left: 0 !important;
 }
 
-/* VIEW PROFILE / BRAIN REFINEMENT */
-#view-profile .top-action-bar, #view-control .top-action-bar {
-  background: rgba(12, 14, 20, 0.65);
-  backdrop-filter: blur(25px);
+/* VIEW PROFILE / BRAIN / CONTROL TOP ACTION BAR */
+#view-profile .top-action-bar, #view-brain .top-action-bar, #view-control .top-action-bar {
+  background: rgba(16, 18, 27, 0.82);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
   border-radius: 20px;
-  border: 1px solid var(--glass-border);
-  padding: 16px 20px;
-  margin: 60px 16px 20px 16px;
+  border: 1px solid var(--glass-border-specular);
+  padding: 12px 18px;
+  margin: 16px 16px 18px 16px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 #view-profile .profile-grid, #view-brain .profile-grid, #view-control .control-view-container {
-  padding: 12px 16px 40px 16px;
+  padding: 8px 16px 40px 16px;
 }
 .profile-card {
   background: var(--glass-surface) !important;
@@ -3140,34 +3117,67 @@ body.sidebar-hidden .main-viewport {
 }
 
 /* BUTTERY SMOOTH BOUNCY SPRING ANIMATION */
-.page-enter-active {
-  animation: iosPageSpring 0.36s cubic-bezier(0.34, 1.56, 0.64, 1) forwards !important;
+/* BUTTERY SMOOTH BOUNCY SPRING ANIMATIONS */
+.page-enter-push {
+  animation: iosPagePush 0.34s cubic-bezier(0.22, 1, 0.36, 1) forwards !important;
   will-change: transform, opacity;
 }
-@keyframes iosPageSpring {
+
+.page-enter-pop {
+  animation: iosPagePop 0.32s cubic-bezier(0.22, 1, 0.36, 1) forwards !important;
+  will-change: transform, opacity;
+}
+
+.page-enter-active {
+  animation: iosPagePush 0.34s cubic-bezier(0.22, 1, 0.36, 1) forwards !important;
+  will-change: transform, opacity;
+}
+
+@keyframes iosPagePush {
   0% {
     opacity: 0;
-    transform: scale(0.95) translateY(16px);
+    transform: translate3d(32px, 0, 0) scale(0.96);
+  }
+  65% {
+    opacity: 1;
+    transform: translate3d(-3px, 0, 0) scale(1.004);
   }
   100% {
     opacity: 1;
-    transform: scale(1) translateY(0);
+    transform: translate3d(0, 0, 0) scale(1);
   }
+}
+
+@keyframes iosPagePop {
+  0% {
+    opacity: 0;
+    transform: translate3d(-24px, 0, 0) scale(0.97);
+  }
+  65% {
+    opacity: 1;
+    transform: translate3d(2px, 0, 0) scale(1.004);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+/* Tactile Spring Compression on Buttons */
+.bento-square-btn:active, .page-back-btn:active, .apple-call-btn:active, .chat-send-btn:active, .ios-dynamic-island:active {
+  transform: scale(0.93) !important;
+  transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
 }
 
 </style>
 <script src="https://www.youtube.com/iframe_api"></script>
 </head>
 <body>
-<!-- LIQUID AMBIENT BACKGROUND CANVAS -->
-<div class="liquid-canvas" aria-hidden="true">
-  <div class="liquid-mesh-orb orb-sakura"></div>
-  <div class="liquid-mesh-orb orb-lavender"></div>
-  <div class="liquid-mesh-orb orb-cyan"></div>
-</div>
+<!-- LIQUID AMBIENT BACKGROUND CANVAS (HARDWARE ACCELERATED) -->
+<div class="liquid-canvas" aria-hidden="true"></div>
 
 <!-- APPLE IOS DYNAMIC ISLAND TOP CAPSULE -->
-<div class="ios-dynamic-island-wrap">
+<div class="ios-dynamic-island-wrap" id="iosDynamicIslandWrap">
   <div class="ios-dynamic-island" id="iosDynamicIsland" onclick="toggleDynamicIslandHud(event)" title="Click to view Quick Server HUD">
     <div class="island-yuna-dot"></div>
     <div class="island-title">
@@ -3213,37 +3223,7 @@ body.sidebar-hidden .main-viewport {
   </div>
 </div>
 
-<!-- IOS FLOATING LIQUID GLASS DOCK -->
-<nav class="liquid-dock" id="iosLiquidDock">
-  <button class="dock-btn active" id="dock-deck" onclick="switchView('deck')">
-    <div class="dock-icon">🌸</div>
-    <span class="dock-label">Yuni</span>
-  </button>
-  <button class="dock-btn" id="dock-chat" onclick="switchView('chat')">
-    <div class="dock-icon">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-    </div>
-    <span class="dock-label">Chat</span>
-  </button>
-  <button class="dock-btn" id="dock-call" onclick="startVoiceCall()">
-    <div class="dock-icon" style="color:#61afef;">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-    </div>
-    <span class="dock-label">Call</span>
-  </button>
-  <button class="dock-btn" id="dock-control" onclick="switchView('control')">
-    <div class="dock-icon">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
-    </div>
-    <span class="dock-label">Control</span>
-  </button>
-  <button class="dock-btn" id="dock-brain" onclick="switchView('brain')">
-    <div class="dock-icon">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-    </div>
-    <span class="dock-label">Soul</span>
-  </button>
-</nav>
+<!-- BOTTOM BUTTON DOCK REMOVED IN FAVOR OF 4 LARGE SQUARE BENTO BUTTONS -->
 
 
 <div class="paint-bleed-container" id="paintBleedLayer"></div>
@@ -3659,87 +3639,7 @@ body.sidebar-hidden .main-viewport {
   </div>
 </div>
 
-<!-- SIDEBAR -->
-<nav class="sidebar" id="mainSidebar">
-  <div class="sidebar-item active" id="nav-characters" onclick="switchView('characters')">
-    <div class="sidebar-icon">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect></svg>
-    </div>
-    <span class="sidebar-label">Characters</span>
-  </div>
-
-  <div class="sidebar-item" id="nav-mybots" onclick="switchView('mybots')">
-    <div class="sidebar-icon">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="14" x2="23" y2="14"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="14" x2="4" y2="14"></line></svg>
-    </div>
-    <span class="sidebar-label">My Bots</span>
-  </div>
-
-  <div class="sidebar-item" id="nav-companion-room" onclick="openCompanionRoom()" title="Companion Room">
-    <div class="sidebar-icon" style="color:#ff79c6;">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"></path></svg>
-    </div>
-    <span class="sidebar-label" style="color:#ff79c6; font-weight:700;">Companion</span>
-  </div>
-
-  <div class="sidebar-item" id="nav-history" onclick="switchView('history')">
-    <div class="sidebar-icon">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-    </div>
-    <span class="sidebar-label">Chat History</span>
-  </div>
-
-  <div class="sidebar-item" id="nav-profile" onclick="switchView('profile')">
-    <div class="sidebar-icon">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-    </div>
-    <span class="sidebar-label">Profile</span>
-  </div>
-
-  <div class="sidebar-item" id="nav-create" onclick="openCreateTabForNew()">
-    <div class="sidebar-icon">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-    </div>
-    <span class="sidebar-label">Create</span>
-  </div>
-
-    <div class="sidebar-item" id="nav-control" onclick="switchView('control')" title="Server &amp; Bot Control Center">
-    <div class="sidebar-icon" style="color:var(--accent);">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
-    </div>
-    <span class="sidebar-label" style="font-weight:700;">Control</span>
-  </div>
-
-  <a href="/dashboard" class="sidebar-item" id="nav-desk" style="text-decoration:none;" title="Open Drafting Desk">
-    <div class="sidebar-icon">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
-    </div>
-    <span class="sidebar-label">Drafting ↗</span>
-  </a>
-
-  <a href="/social" class="sidebar-item" id="nav-social" style="text-decoration:none;" title="Open Social Hub">
-    <div class="sidebar-icon">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>
-    </div>
-    <span class="sidebar-label">Social ↗</span>
-  </a>
-
-
-  <div class="sidebar-spacer"></div>
-
-  <div class="sidebar-bottom-group">
-    <div class="palette-btn-wrap">
-      <div class="sidebar-icon-btn" id="paletteTriggerBtn" title="Change Color" onclick="toggleThemePop(event)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a10 10 0 0 1 10 10c0 5.523-4.477 10-10 10S2 17.523 2 12"></path></svg>
-      </div>
-      <div class="palette-tooltip">Change Color</div>
-    </div>
-
-    <div class="sidebar-icon-btn" onclick="openSettingsModal()" title="Studio Settings &amp; Engine Status">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-    </div>
-  </div>
-</nav>
+<!-- SIDEBAR REMOVED IN FAVOR OF CLEAN FULL-PAGE NAVIGATION -->
 
 <!-- COLOR PALETTE POPOVER -->
 <div class="theme-popover" id="themePop">
@@ -4677,6 +4577,7 @@ body.sidebar-hidden .main-viewport {
 
     <!-- 2. Apple Dynamic Island Top Capsule -->
     <div class="vrm-call-topbar" id="vrmCallTopBar">
+      <button type="button" class="page-back-btn" onclick="endVoiceCall(); switchView('deck');" title="Back to Home" style="padding: 6px 12px; margin-right: 6px; font-size: 11.5px;"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg><span>Home</span></button>
       <span class="vrm-status-dot" id="vrmStatusDot"></span>
       <div class="vrm-topbar-info">
         <span class="vrm-bot-name" id="voiceCallBotName">Yuni</span>
@@ -6187,33 +6088,48 @@ function initBotPolling() {
 }
 
 
+let currentAppView = 'deck';
+
 function switchView(viewName) {
+  const previousView = currentAppView;
   // Alias routing for Yuni OS
   if (viewName === 'characters' || viewName === 'mybots') viewName = 'deck';
   if (viewName === 'history') viewName = 'chat';
   if (viewName === 'profile') viewName = 'brain';
-  const views = ['deck', 'characters', 'mybots', 'history', 'brain', 'profile', 'create', 'chat', 'control'];
-  
+  currentAppView = viewName;
+
+  const isGoingHome = (viewName === 'deck');
+  document.body.classList.toggle('view-is-deck', isGoingHome);
+  document.body.classList.toggle('view-is-chat', viewName === 'chat');
+  document.body.classList.toggle('view-is-control', viewName === 'control');
+  document.body.classList.toggle('view-is-brain', viewName === 'brain');
+
+  // Dynamic Island is strictly displayed on Home Hub only
+  const dynamicIsland = document.getElementById('iosDynamicIslandWrap');
+  if (dynamicIsland) {
+    dynamicIsland.style.display = isGoingHome ? 'flex' : 'none';
+  }
+
   if (viewName === 'chat') {
     if (!activePersona || (activePersona.id !== 'bot_ek0ldel3' && activePersona.id !== 'yuna')) {
       if (typeof startChatWith === 'function') startChatWith('bot_ek0ldel3');
     }
-    document.body.classList.add('sidebar-hidden');
-  } else {
-    document.body.classList.remove('sidebar-hidden');
   }
+
+  const views = ['deck', 'characters', 'mybots', 'history', 'brain', 'profile', 'create', 'chat', 'control'];
+  const animClass = isGoingHome ? 'page-enter-pop' : 'page-enter-push';
 
   views.forEach(v => {
     const el = document.getElementById('view-' + v);
     if (el) {
       if (v === viewName) {
         el.style.display = (v === 'chat' ? 'flex' : 'block');
-        el.classList.remove('page-enter-active');
-        void el.offsetWidth; // Force CSS reflow so animation re-triggers
-        el.classList.add('page-enter-active');
+        el.classList.remove('page-enter-push', 'page-enter-pop', 'page-enter-active');
+        void el.offsetWidth; // Force CSS reflow to replay smooth bouncy transition
+        el.classList.add(animClass);
       } else {
         el.style.display = 'none';
-        el.classList.remove('page-enter-active');
+        el.classList.remove('page-enter-push', 'page-enter-pop', 'page-enter-active');
       }
     }
     const navBtn = document.getElementById('nav-' + v);
@@ -6221,7 +6137,7 @@ function switchView(viewName) {
       navBtn.classList.toggle('active', v === viewName);
     }
   });
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  window.scrollTo({ top: 0, behavior: 'instant' });
 
   activeHeldMsgIndex = null;
   if (viewName === 'characters') renderGrid();
@@ -10559,18 +10475,19 @@ function checkVoiceActivity() {
       rms = (sum / voiceAudioDataArray.length) / 255;
     } catch { rms = 0; }
   }
-  if (isNaN(rms)) rms = 0;
+  if (isNaN(rms) || rms < 0) rms = 0;
 
-  // Update background noise floor slowly when not actively speaking
+  // Gentle noise floor adaptation that NEVER creeps up into speech
   if (rms < noiseFloorRMS) {
-    noiseFloorRMS = noiseFloorRMS * 0.8 + rms * 0.2;
-  } else if (!isUserTalking) {
-    noiseFloorRMS = noiseFloorRMS * 0.992 + rms * 0.008;
+    noiseFloorRMS = Math.max(0.003, noiseFloorRMS * 0.85 + rms * 0.15);
+  } else if (!isUserTalking && rms < 0.016) {
+    noiseFloorRMS = Math.min(0.015, noiseFloorRMS * 0.995 + rms * 0.005);
   }
 
-  const threshold = Math.max(0.026, noiseFloorRMS * 2.2 + 0.014);
+  // Stable, reliable speech detection threshold
+  const threshold = Math.max(0.014, noiseFloorRMS * 1.5 + 0.006);
   const speaking = rms > threshold;
-  return { speaking, energy: Math.min(1.0, rms * 4.0), rms, threshold };
+  return { speaking, energy: Math.min(1.0, rms * 5.0), rms, threshold };
 }
 
 function startVoiceAudioMonitor() {
@@ -10596,10 +10513,10 @@ function processVoiceVad() {
   const { speaking, energy, rms } = checkVoiceActivity();
   const transcript = (voiceCurrentTranscript || '').trim();
 
-  // User is actively producing acoustic speech sound OR WebSpeech emitted text recently
-  const isActivelySpeaking = speaking || (now - lastSpeechEventTime < 450);
+  // Active speech if physical acoustic sound detected OR WebSpeech generated recent speech (<650ms)
+  const isActivelySpeaking = speaking || (now - lastSpeechEventTime < 650);
 
-  // Instant barge-in interruption if bot is currently speaking
+  // Instant barge-in interruption if bot is speaking
   if (isActivelySpeaking && isBotCurrentlySpeaking()) {
     interruptBotSpeech();
     return;
@@ -10613,7 +10530,10 @@ function processVoiceVad() {
     if (!isUserTalking) {
       isUserTalking = true;
       userTalkStartTime = now;
-      if (livePCMBuffer.length > 30) livePCMBuffer = livePCMBuffer.slice(-20);
+      // Preserve up to 35 chunks (~2.5s) of pre-roll PCM buffer so word starts are not cut off
+      if (livePCMBuffer.length > 40) {
+        livePCMBuffer = livePCMBuffer.slice(-35);
+      }
       const st = $('voiceCallStatus');
       if (st) st.innerText = 'Hearing you...';
       if (window.setVrmAnimState) window.setVrmAnimState('LISTENING');
@@ -10623,14 +10543,17 @@ function processVoiceVad() {
       window.vrmSubtitles.setListening(transcript, Math.round(energy * 100));
     }
   } else {
-    // User is physically silent
+    // User is silent
     if (isUserTalking) {
       const silenceDur = now - userLastTalkTime;
       const speechDur = userLastTalkTime - userTalkStartTime;
-      const requiredSilence = hasFinalSpeechResult ? 400 : 650;
+
+      // Natural conversational pause: 800ms if punctuation at end, otherwise 1000ms
+      const hasTerminalPunct = /[.!?]$/.test(transcript);
+      const requiredSilence = hasTerminalPunct ? 800 : 1000;
 
       if (silenceDur >= requiredSilence) {
-        if (speechDur >= 180 || transcript.length > 0) {
+        if (speechDur >= 220 || transcript.length > 0) {
           isUserTalking = false;
           hasFinalSpeechResult = false;
 
