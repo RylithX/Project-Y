@@ -86,11 +86,11 @@ async def correct_speech_transcript(raw_text: str, groq_key: Optional[str] = Non
             except Exception:
                 pass
 
-    gem_key = gemini_key or os.getenv("GEMINI_KEY", "")
-    if gem_key:
+    gem_keys = [k for k in [gemini_key or os.getenv("GEMINI_KEY", ""), os.getenv("GEMINI_FALLBACK_KEY", os.getenv("GEMINI_KEY_2", "")), os.getenv("GEMINI_KEY_3", "")] if k]
+    for gem_k in gem_keys:
         for gem_model in ["gemini-3.5-flash-lite", "gemini-3.6-flash"]:
             try:
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/{gem_model}:generateContent?key={gem_key}"
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{gem_model}:generateContent?key={gem_k}"
                 payload = {
                     "contents": [{"role": "user", "parts": [{"text": text}]}],
                     "systemInstruction": {"parts": [{"text": system_prompt}]},
@@ -106,6 +106,8 @@ async def correct_speech_transcript(raw_text: str, groq_key: Optional[str] = Non
                                 if (cand.startswith('"') and cand.endswith('"')) or (cand.startswith("'") and cand.endswith("'")):
                                     cand = cand[1:-1].strip()
                                 return cand
+                        elif resp.status == 429:
+                            break
             except Exception:
                 pass
 
@@ -114,9 +116,12 @@ async def correct_speech_transcript(raw_text: str, groq_key: Optional[str] = Non
 
 class MultiProviderSTT:
 
-    def __init__(self, groq_key: Optional[str] = None, gemini_key: Optional[str] = None, openrouter_key: Optional[str] = None):
+    def __init__(self, groq_key: Optional[str] = None, gemini_key: Optional[str] = None, openrouter_key: Optional[str] = None, gemini_fallback_key: Optional[str] = None, gemini_key_3: Optional[str] = None):
         self.groq_key = groq_key or os.getenv("GROQ_KEY", "")
         self.gemini_key = gemini_key or os.getenv("GEMINI_KEY", "")
+        self.gemini_fallback_key = gemini_fallback_key or os.getenv("GEMINI_FALLBACK_KEY", os.getenv("GEMINI_KEY_2", ""))
+        self.gemini_key_3 = gemini_key_3 or os.getenv("GEMINI_KEY_3", "")
+        self.gemini_keys = [k for k in [self.gemini_key, self.gemini_fallback_key, self.gemini_key_3] if k]
         self.openrouter_key = openrouter_key or os.getenv("OPENROUTER_KEY", "")
 
     async def transcribe(self, wav_bytes: bytes, filename: str = "speech.wav", model: Optional[str] = None) -> Tuple[Optional[str], Optional[str]]:
@@ -211,14 +216,20 @@ class MultiProviderSTT:
                 }]
             }
             async with aiohttp.ClientSession() as session:
-                for target_m in [model_name, "gemini-3.5-flash-lite", "gemini-3.6-flash"]:
-                    url = f"https://generativelanguage.googleapis.com/v1beta/models/{target_m}:generateContent?key={self.gemini_key}"
-                    async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=40)) as resp:
-                        if resp.status == 200:
-                            data = await resp.json()
-                            parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
-                            if parts and parts[0].get("text"):
-                                return parts[0]["text"].strip(), None
+                for k_idx, key in enumerate(self.gemini_keys or ([self.gemini_key] if self.gemini_key else [])):
+                    if not key:
+                        continue
+                    for target_m in [model_name, "gemini-3.5-flash-lite", "gemini-3.6-flash"]:
+                        url = f"https://generativelanguage.googleapis.com/v1beta/models/{target_m}:generateContent?key={key}"
+                        async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=40)) as resp:
+                            if resp.status == 200:
+                                data = await resp.json()
+                                parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+                                if parts and parts[0].get("text"):
+                                    return parts[0]["text"].strip(), None
+                            elif resp.status == 429:
+                                print(f"[STT GEMINI 429] Key {k_idx+1} hit rate limit, trying fallback...")
+                                break
                 return None, "Gemini STT models failed or returned empty"
         except Exception as e:
             return None, str(e)

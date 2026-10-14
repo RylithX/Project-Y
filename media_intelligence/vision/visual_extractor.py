@@ -13,8 +13,11 @@ from ..types import VisionEvent
 
 class VisualExtractor:
 
-    def __init__(self, gemini_key: Optional[str] = None, openrouter_key: Optional[str] = None):
+    def __init__(self, gemini_key: Optional[str] = None, openrouter_key: Optional[str] = None, gemini_fallback_key: Optional[str] = None, gemini_key_3: Optional[str] = None):
         self.gemini_key = gemini_key or os.getenv("GEMINI_KEY", "")
+        self.gemini_fallback_key = gemini_fallback_key or os.getenv("GEMINI_FALLBACK_KEY", os.getenv("GEMINI_KEY_2", ""))
+        self.gemini_key_3 = gemini_key_3 or os.getenv("GEMINI_KEY_3", "")
+        self.gemini_keys = [k for k in [self.gemini_key, self.gemini_fallback_key, self.gemini_key_3] if k]
         self.openrouter_key = openrouter_key or os.getenv("OPENROUTER_KEY", "")
 
     async def analyze_keyframes(self, frames: List[Tuple[float, bytes]]) -> List[VisionEvent]:
@@ -46,7 +49,7 @@ class VisualExtractor:
         )
 
         # 1. Try Gemini Vision
-        if self.gemini_key:
+        if self.gemini_keys or self.gemini_key:
             res = await self._call_gemini_vision(img_bytes, prompt)
             if res:
                 return res, [], [], []
@@ -60,7 +63,8 @@ class VisualExtractor:
         return f"Scene at {int(ts//60)}:{int(ts%60):02d}", [], [], []
 
     async def _call_gemini_vision(self, img_bytes: bytes, prompt: str) -> Optional[str]:
-        if not self.gemini_key:
+        keys = self.gemini_keys or ([self.gemini_key] if self.gemini_key else [])
+        if not keys:
             return None
         b64_img = base64.b64encode(img_bytes).decode("utf-8")
         payload = {
@@ -71,20 +75,23 @@ class VisualExtractor:
                 ]
             }]
         }
-        for model in ["gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-3.8-flash", "gemini-flash-lite-latest"]:
-            try:
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={self.gemini_key}"
-                async with aiohttp.ClientSession() as session:
-                    async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=20)) as resp:
-                        if resp.status == 200:
-                            data = await resp.json()
-                            candidates = data.get("candidates", [])
-                            if candidates and "content" in candidates[0]:
-                                parts = candidates[0]["content"].get("parts", [])
-                                if parts and "text" in parts[0]:
-                                    return parts[0]["text"].strip()
-            except Exception:
-                continue
+        for key in keys:
+            for model in ["gemini-3.6-flash", "gemini-3.1-flash-lite", "gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-3.8-flash", "gemini-flash-lite-latest"]:
+                try:
+                    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
+                    async with aiohttp.ClientSession() as session:
+                        async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=20)) as resp:
+                            if resp.status == 200:
+                                data = await resp.json()
+                                candidates = data.get("candidates", [])
+                                if candidates and "content" in candidates[0]:
+                                    parts = candidates[0]["content"].get("parts", [])
+                                    if parts and "text" in parts[0]:
+                                        return parts[0]["text"].strip()
+                            elif resp.status == 429:
+                                break
+                except Exception:
+                    continue
         return None
 
     async def _call_openrouter_vision(self, img_bytes: bytes, prompt: str) -> Optional[str]:

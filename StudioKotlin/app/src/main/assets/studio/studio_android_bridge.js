@@ -7,7 +7,49 @@
 
   console.log('[StudioNative] Android Kotlin Bridge Initializing...');
 
-  // Hook into native speech recognition
+  const isAndroidLocal = window.location.protocol === 'file:' || 
+                         window.location.hostname === 'appassets.androidplatform.net' ||
+                         (window.AndroidBridge !== undefined);
+
+  // Default server base for Android local WebView
+  const SERVER_BASE = window.SERVER_BASE_URL || localStorage.getItem('studio_server_base') || 'http://127.0.0.1:5000';
+
+  // 1. Transparently proxy relative API calls to local bot server on port 5000
+  if (window.location.protocol === 'file:' || window.location.hostname === 'appassets.androidplatform.net') {
+    const originalFetch = window.fetch;
+    window.fetch = function(url, options) {
+      if (typeof url === 'string') {
+        if (url.startsWith('/api/') || url.startsWith('/bots.json') || url === '/dashboard' || url === '/status') {
+          url = SERVER_BASE.replace(/\/+$/, '') + url;
+        }
+      }
+      return originalFetch.call(this, url, options);
+    };
+  }
+
+  // 2. Intercept navigation links on file:/// mode to prevent FILE_NOT_FOUND errors
+  document.addEventListener('click', function(e) {
+    const link = e.target.closest('a');
+    if (!link) return;
+    const href = link.getAttribute('href');
+    if (!href) return;
+
+    if (href === '/dashboard' || href === '/dashboard.html') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof window.switchView === 'function') {
+        window.switchView('control');
+      } else {
+        window.location.href = SERVER_BASE + '/dashboard';
+      }
+    } else if (href.startsWith('/') && (window.location.protocol === 'file:' || window.location.hostname === 'appassets.androidplatform.net')) {
+      e.preventDefault();
+      e.stopPropagation();
+      window.location.href = SERVER_BASE + href;
+    }
+  }, true);
+
+  // 3. Hook into native speech recognition
   window.addEventListener('native_speech_result', function(e) {
     const text = e.detail;
     if (!text) return;
@@ -21,6 +63,12 @@
       chatInput.value = prev + text;
       chatInput.dispatchEvent(new Event('input', { bubbles: true }));
       chatInput.focus();
+    }
+
+    // Voice call status update if in call
+    const voiceStatus = document.getElementById('voiceCallStatus');
+    if (voiceStatus && window.voiceCallActive) {
+      voiceStatus.innerText = 'Hearing: "' + text.slice(0, 30) + '..."';
     }
   });
 
@@ -40,22 +88,6 @@
       return true;
     }
     return false;
-  };
-
-  // Save Doodle directly to Android Gallery
-  window.saveDoodleToGallery = function(canvasId, filename) {
-    const canvas = document.getElementById(canvasId || 'doodleCanvas');
-    if (!canvas) return;
-    const dataUrl = canvas.toDataURL('image/png');
-    if (window.AndroidBridge && typeof window.AndroidBridge.saveDoodle === 'function') {
-      window.AndroidBridge.saveDoodle(dataUrl, filename || 'doodle_' + Date.now() + '.png');
-    } else {
-      // Fallback standard browser download
-      const a = document.createElement('a');
-      a.href = dataUrl;
-      a.download = filename || 'doodle.png';
-      a.click();
-    }
   };
 
   // Export bot card directly to Android Downloads
@@ -82,7 +114,7 @@
     }
   };
 
-  // Auto-wire existing mic buttons when DOM is loaded
+  // Auto-wire handlers when DOM is loaded
   document.addEventListener('DOMContentLoaded', function() {
     console.log('[StudioNative] Attaching Android Native handlers');
 

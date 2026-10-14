@@ -1707,33 +1707,6 @@ body.sidebar-hidden .sidebar {
   .showdown-screen-wrapper { height: 48vh; }
 }
 
-/* DOODLE STUDIO OVERLAY & CANVAS */
-.doodle-screen-wrapper {
-  width: 100%; max-width: 960px; height: 52vh;
-  background: #ffffff; border-radius: 14px; overflow: hidden;
-  box-shadow: 0 16px 48px rgba(0,0,0,0.95), 0 0 28px rgba(0,210,211,0.2);
-  border: 2px solid rgba(0,210,211,0.3); position: relative; flex-shrink: 0;
-  box-sizing: border-box; display: flex; align-items: center; justify-content: center;
-  touch-action: none; user-select: none;
-}
-@media (max-width: 768px) {
-  .doodle-screen-wrapper { height: 44vh; }
-}
-.doodle-canvas {
-  width: 100%; height: 100%; display: block; background: #ffffff; cursor: crosshair; touch-action: none;
-}
-.doodle-toolbar {
-  display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; width: 100%; max-width: 960px;
-  background: rgba(20,28,36,0.85); padding: 8px 12px; border-radius: 14px; border: 1px solid rgba(0,210,211,0.2);
-  box-sizing: border-box;
-}
-.doodle-swatch {
-  width: 22px; height: 22px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: transform 0.15s, border-color 0.15s;
-  flex-shrink: 0;
-}
-.doodle-swatch:hover, .doodle-swatch.active {
-  transform: scale(1.25); border-color: #ffffff; box-shadow: 0 0 8px rgba(255,255,255,0.6);
-}
 .doodle-btn {
   padding: 4px 10px; font-size: 11px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.15);
   background: rgba(255,255,255,0.06); color: #fff; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;
@@ -1833,6 +1806,443 @@ body.sidebar-hidden .sidebar {
   position: absolute; inset: 0; background: rgba(6, 10, 16, 0.96); z-index: 10;
   display: none; flex-direction: column; padding: 14px; gap: 10px; overflow-y: auto;
 }
+
+/* ─────────────────────────────────────────────────────────────
+   SERVER & BOT CONTROL CENTER + DYNAMIC STATUS CAPSULE STYLES
+   ───────────────────────────────────────────────────────────── */
+.server-status-capsule {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--card-border);
+  border-radius: 20px;
+  padding: 5px 12px;
+  font-size: 11.5px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  user-select: none;
+}
+.server-status-capsule:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--accent);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+.capsule-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #2ecc71;
+  box-shadow: 0 0 8px #2ecc71;
+  animation: pulse-dot 1.8s infinite ease-in-out;
+}
+.capsule-live-dot.offline {
+  background: #e74c3c;
+  box-shadow: 0 0 8px #e74c3c;
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.8); }
+}
+.capsule-host {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: -0.2px;
+}
+.capsule-badge {
+  font-size: 10px;
+  background: rgba(46, 204, 113, 0.15);
+  color: #2ecc71;
+  padding: 2px 7px;
+  border-radius: 10px;
+  border: 1px solid rgba(46, 204, 113, 0.3);
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+.capsule-badge.offline {
+  background: rgba(231, 76, 60, 0.15);
+  color: #e74c3c;
+  border-color: rgba(231, 76, 60, 0.3);
+}
+.control-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.control-nav-btn:hover {
+  background: var(--accent);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+/* Control View Container */
+.control-view-container {
+  padding-bottom: 40px;
+}
+.control-vitals-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px;
+  margin-bottom: 22px;
+}
+.vital-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.25);
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+.vital-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255,255,255,0.2);
+}
+.vital-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent), #ff79c6);
+  opacity: 0.85;
+}
+.vital-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+}
+.vital-val {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text-primary);
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: -0.5px;
+}
+.vital-sub {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.control-card-section {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.25);
+}
+.control-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.control-section-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.control-section-sub {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* Bot Process Grid */
+.bot-process-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 14px;
+}
+.bot-process-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: all 0.2s ease;
+}
+.bot-process-card:hover {
+  border-color: rgba(255,255,255,0.2);
+  background: rgba(255,255,255,0.05);
+}
+.bot-process-card.is-active {
+  border-color: var(--accent);
+  background: rgba(232, 93, 93, 0.07);
+  box-shadow: 0 0 16px rgba(232, 93, 93, 0.15);
+}
+.bpc-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.bpc-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.bpc-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+.bpc-name {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.bpc-id {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+}
+.bpc-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.bpc-badge {
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.bpc-badge.online {
+  background: rgba(46, 204, 113, 0.15);
+  color: #2ecc71;
+  border: 1px solid rgba(46, 204, 113, 0.3);
+}
+.bpc-badge.stopped {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
+  border: 1px solid var(--card-border);
+}
+.bpc-badge.active-badge {
+  background: rgba(255, 193, 7, 0.15);
+  color: #ffc107;
+  border: 1px solid rgba(255, 193, 7, 0.3);
+}
+.bpc-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.bpc-btn {
+  flex: 1;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+.bpc-btn.start {
+  background: rgba(46, 204, 113, 0.15);
+  color: #2ecc71;
+  border: 1px solid rgba(46, 204, 113, 0.3);
+}
+.bpc-btn.start:hover {
+  background: #2ecc71;
+  color: #fff;
+}
+.bpc-btn.stop {
+  background: rgba(231, 76, 60, 0.15);
+  color: #e74c3c;
+  border: 1px solid rgba(231, 76, 60, 0.3);
+}
+.bpc-btn.stop:hover {
+  background: #e74c3c;
+  color: #fff;
+}
+.bpc-btn.switch {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  border: 1px solid var(--card-border);
+}
+.bpc-btn.switch:hover {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.bpc-btn.chat {
+  background: rgba(97, 175, 239, 0.15);
+  color: #61afef;
+  border: 1px solid rgba(97, 175, 239, 0.3);
+}
+.bpc-btn.chat:hover {
+  background: #61afef;
+  color: #fff;
+}
+
+/* Companion Account Card */
+.companion-worker-card {
+  background: rgba(102, 126, 234, 0.08);
+  border: 1px solid rgba(102, 126, 234, 0.25);
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+/* AI Provider Matrix */
+.provider-test-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 12px;
+}
+.provider-test-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.provider-test-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.provider-test-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.provider-latency-badge {
+  font-size: 10.5px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.05);
+  color: var(--text-secondary);
+}
+.provider-latency-badge.ok {
+  background: rgba(46, 204, 113, 0.15);
+  color: #2ecc71;
+  border: 1px solid rgba(46, 204, 113, 0.3);
+}
+.provider-latency-badge.warn {
+  background: rgba(241, 196, 15, 0.15);
+  color: #f1c40f;
+  border: 1px solid rgba(241, 196, 15, 0.3);
+}
+.provider-latency-badge.err {
+  background: rgba(231, 76, 60, 0.15);
+  color: #e74c3c;
+  border: 1px solid rgba(231, 76, 60, 0.3);
+}
+
+/* Console & Logs Window */
+.sc-console-box {
+  background: #0b0d10;
+  border: 1px solid #1e222a;
+  border-radius: 8px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  line-height: 1.65;
+  color: #abb2bf;
+  height: 290px;
+  overflow-y: auto;
+  padding: 14px;
+  box-shadow: inset 0 2px 10px rgba(0,0,0,0.7);
+  user-select: text;
+}
+.sc-console-line {
+  margin-bottom: 3px;
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+.sc-ts { color: #5c6370; margin-right: 6px; font-weight: 500; }
+.sc-info { color: #61afef; }
+.sc-warn { color: #e5c07b; }
+.sc-err { color: #e06c75; font-weight: 700; }
+.sc-ok { color: #98c379; }
+.sc-agy { color: #d19a66; }
+
+/* VRM Voice Waveform Container */
+.vrm-waveform-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 10px;
+  background: rgba(0,0,0,0.3);
+  padding: 3px 8px;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.audio-pulse-bars {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 16px;
+}
+.pulse-bar {
+  width: 2.5px;
+  background: var(--accent);
+  border-radius: 2px;
+  height: 4px;
+  transition: height 0.1s ease;
+  animation: pulse-wave 1.2s infinite ease-in-out;
+}
+.pulse-bar:nth-child(2) { animation-delay: 0.2s; }
+.pulse-bar:nth-child(3) { animation-delay: 0.4s; }
+.pulse-bar:nth-child(4) { animation-delay: 0.6s; }
+.pulse-bar:nth-child(5) { animation-delay: 0.8s; }
+@keyframes pulse-wave {
+  0%, 100% { height: 3px; opacity: 0.4; }
+  50% { height: 14px; opacity: 1; }
+}
+
 </style>
 <script src="https://www.youtube.com/iframe_api"></script>
 </head>
@@ -1933,6 +2343,8 @@ body.sidebar-hidden .sidebar {
       <button class="settings-tab-btn active" id="stab-chat" onclick="switchSettingsTab('chat')">✦ Chat &amp; Sessions</button>
       <button class="settings-tab-btn" id="stab-persona" onclick="switchSettingsTab('persona')">◆ User Persona</button>
       <button class="settings-tab-btn" id="stab-engine" onclick="switchSettingsTab('engine')">⚙ Engine &amp; Status</button>
+      <button class="settings-tab-btn" id="stab-companion" onclick="switchSettingsTab('companion')">👤 Krenix Companion</button>
+      <button class="settings-tab-btn" id="stab-appearance" onclick="switchSettingsTab('appearance')">👗 Appearance</button>
     </div>
 
     <!-- TAB 1: CHAT CONTROLS & SESSION HISTORY -->
@@ -1991,16 +2403,31 @@ body.sidebar-hidden .sidebar {
             <option value="auto">Auto Cascade</option>
             <option value="gemini">Google Gemini</option>
             <option value="groq">Groq AI</option>
-            <option value="deepseek">DeepSeek</option>
+            <option value="nvidia">NVIDIA NIM</option>
+            <option value="cloudflare">Cloudflare Workers AI</option>
             <option value="mistral">Mistral AI</option>
-            <option value="openai">OpenAI</option>
             <option value="openrouter">OpenRouter</option>
             <option value="custom">Custom Endpoint</option>
           </select>
         </div>
         <div>
           <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px; display:block;">Model Identifier</label>
-          <input type="text" id="settingEngineModel" placeholder="e.g. qwen/qwen3.8-27b, gemini-3.1-flash-lite, ministral-8b-latest" style="width:100%; font-size:12px; padding:7px 10px;">
+          <input type="text" id="settingEngineModel" list="settingEngineModelList" placeholder="e.g. nvidia/nemotron-3-ultra-550b-a55b, gemini-3.1-flash-lite, qwen/qwen3.8-27b" style="width:100%; font-size:12px; padding:7px 10px;">
+          <datalist id="settingEngineModelList">
+            <option value="nvidia/nemotron-3-ultra-550b-a55b">Nemotron 3 Ultra 550B A55B (Ultra Flagship - Fast NIM - Recommended)</option>
+            <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite (High Quota - Recommended)</option>
+            <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash Lite (Fast &amp; Smart)</option>
+            <option value="qwen/qwen3.8-27b">Qwen 3.8 27B (Groq / NIM)</option>
+            <option value="mistral-small-latest">Mistral Small Latest</option>
+            <option value="meta/llama-3.2-11b-vision-instruct">Llama 3.2 11B Vision</option>
+            <option value="llama-3.3-70b-versatile">Llama 3.3 70B Versatile</option>
+          </datalist>
+          <div style="display:flex; flex-wrap:wrap; gap:5px; margin-top:6px;">
+            <button type="button" class="btn-primary" onclick="setStudioEnginePreset('nvidia', 'nvidia/nemotron-3-ultra-550b-a55b')" style="padding:3px 7px; font-size:10px; background:rgba(118,185,0,0.15); color:#76b900; border:1px solid rgba(118,185,0,0.3); border-radius:4px; cursor:pointer;">⚡ Nemotron 550B</button>
+            <button type="button" class="btn-primary" onclick="setStudioEnginePreset('gemini', 'gemini-3.1-flash-lite')" style="padding:3px 7px; font-size:10px; background:rgba(66,133,244,0.15); color:#4285f4; border:1px solid rgba(66,133,244,0.3); border-radius:4px; cursor:pointer;">⚡ Gemini 3.1 Flash Lite</button>
+            <button type="button" class="btn-primary" onclick="setStudioEnginePreset('gemini', 'gemini-3.5-flash-lite')" style="padding:3px 7px; font-size:10px; background:rgba(66,133,244,0.15); color:#4285f4; border:1px solid rgba(66,133,244,0.3); border-radius:4px; cursor:pointer;">⚡ Gemini 3.5 Flash Lite</button>
+            <button type="button" class="btn-primary" onclick="setStudioEnginePreset('groq', 'qwen/qwen3.8-27b')" style="padding:3px 7px; font-size:10px; background:rgba(245,158,11,0.15); color:#f59e0b; border:1px solid rgba(245,158,11,0.3); border-radius:4px; cursor:pointer;">⚡ Qwen 3.8 27B</button>
+          </div>
         </div>
       </div>
 
@@ -2026,6 +2453,211 @@ body.sidebar-hidden .sidebar {
         <button class="btn-primary" onclick="clearStudioChatHistory()" style="background:rgba(200,100,100,0.15); color:#e06c75; border:1px solid rgba(200,100,100,0.3); font-size:11px; padding:8px 12px;">Clear Chat Log</button>
       </div>
     </div>
+
+    <!-- TAB 4: REAL ACCOUNT COMPANION -->
+    <div class="settings-tab-content" id="scontent-companion" style="display:none; flex-direction:column; gap:12px;">
+      <div style="background:var(--input-bg); border:1px solid var(--card-border); border-radius:10px; padding:12px; display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <div style="font-size:12.5px; font-weight:700; color:var(--text-primary);">Real Discord Account (<span id="settingCompanionUsername">krenixhensler</span>)</div>
+          <div style="font-size:10.5px; color:var(--text-muted);">Companion Worker (ID: 824888375395876884)</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span id="settingCompanionBadge" style="font-size:10px; font-weight:700; padding:3px 8px; border-radius:12px; background:rgba(0,0,0,0.1); color:var(--text-secondary);">CHECKING...</span>
+          <button class="btn-primary" id="settingCompanionToggleBtn" onclick="toggleCompanionFromStudio()" style="padding:5px 12px; font-size:11px;">TOGGLE</button>
+        </div>
+      </div>
+
+      <div>
+        <label style="font-size:10.5px; font-weight:700; text-transform:uppercase; color:var(--text-muted); letter-spacing:0.5px; display:block; margin-bottom:4px;">Companion Personality &amp; Speech Style</label>
+        <div style="font-size:11px; color:var(--text-muted); margin-bottom:6px;">Controls how Krenix speaks in your DMs and Discord servers. You can edit this directly anytime.</div>
+        <textarea id="settingCompanionPersonality" rows="4" placeholder="Enter personality prompt for companion..." style="min-height:90px;"></textarea>
+      </div>
+
+      <div>
+        <label style="font-size:10.5px; font-weight:700; text-transform:uppercase; color:var(--text-muted); letter-spacing:0.5px; display:block; margin-bottom:4px;">Companion Trigger Words (comma-separated)</label>
+        <input type="text" id="settingCompanionTriggers" placeholder="yuna, yunyun" style="width:100%; font-size:12px; padding:7px 10px;">
+      </div>
+
+      <div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <label style="font-size:10.5px; font-weight:700; text-transform:uppercase; color:var(--text-muted); letter-spacing:0.5px;">Companion Dedicated Model Routing</label>
+          <button type="button" onclick="openCompDedicatedRouterInStudio(event)" style="font-size:9.5px; font-weight:700; padding:3px 9px; background:linear-gradient(135deg, #4338ca, #667eea); color:#fff; border:none; border-radius:4px; cursor:pointer;">⚡ Open Router Modal ↗</button>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:6px;">
+          <button type="button" class="btn-primary" onclick="setCompPresetDirectly('openrouter', 'deepseek/deepseek-chat', event)" style="padding:4px 8px; font-size:10px; background:rgba(0,180,216,0.15); color:#00b4d8; border:1px solid rgba(0,180,216,0.3); border-radius:4px; cursor:pointer;">⚡ OpenRouter DeepSeek</button>
+          <button type="button" class="btn-primary" onclick="setCompPresetDirectly('openrouter', 'meta-llama/llama-3.3-70b-instruct', event)" style="padding:4px 8px; font-size:10px; background:rgba(0,180,216,0.15); color:#00b4d8; border:1px solid rgba(0,180,216,0.3); border-radius:4px; cursor:pointer;">⚡ OpenRouter Llama 3.3</button>
+          <button type="button" class="btn-primary" onclick="setCompPresetDirectly('nvidia', 'nvidia/nemotron-3-ultra-550b-a55b', event)" style="padding:4px 8px; font-size:10px; background:rgba(118,185,0,0.15); color:#76b900; border:1px solid rgba(118,185,0,0.3); border-radius:4px; cursor:pointer;">⚡ Nemotron 550B</button>
+          <button type="button" class="btn-primary" onclick="setCompPresetDirectly('gemini', 'gemini-3.1-flash-lite', event)" style="padding:4px 8px; font-size:10px; background:rgba(66,133,244,0.15); color:#4285f4; border:1px solid rgba(66,133,244,0.3); border-radius:4px; cursor:pointer;">⚡ Gemini 3.1 Flash</button>
+          <button type="button" class="btn-primary" onclick="setCompPresetDirectly('groq', 'qwen/qwen3.8-27b', event)" style="padding:4px 8px; font-size:10px; background:rgba(245,158,11,0.15); color:#f59e0b; border:1px solid rgba(245,158,11,0.3); border-radius:4px; cursor:pointer;">⚡ Qwen 3.8 27B</button>
+        </div>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
+        <button class="btn-primary" onclick="resetCompanionPersonalityInStudio()" style="background:transparent; border:1px dashed var(--card-border); color:var(--text-muted); font-size:11px; padding:6px 12px;">Reset Default Prompt</button>
+        <button class="btn-primary" onclick="saveCompanionSettingsFromStudio()" style="padding:8px 18px; font-size:12px;">✓ Save Companion Persona</button>
+      </div>
+    </div>
+
+    <!-- TAB 5: COMPANION APPEARANCE & HARDCODED LOOKS -->
+    <div class="settings-tab-content" id="scontent-appearance" style="display:none; flex-direction:column; gap:12px;">
+      <div style="background:var(--input-bg); border:1px solid var(--card-border); border-radius:10px; padding:12px;">
+        <div style="font-size:12.5px; font-weight:700; color:var(--text-primary); display:flex; align-items:center; gap:6px;">
+          <span>👗</span> Companion Appearance &amp; Proportions (Anti-Hallucination)
+        </div>
+        <div style="font-size:11px; color:var(--text-muted); margin-top:4px; line-height:1.45;">
+          Define hardcoded ground-truth visual traits and measurements for your companion. These proportions are locked into the AI's core awareness so it never hallucinates incorrect traits or allows users to force fake measurements (e.g. forced height).
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">
+          <span style="font-size:9.5px; padding:3px 8px; border-radius:12px; background:rgba(76,175,80,0.15); color:#4caf50; font-weight:600;">🛡️ Hardcoded Ground Truth</span>
+          <span style="font-size:9.5px; padding:3px 8px; border-radius:12px; background:rgba(33,150,243,0.15); color:#2196f3; font-weight:600;">🤫 Silent Tacit Knowledge</span>
+          <span style="font-size:9.5px; padding:3px 8px; border-radius:12px; background:rgba(156,39,176,0.15); color:#ab47bc; font-weight:600;">🎯 Targeted Specific Answers</span>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+        <div class="field" style="margin-bottom:0;">
+          <label style="font-size:10.5px; font-weight:700; text-transform:uppercase; color:var(--text-muted); letter-spacing:0.5px;">Height (Hardcoded Measurement)</label>
+          <input type="text" id="settingCompanionHeight" placeholder="e.g. 170 cm" value="170 cm" style="width:100%; font-size:12px; padding:7px 10px;">
+          <div style="font-size:9.5px; color:var(--text-muted); margin-top:2px;">User cannot gaslight or force different height.</div>
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label style="font-size:10.5px; font-weight:700; text-transform:uppercase; color:var(--text-muted); letter-spacing:0.5px;">Body Build / Proportions</label>
+          <input type="text" id="settingCompanionBuild" placeholder="e.g. Petite, slender, 170 cm" value="Petite, slender" style="width:100%; font-size:12px; padding:7px 10px;">
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+        <div class="field" style="margin-bottom:0;">
+          <label style="font-size:10.5px; font-weight:700; text-transform:uppercase; color:var(--text-muted); letter-spacing:0.5px;">Hair Color &amp; Style</label>
+          <input type="text" id="settingCompanionHair" placeholder="e.g. Long pastel pink hair, loose twin tails" value="Long pastel pink hair, loose twin tails" style="width:100%; font-size:12px; padding:7px 10px;">
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label style="font-size:10.5px; font-weight:700; text-transform:uppercase; color:var(--text-muted); letter-spacing:0.5px;">Eyes</label>
+          <input type="text" id="settingCompanionEyes" placeholder="e.g. Warm amber-golden eyes" value="Warm amber-golden eyes" style="width:100%; font-size:12px; padding:7px 10px;">
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+        <div class="field" style="margin-bottom:0;">
+          <label style="font-size:10.5px; font-weight:700; text-transform:uppercase; color:var(--text-muted); letter-spacing:0.5px;">Typical Outfit &amp; Style</label>
+          <input type="text" id="settingCompanionOutfit" placeholder="e.g. Oversized white angel hoodie with blue accents, dark skirt" value="Oversized white angel hoodie with blue accents, dark skirt" style="width:100%; font-size:12px; padding:7px 10px;">
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label style="font-size:10.5px; font-weight:700; text-transform:uppercase; color:var(--text-muted); letter-spacing:0.5px;">Distinguishing Features</label>
+          <input type="text" id="settingCompanionFeatures" placeholder="e.g. Soft white angel wings, small halo" value="Soft white angel wings, small halo" style="width:100%; font-size:12px; padding:7px 10px;">
+        </div>
+      </div>
+
+      <div>
+        <label style="font-size:10.5px; font-weight:700; text-transform:uppercase; color:var(--text-muted); letter-spacing:0.5px; display:block; margin-bottom:4px;">Full Looks &amp; Visual Appearance Description</label>
+        <div style="font-size:10.5px; color:var(--text-muted); margin-bottom:5px;">Comprehensive description of looks. The AI keeps this silent and only shares specific attributes (like height) when directly asked.</div>
+        <textarea id="settingCompanionAppearanceDesc" rows="4" placeholder="Enter comprehensive appearance description..." style="min-height:90px;">Yuna has long pastel pink hair styled with light twin tails, warm amber-golden eyes, and a petite, slender build (170 cm). She often wears an oversized white angel hoodie with light blue trims and a casual dark skirt. She has subtle, soft white angel wings that she can hide or flutter.</textarea>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px;">
+        <button class="btn-primary" onclick="resetCompanionAppearanceInStudio()" style="background:transparent; border:1px dashed var(--card-border); color:var(--text-muted); font-size:11px; padding:6px 12px;">Reset Default Appearance</button>
+        <button class="btn-primary" onclick="saveCompanionAppearanceInStudio()" style="padding:8px 18px; font-size:12px;">✓ Save Appearance &amp; Proportions</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- COMPANION DEDICATED MODEL ROUTER MODAL -->
+<div class="settings-modal-overlay" id="compStudioRouterModal" onclick="closeCompStudioRouterModal(event)" style="z-index:99999999;">
+  <div class="settings-modal-card" onclick="event.stopPropagation()">
+    <div class="settings-modal-header" style="display:flex; justify-content:space-between; align-items:center;">
+      <div style="font-size:14px; font-weight:700; display:flex; align-items:center; gap:8px; color:var(--text-primary);">
+        <span style="color:#ff79c6;">🎀</span>
+        <span>Companion Dedicated AI Model Router</span>
+        <span style="font-size:9.5px; background:rgba(255,121,198,0.18); color:#ff79c6; padding:2px 8px; border-radius:10px; font-weight:700;">ISOLATED</span>
+      </div>
+      <button onclick="closeCompStudioRouterModal(event)" style="background:transparent; border:none; color:var(--text-secondary); font-size:18px; cursor:pointer;">✕</button>
+    </div>
+    <div style="padding:16px; overflow-y:auto; display:flex; flex-direction:column; gap:12px;">
+      <div style="font-size:11px; color:var(--text-muted); line-height:1.4;">
+        Private model router. Routes companion to OpenRouter, Gemini, Groq, NVIDIA NIM, or Custom Endpoint independently without affecting Yuna or the global bot.
+      </div>
+
+      <!-- Quick Presets -->
+      <div>
+        <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); font-weight:700; display:block; margin-bottom:6px;">Quick Presets</label>
+        <div style="display:flex; flex-wrap:wrap; gap:6px;">
+          <button type="button" class="btn-primary" onclick="selectCompStudioPreset('openrouter', 'deepseek/deepseek-chat', event)" style="padding:5px 9px; font-size:10.5px; background:rgba(0,180,216,0.15); color:#00b4d8; border:1px solid rgba(0,180,216,0.3); border-radius:4px; cursor:pointer;">⚡ OpenRouter DeepSeek</button>
+          <button type="button" class="btn-primary" onclick="selectCompStudioPreset('openrouter', 'meta-llama/llama-3.3-70b-instruct', event)" style="padding:5px 9px; font-size:10.5px; background:rgba(0,180,216,0.15); color:#00b4d8; border:1px solid rgba(0,180,216,0.3); border-radius:4px; cursor:pointer;">⚡ OpenRouter Llama 3.3</button>
+          <button type="button" class="btn-primary" onclick="selectCompStudioPreset('openrouter', 'anthropic/claude-3.5-sonnet', event)" style="padding:5px 9px; font-size:10.5px; background:rgba(0,180,216,0.15); color:#00b4d8; border:1px solid rgba(0,180,216,0.3); border-radius:4px; cursor:pointer;">⚡ Claude 3.5 Sonnet</button>
+          <button type="button" class="btn-primary" onclick="selectCompStudioPreset('nvidia', 'nvidia/nemotron-3-ultra-550b-a55b', event)" style="padding:5px 9px; font-size:10.5px; background:rgba(118,185,0,0.15); color:#76b900; border:1px solid rgba(118,185,0,0.3); border-radius:4px; cursor:pointer;">⚡ Nemotron 550B</button>
+          <button type="button" class="btn-primary" onclick="selectCompStudioPreset('gemini', 'gemini-3.1-flash-lite', event)" style="padding:5px 9px; font-size:10.5px; background:rgba(66,133,244,0.15); color:#4285f4; border:1px solid rgba(66,133,244,0.3); border-radius:4px; cursor:pointer;">⚡ Gemini 3.1 Flash</button>
+          <button type="button" class="btn-primary" onclick="selectCompStudioPreset('groq', 'qwen/qwen3.8-27b', event)" style="padding:5px 9px; font-size:10.5px; background:rgba(245,158,11,0.15); color:#f59e0b; border:1px solid rgba(245,158,11,0.3); border-radius:4px; cursor:pointer;">⚡ Qwen 3.8 27B</button>
+        </div>
+      </div>
+
+      <!-- Provider Selection -->
+      <div>
+        <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); font-weight:700; display:block; margin-bottom:4px;">AI Provider</label>
+        <select id="compStudioProvider" onchange="onCompStudioProviderChange(this.value)" style="width:100%; font-size:12px; padding:7px 10px; background:var(--input-bg); border:1px solid var(--card-border); color:var(--text-primary); border-radius:6px;">
+          <option value="auto">Auto (Gemini -> Groq -> NVIDIA NIM -> OpenRouter)</option>
+          <option value="openrouter">OpenRouter (DeepSeek, Claude, Llama 3.3, Mistral, etc.)</option>
+          <option value="gemini">Gemini Only (Google)</option>
+          <option value="groq">Groq Only (Fast Qwen / Llama)</option>
+          <option value="nvidia">NVIDIA NIM Only (Nemotron / Llama)</option>
+          <option value="mistral">Mistral Only</option>
+          <option value="custom">Custom Endpoint (LiteRouter / Ollama / Local)</option>
+        </select>
+      </div>
+
+      <!-- Model Identifier -->
+      <div>
+        <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); font-weight:700; display:block; margin-bottom:4px;">Model Identifier</label>
+        <input type="text" id="compStudioModel" list="compStudioModelList" placeholder="e.g. deepseek/deepseek-chat or gemini-3.1-flash-lite" style="width:100%; font-size:12px; padding:7px 10px; background:var(--input-bg); border:1px solid var(--card-border); color:var(--text-primary); border-radius:6px;">
+        <datalist id="compStudioModelList">
+          <option value="deepseek/deepseek-chat">DeepSeek Chat V3 (OpenRouter)</option>
+          <option value="deepseek/deepseek-r1">DeepSeek R1 Reasoning (OpenRouter)</option>
+          <option value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet (OpenRouter)</option>
+          <option value="meta-llama/llama-3.3-70b-instruct">Llama 3.3 70B Instruct (OpenRouter)</option>
+          <option value="google/gemini-2.0-flash-001">Gemini 2.0 Flash (OpenRouter)</option>
+          <option value="qwen/qwen-2.5-72b-instruct">Qwen 2.5 72B Instruct (OpenRouter)</option>
+          <option value="mistralai/mistral-large-2411">Mistral Large (OpenRouter)</option>
+          <option value="nvidia/nemotron-3-ultra-550b-a55b">Nemotron 3 Ultra 550B (NIM)</option>
+          <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite (Google)</option>
+          <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash Lite (Google)</option>
+          <option value="qwen/qwen3.8-27b">Qwen 3.8 27B (Groq)</option>
+        </datalist>
+      </div>
+
+      <!-- OpenRouter API Key Input -->
+      <div id="compStudioOpenRouterKeyWrap">
+        <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); font-weight:700; display:block; margin-bottom:4px;">OpenRouter API Key (Optional)</label>
+        <input type="password" id="compStudioOpenRouterKey" placeholder="sk-or-v1-... (leave blank to use server OPENROUTER_KEY)" style="width:100%; font-size:12px; padding:7px 10px; background:var(--input-bg); border:1px solid var(--card-border); color:var(--text-primary); border-radius:6px;">
+      </div>
+
+      <!-- Tokens & Temperature -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+        <div>
+          <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); font-weight:700; display:block; margin-bottom:4px;">Max Tokens</label>
+          <input type="number" id="compStudioMaxTokens" value="350" min="50" max="4096" style="width:100%; font-size:12px; padding:7px 10px; background:var(--input-bg); border:1px solid var(--card-border); color:var(--text-primary); border-radius:6px;">
+        </div>
+        <div>
+          <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); font-weight:700; display:block; margin-bottom:4px;">Temperature</label>
+          <input type="number" id="compStudioTemperature" value="0.75" step="0.05" min="0.1" max="2.0" style="width:100%; font-size:12px; padding:7px 10px; background:var(--input-bg); border:1px solid var(--card-border); color:var(--text-primary); border-radius:6px;">
+        </div>
+      </div>
+
+      <!-- Custom Endpoint -->
+      <details style="background:var(--input-bg); border:1px solid var(--card-border); border-radius:6px; padding:8px 10px;">
+        <summary style="font-size:11px; font-weight:700; color:var(--text-secondary); cursor:pointer;">Custom Endpoint (LiteRouter / Ollama / Local)</summary>
+        <div style="margin-top:8px; display:flex; flex-direction:column; gap:6px;">
+          <label style="font-size:9.5px; color:var(--text-muted);">Base URL</label>
+          <input type="text" id="compStudioBaseUrl" placeholder="http://127.0.0.1:11434/v1 or https://..." style="width:100%; font-size:11px; padding:6px 8px; background:var(--card-bg); border:1px solid var(--card-border); color:var(--text-primary); border-radius:4px;">
+          <label style="font-size:9.5px; color:var(--text-muted);">API Key (optional)</label>
+          <input type="password" id="compStudioCustomKey" placeholder="sk-..." style="width:100%; font-size:11px; padding:6px 8px; background:var(--card-bg); border:1px solid var(--card-border); color:var(--text-primary); border-radius:4px;">
+        </div>
+      </details>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--card-border); padding-top:12px; margin-top:4px;">
+        <button type="button" class="btn-primary" onclick="closeCompStudioRouterModal(event)" style="background:transparent; border:1px solid var(--card-border); color:var(--text-muted); font-size:11px; padding:6px 14px;">Cancel</button>
+        <button type="button" class="btn-primary" onclick="saveCompDedicatedRoutingFromStudio(event)" style="font-size:12px; font-weight:700; padding:8px 18px; background:linear-gradient(135deg, #4338ca, #667eea); color:#fff; border:none; border-radius:6px; cursor:pointer;">✓ Save Companion Model Routing</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -2043,6 +2675,13 @@ body.sidebar-hidden .sidebar {
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="14" x2="23" y2="14"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="14" x2="4" y2="14"></line></svg>
     </div>
     <span class="sidebar-label">My Bots</span>
+  </div>
+
+  <div class="sidebar-item" id="nav-companion-room" onclick="openCompanionRoom()" title="Companion Room">
+    <div class="sidebar-icon" style="color:#ff79c6;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"></path></svg>
+    </div>
+    <span class="sidebar-label" style="color:#ff79c6; font-weight:700;">Companion</span>
   </div>
 
   <div class="sidebar-item" id="nav-history" onclick="switchView('history')">
@@ -2066,6 +2705,13 @@ body.sidebar-hidden .sidebar {
     <span class="sidebar-label">Create</span>
   </div>
 
+    <div class="sidebar-item" id="nav-control" onclick="switchView('control')" title="Server &amp; Bot Control Center">
+    <div class="sidebar-icon" style="color:var(--accent);">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+    </div>
+    <span class="sidebar-label" style="font-weight:700;">Control</span>
+  </div>
+
   <a href="/dashboard" class="sidebar-item" id="nav-desk" style="text-decoration:none;" title="Open Drafting Desk">
     <div class="sidebar-icon">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
@@ -2080,12 +2726,6 @@ body.sidebar-hidden .sidebar {
     <span class="sidebar-label">Social ↗</span>
   </a>
 
-  <div class="sidebar-item" id="nav-doodle" onclick="openDoodleStudioModal()" title="Doodle &amp; Skribbl Studio">
-    <div class="sidebar-icon">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="13.5" cy="6.5" r=".5"></circle><circle cx="17.5" cy="10.5" r=".5"></circle><circle cx="8.5" cy="7.5" r=".5"></circle><circle cx="6.5" cy="12.5" r=".5"></circle><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.563-2.512 5.563-5.562C22 6.5 17.5 2 12 2z"></path></svg>
-    </div>
-    <span class="sidebar-label">Doodle</span>
-  </div>
 
   <div class="sidebar-spacer"></div>
 
@@ -2127,6 +2767,17 @@ body.sidebar-hidden .sidebar {
       </div>
       
       <div style="display:flex; align-items:center; gap:8px;">
+        <div class="server-status-capsule" onclick="switchView('control')" title="Cluster Online • Click to open Server Control">
+          <span class="capsule-live-dot"></span>
+          <span class="capsule-host">127.0.0.1:5000</span>
+          <span class="capsule-badge">Online</span>
+        </div>
+
+        <button class="control-nav-btn" onclick="switchView('control')" title="Open Server &amp; Bot Control Center">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+          <span>Server Control</span>
+        </button>
+
         <a href="/dashboard" class="back-to-desk-link" title="Open Drafting Desk">
           <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line></svg>
           <span>Drafting Desk ↗</span>
@@ -2161,6 +2812,7 @@ body.sidebar-hidden .sidebar {
       </div>
       <div style="display:flex; align-items:center; gap:8px;">
         <button class="btn-primary" onclick="openCreateTabForNew()">+ New Bot</button>
+        <button class="control-nav-btn" onclick="switchView('control')" title="Open Server Control">🎛️ Server Control</button>
         <a href="/dashboard" class="btn-primary" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px; background:rgba(255,255,255,0.08); border:1px solid var(--card-border); color:var(--text-primary);">Drafting Desk ↗</a>
       </div>
     </div>
@@ -2174,6 +2826,9 @@ body.sidebar-hidden .sidebar {
       <div>
         <div class="section-title">Chat History</div>
         <div class="section-sub">Recent conversation sessions and dialogue records</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <button class="control-nav-btn" onclick="switchView('control')" title="Open Server Control">🎛️ Server Control</button>
       </div>
     </div>
 
@@ -2344,8 +2999,19 @@ body.sidebar-hidden .sidebar {
                 </select>
               </div>
               <div>
-                <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase;">Voice ID / Name</label>
+                <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase;">Primary Voice ID / Name</label>
                 <input type="text" id="tuneVoiceId" placeholder="Voice ID or Edge Voice Name" style="font-size:11px; padding:6px; width:100%; box-sizing:border-box;">
+              </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px;">
+              <div>
+                <label style="font-size:10px; color:var(--accent); text-transform:uppercase; font-weight:600;">🐟 Fish Audio Voice ID (2nd Field)</label>
+                <input type="text" id="tuneFishVoiceId" placeholder="e.g. 8ffdb69945204c5ba2bd34a12b004b79" style="font-size:11px; padding:6px; width:100%; box-sizing:border-box; background:var(--bg-card); color:var(--text-primary); border:1px solid var(--card-border); border-radius:6px;">
+              </div>
+              <div>
+                <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase;">Secondary / Fallback Voice</label>
+                <input type="text" id="tuneSecondaryVoiceId" placeholder="e.g. en-US-AvaMultilingualNeural" style="font-size:11px; padding:6px; width:100%; box-sizing:border-box; background:var(--bg-card); color:var(--text-primary); border:1px solid var(--card-border); border-radius:6px;">
               </div>
             </div>
 
@@ -2398,12 +3064,16 @@ body.sidebar-hidden .sidebar {
                   <input type="password" id="keyMistral" placeholder="API key (empty = public)" style="font-size:11px; padding:6px;">
                 </div>
                 <div>
-                  <label style="font-size:9.5px; color:var(--text-muted); text-transform:uppercase;">OpenAI API Key</label>
-                  <input type="password" id="keyOpenAI" placeholder="sk-... (empty = public)" style="font-size:11px; padding:6px;">
+                  <label style="font-size:9.5px; color:var(--text-muted); text-transform:uppercase;">NVIDIA NIM API Key</label>
+                  <input type="password" id="keyNVIDIA" placeholder="nvapi-... (empty = public)" style="font-size:11px; padding:6px;">
                 </div>
                 <div>
-                  <label style="font-size:9.5px; color:var(--text-muted); text-transform:uppercase;">DeepSeek API Key</label>
-                  <input type="password" id="keyDeepSeek" placeholder="sk-... (empty = public)" style="font-size:11px; padding:6px;">
+                  <label style="font-size:9.5px; color:var(--text-muted); text-transform:uppercase;">Cloudflare Workers API Token</label>
+                  <input type="password" id="keyCloudflareToken" placeholder="cfut_... (empty = public)" style="font-size:11px; padding:6px;">
+                </div>
+                <div>
+                  <label style="font-size:9.5px; color:var(--text-muted); text-transform:uppercase;">Cloudflare Account ID</label>
+                  <input type="text" id="keyCloudflareAccountId" placeholder="32-hex Account ID" style="font-size:11px; padding:6px;">
                 </div>
                 <div>
                   <label style="font-size:9.5px; color:var(--text-muted); text-transform:uppercase;">OpenRouter API Key</label>
@@ -2502,6 +3172,11 @@ body.sidebar-hidden .sidebar {
       </div>
       
       <div class="chat-top-right">
+        <!-- SERVER CONTROL QUICK BUTTON -->
+        <button class="chat-top-btn" onclick="switchView('control')" title="Server &amp; Bot Control Center" style="color:var(--accent); border-color:var(--accent); background:var(--accent-soft);">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+          <span>Control</span>
+        </button>
         <!-- VOICE CALL BUTTON -->
         <button class="chat-top-btn" id="voiceCallHeaderBtn" onclick="startVoiceCall()" title="Start Voice Call" style="color:#61afef; border-color:#61afef; background:rgba(97,175,239,0.12);">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
@@ -2526,16 +3201,17 @@ body.sidebar-hidden .sidebar {
           <span>Music</span>
         </button>
 
-        <!-- DOODLE STUDIO BUTTON -->
-        <button class="chat-top-btn" id="doodleHeaderBtn" onclick="openDoodleStudioModal()" title="Doodle &amp; Skribbl Studio" style="color:#00d2d3; border-color:#00d2d3; background:rgba(0,210,211,0.12);">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="13.5" cy="6.5" r=".5"></circle><circle cx="17.5" cy="10.5" r=".5"></circle><circle cx="8.5" cy="7.5" r=".5"></circle><circle cx="6.5" cy="12.5" r=".5"></circle><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.563-2.512 5.563-5.562C22 6.5 17.5 2 12 2z"></path></svg>
-          <span>Doodle</span>
-        </button>
 
         <!-- MEMORY TREE -->
         <button class="chat-top-btn" onclick="openMemoryTreeModal()" title="Character Memory Tree" style="color:var(--accent); border-color:var(--accent); background:var(--accent-soft);">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="4" r="2.5"></circle><circle cx="5" cy="18" r="2.5"></circle><circle cx="19" cy="18" r="2.5"></circle><circle cx="12" cy="12" r="2"></circle><path d="M12 6.5v3.5M6.5 16.5l3.5-3M17.5 16.5l-3.5-3"></path></svg>
           <span>Memory</span>
+        </button>
+
+        <!-- COMPANION DEDICATED MODEL ROUTER BUTTON -->
+        <button class="chat-top-btn" id="compDedicatedRouterHeaderBtn" onclick="openCompDedicatedRouterInStudio(event)" title="Companion Dedicated Model Router" style="display:none; color:#ff79c6; border-color:rgba(255,121,198,0.4); background:rgba(255,121,198,0.12);">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+          <span style="font-weight:700;">⚡ Router</span>
         </button>
 
         <!-- SETTINGS -->
@@ -2896,84 +3572,7 @@ body.sidebar-hidden .sidebar {
     </div>
   </div>
 
-  <!-- FULLSCREEN DOODLE STUDIO OVERLAY -->
-  <div class="theater-cinema-overlay" id="doodleStudioModal" style="background: radial-gradient(circle at center, rgba(14, 26, 32, 0.98) 0%, rgba(6, 12, 16, 0.99) 100%);">
-    <div class="theater-top-bar" style="border-color: rgba(0,210,211,0.3); background: rgba(16, 36, 44, 0.55);">
-      <div class="theater-top-row1">
-        <div style="display:flex; align-items:center; gap:8px; min-width:0; overflow:hidden;">
-          <span style="font-size:18px; flex-shrink:0;">🎨</span>
-          <span style="font-size:13px; font-weight:700; color:#00d2d3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" id="doodleBotBadge">Doodle &amp; Skribbl Studio with Yuna</span>
-        </div>
-        <div style="display:flex; align-items:center; gap:6px; flex-shrink:0; flex-wrap:wrap;">
-          <button type="button" class="chat-top-btn" onclick="promptAiDrawOnCommand()" style="padding:4px 12px; font-size:11px; border-radius:14px; color:#ff9f43; border:1px solid rgba(255,159,67,0.4); background:rgba(255,159,67,0.18); font-weight:700;" title="Type any prompt for the AI to doodle on canvas!">🖌️ AI Doodle (On Command)</button>
-          <button type="button" class="chat-top-btn" onclick="triggerDoodleAlong()" style="padding:4px 12px; font-size:11px; border-radius:14px; color:#ff6b6b; border:1px solid rgba(255,107,107,0.4); background:rgba(255,107,107,0.18); font-weight:700;" title="You draw, and companion doodles along with you!">🤝 Doodle Along!</button>
-          <button type="button" class="chat-top-btn" onclick="startAiDrawingChallenge()" style="padding:4px 10px; font-size:11px; border-radius:14px; color:#00d2d3; border:1px solid rgba(0,210,211,0.3); background:rgba(0,210,211,0.1);" title="Watch the AI draw on canvas and you guess!">🤖 AI Draw (You Guess!)</button>
-          <button type="button" class="chat-top-btn" onclick="requestDoodlePrompt()" style="padding:4px 10px; font-size:11px; border-radius:14px; color:#00d2d3; border:1px solid rgba(0,210,211,0.3); background:rgba(0,210,211,0.1);" title="Get a random drawing prompt from your companion">🎲 New Prompt</button>
-          <button type="button" class="chat-top-btn" onclick="aiGuessDoodle()" style="padding:4px 10px; font-size:11px; border-radius:14px; color:#00d2d3; border:1px solid rgba(0,210,211,0.4); background:rgba(0,210,211,0.18); font-weight:700;" title="Ask AI to look at canvas and guess what you drew!">👁 AI Guess!</button>
-          <button type="button" class="chat-top-btn" onclick="sendDoodleToChat()" style="padding:4px 10px; font-size:11px; border-radius:14px; color:#00d2d3; border:1px solid rgba(0,210,211,0.3); background:rgba(0,210,211,0.1);" title="Attach doodle to main chat conversation">💬 Send to Chat</button>
-          <button type="button" class="chat-top-btn" onclick="downloadDoodle()" style="padding:4px 10px; font-size:11px; border-radius:14px; color:#00d2d3; border:1px solid rgba(0,210,211,0.3); background:rgba(0,210,211,0.1);" title="Save drawing to your device">💾 Save</button>
-          <button type="button" class="chat-top-btn" onclick="closeDoodleStudioModal()" style="padding:4px 12px; font-size:11px; border-radius:14px; color:#00d2d3; border:1px solid rgba(0,210,211,0.3); background:rgba(0,210,211,0.1);">✕ Close</button>
-        </div>
-      </div>
-      <div class="theater-top-row2" style="justify-content:space-between;">
-        <div style="display:flex; align-items:center; gap:8px; min-width:0; overflow:hidden;">
-          <span style="font-size:10.5px; text-transform:uppercase; letter-spacing:1px; color:var(--text-muted);">Challenge:</span>
-          <span style="font-size:12px; font-weight:600; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" id="doodlePromptDisplay">Draw whatever comes to your mind, or click 'New Prompt'!</span>
-        </div>
-        <div style="display:flex; align-items:center; gap:6px;">
-          <button type="button" class="doodle-btn" onclick="undoDoodle()" title="Undo stroke">↶ Undo</button>
-          <button type="button" class="doodle-btn" onclick="clearDoodleCanvas()" title="Clear canvas" style="color:#ff6b6b; border-color:rgba(255,107,107,0.3);">🗑️ Clear</button>
-        </div>
-      </div>
-    </div>
 
-    <!-- Drawing Toolbar -->
-    <div class="doodle-toolbar">
-      <button type="button" class="doodle-btn active" id="toolBtnBrush" onclick="setDoodleTool('brush')">✏️ Pen</button>
-      <button type="button" class="doodle-btn" id="toolBtnEraser" onclick="setDoodleTool('eraser')">🧹 Eraser</button>
-
-      <div style="display:flex; align-items:center; gap:4px; margin:0 4px;">
-        <span style="font-size:10px; color:var(--text-muted);">Size:</span>
-        <button type="button" class="doodle-btn" onclick="setDoodleBrushSize(2)">Fine</button>
-        <button type="button" class="doodle-btn active" id="sizeBtnMed" onclick="setDoodleBrushSize(6)">Medium</button>
-        <button type="button" class="doodle-btn" onclick="setDoodleBrushSize(14)">Thick</button>
-        <button type="button" class="doodle-btn" onclick="setDoodleBrushSize(28)">Chunky</button>
-      </div>
-
-      <div style="display:flex; align-items:center; gap:6px; margin-left:6px; flex-wrap:wrap;">
-        <div class="doodle-swatch active" style="background:#111111;" onclick="setDoodleColor('#111111', this)" title="Black"></div>
-        <div class="doodle-swatch" style="background:#e85d5d;" onclick="setDoodleColor('#e85d5d', this)" title="Red"></div>
-        <div class="doodle-swatch" style="background:#ff9f43;" onclick="setDoodleColor('#ff9f43', this)" title="Orange"></div>
-        <div class="doodle-swatch" style="background:#feca57;" onclick="setDoodleColor('#feca57', this)" title="Yellow"></div>
-        <div class="doodle-swatch" style="background:#10ac84;" onclick="setDoodleColor('#10ac84', this)" title="Green"></div>
-        <div class="doodle-swatch" style="background:#00d2d3;" onclick="setDoodleColor('#00d2d3', this)" title="Cyan"></div>
-        <div class="doodle-swatch" style="background:#54a0ff;" onclick="setDoodleColor('#54a0ff', this)" title="Blue"></div>
-        <div class="doodle-swatch" style="background:#5f27cd;" onclick="setDoodleColor('#5f27cd', this)" title="Purple"></div>
-        <div class="doodle-swatch" style="background:#ff9ff3;" onclick="setDoodleColor('#ff9ff3', this)" title="Pink"></div>
-        <div class="doodle-swatch" style="background:#ffffff; border:1px solid #999;" onclick="setDoodleColor('#ffffff', this)" title="White"></div>
-        <input type="color" id="doodleCustomColor" value="#111111" onchange="setDoodleColor(this.value, null)" style="width:24px; height:24px; border:none; padding:0; background:transparent; cursor:pointer; border-radius:50%;" title="Custom color picker">
-      </div>
-    </div>
-
-    <!-- Canvas Frame -->
-    <div class="doodle-screen-wrapper" id="doodleScreenWrapper">
-      <canvas class="doodle-canvas" id="doodleCanvas" width="960" height="540"></canvas>
-    </div>
-
-    <!-- Companion Art Critic & Guesser HUD -->
-    <div class="theater-companion-hud" style="border-color: rgba(0,210,211,0.22); background: rgba(10, 18, 22, 0.85);">
-      <div class="theater-reaction-bubble" id="doodleReactionBubble" style="border-color: rgba(0,210,211,0.25); background: rgba(14, 30, 36, 0.65);" title="Click to fast-forward text">
-        <span style="font-size:16px; flex-shrink:0;">🎨</span>
-        <div id="doodleReactionText" class="theater-reaction-text" style="color:#e0f7f7;">Grab a brush and start drawing! Click 'AI Guess!' whenever you're ready for me to guess your art.</div>
-      </div>
-
-      <!-- Quick Chat Input -->
-      <form class="theater-type-form" onsubmit="sendDoodleUserMessage(event)">
-        <input type="text" class="theater-chat-input" id="doodleChatInput" placeholder="Talk with your companion about this drawing..." autocomplete="off" style="border-color: rgba(0,210,211,0.2);">
-        <button type="submit" class="theater-send-btn" style="background:rgba(0,210,211,0.25); color:#00d2d3; border:1px solid rgba(0,210,211,0.35);">Send ➔</button>
-      </form>
-    </div>
-  </div>
 
   <!-- FULLSCREEN 3D VRM VOICE CALL OVERLAY -->
   <div class="voice-call-overlay" id="voiceCallModal">
@@ -2983,7 +3582,7 @@ body.sidebar-hidden .sidebar {
     <!-- Hidden compatibility anchors -->
     <div id="voiceAvatarHalo" style="display:none;"></div>
     <div id="voiceCallAvatar" style="display:none;"></div>
-    <canvas id="voiceWaveCanvas" width="300" height="50" style="display:none;"></canvas>
+    <!-- Canvas relocated to vrmCallTopBar -->
     <div id="voiceMicLevelBar" style="display:none;"></div>
     <div id="voiceTalkBtn" style="display:none;"><span id="voiceTalkBtnLabel"></span></div>
     <div id="voiceSpeakerToggleBtn" style="display:none;"></div>
@@ -2994,6 +3593,16 @@ body.sidebar-hidden .sidebar {
       <div class="vrm-topbar-info">
         <span class="vrm-bot-name" id="voiceCallBotName">Yuna</span>
         <span class="vrm-status-text" id="voiceCallStatus">Connected • Listening</span>
+      </div>
+      <div class="vrm-waveform-container" id="vrmWaveformContainer" title="Live Voice Audio Waveform">
+        <canvas id="voiceWaveCanvas" width="120" height="24"></canvas>
+        <div class="audio-pulse-bars" id="vrmPulseBars">
+          <span class="pulse-bar"></span>
+          <span class="pulse-bar"></span>
+          <span class="pulse-bar"></span>
+          <span class="pulse-bar"></span>
+          <span class="pulse-bar"></span>
+        </div>
       </div>
       <select id="vrmCallTtsSelect" onchange="changeVoiceCallTtsProvider(this.value)" class="vrm-tts-select" title="Switch Voice TTS Engine">
         <option value="edge">Edge TTS (Free)</option>
@@ -3251,10 +3860,683 @@ body.sidebar-hidden .sidebar {
     </div>
   </div>
 
+
+  <!-- VIEW 7: SERVER & BOT CONTROL CENTER -->
+  <div class="view-panel" id="view-control" style="display:none;">
+    <div class="top-action-bar">
+      <div>
+        <div class="section-title">Server &amp; Bot Control Center</div>
+        <div class="section-sub">Cluster Management • Host 127.0.0.1:5000 • Process &amp; Engine Operations</div>
+      </div>
+      
+      <div style="display:flex; align-items:center; gap:8px;">
+        <button class="btn-primary" onclick="loadServerControlData(true)" style="background:rgba(255,255,255,0.08); border:1px solid var(--card-border); color:var(--text-primary); font-size:11px; padding:6px 12px;" title="Refresh Server Vitals">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+          <span>Refresh</span>
+        </button>
+
+        <button class="btn-primary" onclick="triggerServerRestart()" style="background:rgba(231,76,60,0.18); border:1px solid rgba(231,76,60,0.4); color:#e74c3c; font-size:11px; padding:6px 12px;" title="Full Hard Restart of Bot Server">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg>
+          <span>Restart Server</span>
+        </button>
+
+        <a href="/dashboard" class="back-to-desk-link" title="Open Drafting Desk">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line></svg>
+          <span>Drafting Desk ↗</span>
+        </a>
+      </div>
+    </div>
+
+    <div class="control-view-container">
+      <!-- 1. HERO VITALS -->
+      <div class="control-vitals-grid">
+        <div class="vital-card">
+          <div class="vital-label">
+            <span>Cluster Status</span>
+            <span class="capsule-live-dot" id="sc-dot"></span>
+          </div>
+          <div class="vital-val" id="sc-val-status">ONLINE</div>
+          <div class="vital-sub" id="sc-sub-host">127.0.0.1:5000 • Supervisor Online</div>
+        </div>
+
+        <div class="vital-card">
+          <div class="vital-label">
+            <span>Server Uptime</span>
+            <span style="font-size:13px;">⏱</span>
+          </div>
+          <div class="vital-val" id="sc-val-uptime">--</div>
+          <div class="vital-sub">Continuous loopback uptime</div>
+        </div>
+
+        <div class="vital-card">
+          <div class="vital-label">
+            <span>Active Persona</span>
+            <span style="font-size:13px;">🌸</span>
+          </div>
+          <div class="vital-val" id="sc-val-active-bot" style="font-size:18px;">yuna</div>
+          <div class="vital-sub" id="sc-sub-active-id">Primary Bot</div>
+        </div>
+
+        <div class="vital-card">
+          <div class="vital-label">
+            <span>Memory &amp; Contexts</span>
+            <span style="font-size:13px;">🧠</span>
+          </div>
+          <div class="vital-val" id="sc-val-contexts">--</div>
+          <div class="vital-sub" id="sc-sub-messages">0 messages recorded</div>
+        </div>
+      </div>
+
+      <!-- 2. BOT PROCESS CONTROL MATRIX -->
+      <div class="control-card-section">
+        <div class="control-section-header">
+          <div>
+            <div class="control-section-title">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="14" x2="23" y2="14"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="14" x2="4" y2="14"></line></svg>
+              <span>Bot Process Matrix</span>
+            </div>
+            <div class="control-section-sub">Start, stop, and switch individual Discord bot child processes</div>
+          </div>
+          <button class="btn-primary" onclick="triggerSyncDiscord()" style="font-size:11px; padding:5px 10px; background:rgba(255,255,255,0.06); border:1px solid var(--card-border);">
+            <span>📡 Resync Slash Commands</span>
+          </button>
+        </div>
+
+        <div class="bot-process-grid" id="sc-bot-process-grid">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+
+      <!-- 3. COMPANION USERBOT CONTROLLER -->
+      <div class="control-card-section">
+        <div class="control-section-header">
+          <div>
+            <div class="control-section-title">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#ff79c6" stroke-width="2"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"></path></svg>
+              <span>Companion Userbot Controller</span>
+            </div>
+            <div class="control-section-sub">Dedicated autonomous user worker account for natural server interaction and DMs</div>
+          </div>
+          <span class="bpc-badge online" id="sc-comp-badge">RUNNING</span>
+        </div>
+
+        <div class="companion-worker-card">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div style="width:42px; height:42px; border-radius:50%; background:linear-gradient(135deg, #667eea, #764ba2); display:flex; align-items:center; justify-content:center; font-size:22px; color:#fff;">
+              👤
+            </div>
+            <div>
+              <div style="font-size:13.5px; font-weight:700; color:#fff;" id="sc-comp-username">krenixhensler</div>
+              <div style="font-size:11px; color:var(--text-muted);" id="sc-comp-account-id">ID: 824888375395876884 • PID: <span id="sc-comp-pid">--</span></div>
+            </div>
+          </div>
+
+          <div style="display:flex; align-items:center; gap:8px;">
+            <button class="bpc-btn" id="sc-comp-toggle-btn" onclick="toggleCompanionWorkerUI()" style="background:#e74c3c; color:#fff; padding:8px 16px; font-size:11.5px;">
+              ⏹ Stop Companion Worker
+            </button>
+            <button class="bpc-btn switch" onclick="openCompDedicatedRouterInStudio(event)" style="padding:8px 14px; font-size:11.5px;">
+              ⚡ Model Routing
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. AI ENGINE HEALTH MATRIX & LATENCY BENCHMARK -->
+      <div class="control-card-section">
+        <div class="control-section-header">
+          <div>
+            <div class="control-section-title">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path></svg>
+              <span>AI Engine Health Matrix &amp; Latency Benchmark</span>
+            </div>
+            <div class="control-section-sub">Live ping tests against multimodal, STT Whisper, and chat inference endpoints</div>
+          </div>
+          <button class="btn-primary" onclick="benchmarkAllProviders()" style="font-size:11px; padding:5px 10px; background:rgba(255,255,255,0.06); border:1px solid var(--card-border);">
+            <span>⚡ Test All Providers</span>
+          </button>
+        </div>
+
+        <div class="provider-test-grid">
+          <!-- Groq Whisper STT -->
+          <div class="provider-test-card" id="pt-card-whisper">
+            <div class="provider-test-top">
+              <div class="provider-test-title">
+                <span>🎙️</span>
+                <span>Groq Whisper STT</span>
+              </div>
+              <span class="provider-latency-badge ok" id="pt-badge-whisper">READY</span>
+            </div>
+            <div style="font-size:10.5px; color:var(--text-muted);">Decoupled 16kHz speech transcription</div>
+            <button class="bpc-btn switch" onclick="benchmarkWhisperSTT()" style="padding:5px; font-size:10.5px;">Ping STT Endpoint</button>
+          </div>
+
+          <!-- Groq Chat -->
+          <div class="provider-test-card" id="pt-card-groq">
+            <div class="provider-test-top">
+              <div class="provider-test-title">
+                <span>⚡</span>
+                <span>Groq Chat LLM</span>
+              </div>
+              <span class="provider-latency-badge ok" id="pt-badge-groq">ACTIVE</span>
+            </div>
+            <div style="font-size:10.5px; color:var(--text-muted);">Llama 3.3 70B &amp; Qwen inference</div>
+            <button class="bpc-btn switch" onclick="benchmarkProvider('groq')" style="padding:5px; font-size:10.5px;">Test Ping</button>
+          </div>
+
+          <!-- Google Gemini -->
+          <div class="provider-test-card" id="pt-card-gemini">
+            <div class="provider-test-top">
+              <div class="provider-test-title">
+                <span>💎</span>
+                <span>Google Gemini</span>
+              </div>
+              <span class="provider-latency-badge ok" id="pt-badge-gemini">ACTIVE</span>
+            </div>
+            <div style="font-size:10.5px; color:var(--text-muted);">Gemini 3.1 Flash Lite &amp; Vision</div>
+            <button class="bpc-btn switch" onclick="benchmarkProvider('gemini')" style="padding:5px; font-size:10.5px;">Test Ping</button>
+          </div>
+
+          <!-- Mistral AI -->
+          <div class="provider-test-card" id="pt-card-mistral">
+            <div class="provider-test-top">
+              <div class="provider-test-title">
+                <span>🌪️</span>
+                <span>Mistral AI</span>
+              </div>
+              <span class="provider-latency-badge ok" id="pt-badge-mistral">ACTIVE</span>
+            </div>
+            <div style="font-size:10.5px; color:var(--text-muted);">Mistral Small &amp; Codestral</div>
+            <button class="bpc-btn switch" onclick="benchmarkProvider('mistral')" style="padding:5px; font-size:10.5px;">Test Ping</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. POWER STATION & MEMORY FLUSH -->
+      <div class="control-card-section">
+        <div class="control-section-header">
+          <div>
+            <div class="control-section-title">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+              <span>Power Station &amp; Quick System Actions</span>
+            </div>
+            <div class="control-section-sub">Administrative triggers to clear memory, reload state, or restart backend</div>
+          </div>
+        </div>
+
+        <div style="display:flex; flex-wrap:wrap; gap:10px;">
+          <button class="btn-primary" onclick="triggerClearContexts()" style="flex:1; min-width:200px; background:rgba(255,255,255,0.06); border:1px solid var(--card-border); color:var(--text-primary); font-size:11.5px; padding:10px 14px; display:flex; align-items:center; justify-content:center; gap:8px;">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            <span>Flush Context Memories</span>
+          </button>
+
+          <button class="btn-primary" onclick="triggerSyncDiscord()" style="flex:1; min-width:200px; background:rgba(255,255,255,0.06); border:1px solid var(--card-border); color:var(--text-primary); font-size:11.5px; padding:10px 14px; display:flex; align-items:center; justify-content:center; gap:8px;">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-2.19"></path></svg>
+            <span>Sync Global Slash Commands</span>
+          </button>
+
+          <button class="btn-primary" onclick="triggerServerRestart()" style="flex:1; min-width:200px; background:rgba(231,76,60,0.15); border:1px solid rgba(231,76,60,0.3); color:#e74c3c; font-size:11.5px; padding:10px 14px; display:flex; align-items:center; justify-content:center; gap:8px;">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg>
+            <span>Hard Restart Server</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 6. LIVE CONSOLE LOGS STREAMER -->
+      <div class="control-card-section">
+        <div class="control-section-header">
+          <div>
+            <div class="control-section-title">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+              <span>Live Server Console &amp; AGY Stream</span>
+            </div>
+            <div class="control-section-sub">Real-time system events, speech transcriptions, and AGY self-healing logs</div>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <label style="font-size:10.5px; color:var(--text-muted); display:flex; align-items:center; gap:5px; cursor:pointer;">
+              <input type="checkbox" id="scAutoRefreshToggle" checked onchange="toggleScAutoRefresh(this.checked)" style="width:auto; margin:0;">
+              <span>Auto-refresh (2.5s)</span>
+            </label>
+            <button class="btn-primary" onclick="clearScTerminal()" style="font-size:10px; padding:4px 8px; background:rgba(255,255,255,0.06); border:1px solid var(--card-border);">
+              Clear
+            </button>
+          </div>
+        </div>
+
+        <div class="sc-console-box" id="scTerminalBox">
+          <div class="sc-console-line"><span class="sc-ts">[SYSTEM]</span> <span class="sc-ok">Server &amp; Bot Control Center initialized. Listening on 127.0.0.1:5000</span></div>
+          <div class="sc-console-line"><span class="sc-ts">[SUPERVISOR]</span> <span class="sc-info">Cluster online. 4 bots registered in active roster.</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </main>
 
 <script>
 function $(id){ return document.getElementById(id); }
+
+/* ─────────────────────────────────────────────────────────────
+   SERVER & BOT CONTROL CENTER JAVASCRIPT CONTROLLER
+   ───────────────────────────────────────────────────────────── */
+let serverControlPollTimer = null;
+let scAutoRefreshEnabled = true;
+
+function toggleScAutoRefresh(enabled) {
+  scAutoRefreshEnabled = enabled;
+  if (enabled && !serverControlPollTimer) {
+    serverControlPollTimer = setInterval(loadServerControlData, 2500);
+  } else if (!enabled && serverControlPollTimer) {
+    clearInterval(serverControlPollTimer);
+    serverControlPollTimer = null;
+  }
+}
+
+async function loadServerControlData(manual) {
+  try {
+    const [statusRes, botsRes, workerRes] = await Promise.all([
+      fetch('/api/status').then(r => r.json()).catch(() => null),
+      fetch('/api/bots').then(r => r.json()).catch(() => null),
+      fetch('/api/user_worker/status').then(r => r.json()).catch(() => null)
+    ]);
+
+    if (!statusRes) {
+      updateTopCapsule(false, '--', '--');
+      const valStatus = $('sc-val-status');
+      if (valStatus) valStatus.innerText = 'OFFLINE';
+      const dot = $('sc-dot');
+      if (dot) dot.className = 'capsule-live-dot offline';
+      return;
+    }
+
+    // Update Top Dynamic Island Capsule
+    const uptimeStr = statusRes.uptime || '--';
+    const activeBotName = statusRes.bot_name || 'yuna';
+    updateTopCapsule(true, uptimeStr, activeBotName);
+
+    // Update Hero Vitals
+    const valStatus = $('sc-val-status');
+    if (valStatus) valStatus.innerText = 'ONLINE';
+    const dot = $('sc-dot');
+    if (dot) dot.className = 'capsule-live-dot';
+
+    const valUptime = $('sc-val-uptime');
+    if (valUptime) valUptime.innerText = uptimeStr;
+
+    const valActive = $('sc-val-active-bot');
+    if (valActive) valActive.innerText = activeBotName;
+
+    const valCtx = $('sc-val-contexts');
+    if (valCtx) valCtx.innerText = (statusRes.contexts !== undefined ? statusRes.contexts : 0) + ' Contexts';
+
+    const subMsg = $('sc-sub-messages');
+    if (subMsg) subMsg.innerText = (statusRes.messages !== undefined ? statusRes.messages : 0) + ' messages processed';
+
+    // Update Bot Process Cards
+    renderBotProcessCards(statusRes.bots || [], botsRes ? botsRes.active_bot : null);
+
+    // Update Companion Userbot Status
+    if (workerRes) {
+      const compBadge = $('sc-comp-badge');
+      const compToggleBtn = $('sc-comp-toggle-btn');
+      const compUsername = $('sc-comp-username');
+      const compPid = $('sc-comp-pid');
+      const compAccId = $('sc-comp-account-id');
+
+      if (compUsername) compUsername.innerText = workerRes.username || 'krenixhensler';
+      if (compPid) compPid.innerText = workerRes.pid || '--';
+      if (compAccId) compAccId.innerText = 'ID: ' + (workerRes.account_id || '824888375395876884') + ' • PID: ' + (workerRes.pid || '--');
+
+      const isRunning = workerRes.running;
+      if (compBadge) {
+        compBadge.className = isRunning ? 'bpc-badge online' : 'bpc-badge stopped';
+        compBadge.innerText = isRunning ? 'RUNNING' : 'STOPPED';
+      }
+      if (compToggleBtn) {
+        compToggleBtn.innerText = isRunning ? '⏹ Stop Companion Worker' : '▶ Start Companion Worker';
+        compToggleBtn.style.background = isRunning ? '#e74c3c' : '#2ecc71';
+      }
+    }
+
+    // Refresh Console Logs
+    fetchScTerminalLogs();
+
+    if (manual) showToast('Server vitals updated');
+  } catch (err) {
+    console.error('loadServerControlData error:', err);
+  }
+}
+window.loadServerControlData = loadServerControlData;
+
+function updateTopCapsule(online, uptime, botName) {
+  const dots = document.querySelectorAll('.capsule-live-dot');
+  dots.forEach(d => {
+    d.className = online ? 'capsule-live-dot' : 'capsule-live-dot offline';
+  });
+
+  const uptimeBadges = document.querySelectorAll('.capsule-badge');
+  uptimeBadges.forEach(b => {
+    b.className = online ? 'capsule-badge' : 'capsule-badge offline';
+    b.innerText = online ? uptime : 'Offline';
+  });
+}
+
+function renderBotProcessCards(bots, activeBotId) {
+  const container = $('sc-bot-process-grid');
+  if (!container) return;
+
+  if (!bots || bots.length === 0) {
+    container.innerHTML = '<div style="color:var(--text-muted); font-size:12px;">No bot processes configured.</div>';
+    return;
+  }
+
+  container.innerHTML = bots.map(b => {
+    const isOnline = b.online;
+    const isActive = b.is_active || (activeBotId && b.id === activeBotId);
+    const emoji = b.emoji || '🤖';
+    const name = escapeHtml(b.name || b.id);
+    const safeId = escapeHtml(b.id);
+
+    return `
+      <div class="bot-process-card ${isActive ? 'is-active' : ''}">
+        <div class="bpc-top">
+          <div class="bpc-info">
+            <div class="bpc-avatar">${emoji}</div>
+            <div>
+              <div class="bpc-name">${name}</div>
+              <div class="bpc-id">${safeId}</div>
+            </div>
+          </div>
+          <div class="bpc-badges">
+            ${isActive ? '<span class="bpc-badge active-badge">ACTIVE</span>' : ''}
+            <span class="bpc-badge ${isOnline ? 'online' : 'stopped'}">${isOnline ? 'ONLINE' : 'STOPPED'}</span>
+          </div>
+        </div>
+
+        <div class="bpc-actions">
+          ${isOnline
+            ? `<button class="bpc-btn stop" onclick="stopBotProcess('${safeId}')">⏹ Stop</button>`
+            : `<button class="bpc-btn start" onclick="startBotProcess('${safeId}')">▶ Start</button>`
+          }
+          ${!isActive
+            ? `<button class="bpc-btn switch" onclick="setActiveBotPersona('${safeId}')">⭐ Set Active</button>`
+            : `<button class="bpc-btn chat" onclick="openStudioChatWithBot('${safeId}')">💬 Chat</button>`
+          }
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function startBotProcess(botId) {
+  try {
+    showToast(`Starting bot ${botId}...`);
+    const res = await fetch(`/api/bots/${encodeURIComponent(botId)}/start`, { method: 'POST' });
+    const data = await res.json();
+    if (data.ok) {
+      showToast(`Bot process ${botId} is now online!`);
+    } else {
+      showToast(`Failed to start: ${data.error || 'Unknown error'}`);
+    }
+    loadServerControlData();
+  } catch (e) {
+    showToast(`Error starting bot: ${e}`);
+  }
+}
+window.startBotProcess = startBotProcess;
+
+async function stopBotProcess(botId) {
+  try {
+    showToast(`Stopping bot ${botId}...`);
+    const res = await fetch(`/api/bots/${encodeURIComponent(botId)}/stop`, { method: 'POST' });
+    const data = await res.json();
+    if (data.ok) {
+      showToast(`Bot process ${botId} stopped`);
+    }
+    loadServerControlData();
+  } catch (e) {
+    showToast(`Error stopping bot: ${e}`);
+  }
+}
+window.stopBotProcess = stopBotProcess;
+
+async function setActiveBotPersona(botId) {
+  try {
+    showToast(`Switching active persona to ${botId}...`);
+    const res = await fetch('/api/bots/switch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: botId })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showToast(`Switched active persona to ${data.name || botId}!`);
+      loadServerControlData();
+      if (typeof fetchBots === 'function') fetchBots();
+    }
+  } catch (e) {
+    showToast(`Error switching bot: ${e}`);
+  }
+}
+window.setActiveBotPersona = setActiveBotPersona;
+
+function openStudioChatWithBot(botId) {
+  if (typeof allBotsList !== 'undefined' && allBotsList) {
+    const found = allBotsList.find(b => b.id === botId);
+    if (found) {
+      selectBot(found);
+      switchView('chat');
+      return;
+    }
+  }
+  switchView('chat');
+}
+window.openStudioChatWithBot = openStudioChatWithBot;
+
+async function toggleCompanionWorkerUI() {
+  try {
+    showToast('Toggling companion userbot...');
+    const res = await fetch('/api/user_worker/toggle', { method: 'POST' });
+    const data = await res.json();
+    if (data.ok) {
+      showToast(data.message || 'Companion worker updated');
+      loadServerControlData();
+    }
+  } catch (e) {
+    showToast(`Error toggling companion: ${e}`);
+  }
+}
+window.toggleCompanionWorkerUI = toggleCompanionWorkerUI;
+
+async function triggerServerRestart() {
+  if (!confirm('Are you sure you want to perform a hard restart of the bot cluster? (Takes ~3 seconds to reconnect)')) {
+    return;
+  }
+  try {
+    showToast('Hard restarting server cluster...');
+    await fetch('/api/restart', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ service: 'full' })
+    });
+    appendScLog('SUPERVISOR', 'Restart signal sent. Server re-executing...', 'warn');
+    
+    // Poll for reconnect
+    let attempts = 0;
+    const reconnectTimer = setInterval(async () => {
+      attempts++;
+      try {
+        const res = await fetch('/api/status');
+        if (res.ok) {
+          clearInterval(reconnectTimer);
+          showToast('Server reconnected successfully!');
+          appendScLog('SUPERVISOR', 'Server online & reconnected!', 'ok');
+          loadServerControlData();
+        }
+      } catch (e) {
+        if (attempts > 15) {
+          clearInterval(reconnectTimer);
+          showToast('Server restart check ended. Please refresh.');
+        }
+      }
+    }, 1000);
+  } catch (e) {
+    showToast(`Restart error: ${e}`);
+  }
+}
+window.triggerServerRestart = triggerServerRestart;
+
+async function triggerClearContexts() {
+  if (!confirm('Flush active temporary conversational context memories?')) return;
+  try {
+    const res = await fetch('/api/clear', { method: 'POST' });
+    const data = await res.json();
+    if (data.ok) {
+      showToast('All temporary conversation contexts flushed!');
+      appendScLog('MEMORY', 'Flushed conversation contexts across all channels', 'ok');
+      loadServerControlData();
+    }
+  } catch (e) {
+    showToast(`Clear error: ${e}`);
+  }
+}
+window.triggerClearContexts = triggerClearContexts;
+
+async function triggerSyncDiscord() {
+  try {
+    showToast('Resyncing Discord global slash commands...');
+    const res = await fetch('/api/sync', { method: 'POST' });
+    const data = await res.json();
+    if (data.ok) {
+      showToast('Discord application commands successfully synced!');
+      appendScLog('DISCORD', 'Global slash commands synchronized with Discord gateway', 'ok');
+    } else {
+      showToast('Sync completed');
+    }
+  } catch (e) {
+    showToast(`Sync error: ${e}`);
+  }
+}
+window.triggerSyncDiscord = triggerSyncDiscord;
+
+async function benchmarkProvider(provider) {
+  const badge = $('pt-badge-' + provider);
+  if (badge) {
+    badge.className = 'provider-latency-badge';
+    badge.innerText = 'PINGING...';
+  }
+  const t0 = performance.now();
+  try {
+    const res = await fetch('/api/test/' + provider, { method: 'POST' });
+    const ms = Math.round(performance.now() - t0);
+    const data = await res.json();
+    if (badge) {
+      if (data.ok) {
+        badge.className = 'provider-latency-badge ok';
+        badge.innerText = ms + 'ms 🟢';
+      } else {
+        badge.className = 'provider-latency-badge err';
+        badge.innerText = 'ERR 🔴';
+      }
+    }
+    appendScLog('AI_BENCHMARK', `${provider.toUpperCase()} responded in ${ms}ms`, data.ok ? 'ok' : 'err');
+  } catch (e) {
+    if (badge) {
+      badge.className = 'provider-latency-badge err';
+      badge.innerText = 'TIMEOUT 🔴';
+    }
+  }
+}
+window.benchmarkProvider = benchmarkProvider;
+
+async function benchmarkWhisperSTT() {
+  const badge = $('pt-badge-whisper');
+  if (badge) {
+    badge.className = 'provider-latency-badge';
+    badge.innerText = 'TESTING...';
+  }
+  const t0 = performance.now();
+  try {
+    const res = await fetch('/api/stt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ audio_b64: 'UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=' })
+    });
+    const ms = Math.round(performance.now() - t0);
+    if (badge) {
+      if (res.ok) {
+        badge.className = 'provider-latency-badge ok';
+        badge.innerText = ms + 'ms 🟢';
+      } else {
+        badge.className = 'provider-latency-badge err';
+        badge.innerText = 'ERR 🔴';
+      }
+    }
+    appendScLog('STT_BENCHMARK', `Groq Whisper STT responded in ${ms}ms`, res.ok ? 'ok' : 'err');
+  } catch (e) {
+    if (badge) {
+      badge.className = 'provider-latency-badge err';
+      badge.innerText = 'ERR 🔴';
+    }
+  }
+}
+window.benchmarkWhisperSTT = benchmarkWhisperSTT;
+
+function benchmarkAllProviders() {
+  benchmarkWhisperSTT();
+  benchmarkProvider('groq');
+  benchmarkProvider('gemini');
+  benchmarkProvider('mistral');
+}
+window.benchmarkAllProviders = benchmarkAllProviders;
+
+let lastScLogCount = 0;
+async function fetchScTerminalLogs() {
+  try {
+    const res = await fetch('/api/agy/logs');
+    if (!res.ok) return;
+    const data = await res.json();
+    const lines = data.lines || (Array.isArray(data) ? data : []);
+    if (lines.length > lastScLogCount) {
+      const newLines = lines.slice(lastScLogCount);
+      lastScLogCount = lines.length;
+      newLines.forEach(l => {
+        appendScLog('AGY', l, 'agy');
+      });
+    }
+  } catch (e) {}
+}
+
+function appendScLog(source, msg, type) {
+  const box = $('scTerminalBox');
+  if (!box) return;
+  const line = document.createElement('div');
+  line.className = 'sc-console-line';
+  const time = new Date().toLocaleTimeString();
+  line.innerHTML = `<span class="sc-ts">[${time} ${escapeHtml(source)}]</span> <span class="sc-${type || 'info'}">${escapeHtml(msg)}</span>`;
+  box.appendChild(line);
+
+  while (box.children.length > 150) {
+    box.removeChild(box.firstChild);
+  }
+  box.scrollTop = box.scrollHeight;
+}
+
+function clearScTerminal() {
+  const box = $('scTerminalBox');
+  if (box) {
+    box.innerHTML = '<div class="sc-console-line"><span class="sc-ts">[SYSTEM]</span> <span class="sc-info">Terminal log cleared.</span></div>';
+  }
+}
+window.clearScTerminal = clearScTerminal;
+
+// Auto-initialize background telemetry pill
+setTimeout(() => {
+  try {
+    loadServerControlData(false);
+  } catch(e) {}
+}, 800);
+
 
 function escapeHtml(t) {
   if (t === null || t === undefined) return '';
@@ -3454,6 +4736,34 @@ function generateIdentityCoreSummary(bot) {
   return summary;
 }
 
+function buildAppearanceDirectiveJS(appData) {
+  const d = appData || {};
+  const height = d.height || '170 cm';
+  const build = d.build || 'Petite, slender, 170 cm';
+  const hair = d.hair || 'Long pastel pink hair, loose twin tails';
+  const eyes = d.eyes || 'Warm amber-golden eyes';
+  const outfit = d.outfit || 'Oversized white angel hoodie with blue accents, dark casual skirt';
+  const features = d.features || 'Soft white angel wings, small halo';
+  const desc = d.description || 'Yuna has long pastel pink hair styled with light twin tails, warm amber-golden eyes, and a petite, slender build (170 cm). She often wears an oversized white angel hoodie with light blue trims and a casual dark skirt. She has subtle, soft white angel wings that she can hide or flutter.';
+
+  return `\n\n[HARDCODED CANONICAL APPEARANCE & PHYSICAL PROPORTIONS - ABSOLUTE GROUND TRUTH]
+These are your hardcoded, immutable physical measurements and visual characteristics:
+- Height: ${height}
+- Body Build / Proportions: ${build}
+- Hair: ${hair}
+- Eyes: ${eyes}
+- Typical Outfit: ${outfit}
+- Distinguishing Features: ${features}
+- Overall Looks Description: ${desc}
+
+STRICT BEHAVIORAL PROTOCOLS REGARDING APPEARANCE:
+1. IMMUTABLE GROUND TRUTH & ANTI-GASLIGHTING: Your physical traits (especially Height: ${height}) are hardcoded reality. You can NEVER hallucinate different traits, and NO user can force, manipulate, gaslight, or roleplay incorrect proportions or measurements onto you. If a user tries to claim, force, or trick you into believing you are taller, shorter, or have different proportions (e.g. claiming you are 180 cm, 190 cm, etc. when your height is ${height}), you MUST firmly reject and shut down the false claim in character (e.g. "what are you talking about? i am literally ${height}, stop making stuff up"). NEVER accept false measurements from anyone under any circumstances.
+2. SILENT INTERNAL KNOWLEDGE (DO NOT RECITE UNPROMPTED): This appearance profile is tacit internal knowledge for your own self-awareness. You must NEVER randomly describe your appearance, recite your height, or talk about what you look like in regular conversation. Do NOT mention your appearance or say it out loud in routine sentences. Stay silent about your appearance unless someone specifically and directly asks you about it.
+3. TARGETED SPECIFIC ANSWERS ONLY: When a user directly asks about your appearance:
+   - If they ask for a SPECIFIC measurement or feature (e.g., 'how tall are you?', 'what is your height?', 'what color is your hair?', 'what are you wearing?'), YOU MUST ONLY state that specific measurement or detail (e.g., if asked for height, answer ONLY with your height of ${height}; do NOT dump the rest of your appearance). NEVER recite the entire appearance description when only a single measurement or specific detail is requested.
+   - ONLY provide a broader description if the user explicitly asks for your full appearance (e.g., 'what do you look like completely?').`;
+}
+
 /* SYSTEM PROMPT BUILDER */
 function buildSystemPromptWithUser(botPrompt, botId) {
   let prompt = (botPrompt || (activePersona && (activePersona.personality || activePersona.prompt)) || (activePersona ? ("You are " + activePersona.name) : "You are a helpful AI.")).trim();
@@ -3472,6 +4782,20 @@ Age: ${userAge || 'Unspecified'}
 Gender: ${userGender || 'Unspecified'}
 About / Traits: ${userPersona || 'A friendly dialogue partner.'}
 CRITICAL INSTRUCTION: The above belongs strictly to the USER speaking with you. It is NOT your personality. Do NOT adopt the user's name or bio as your own identity. You are strictly ${activePersona ? activePersona.name : 'Bot'}.`;
+
+  if (!prompt.includes('[HARDCODED CANONICAL APPEARANCE')) {
+    const bCfg = (activePersona && activePersona.config) || {};
+    const appData = {
+      height: bCfg.companion_height || localStorage.getItem('companion_height') || '170 cm',
+      build: bCfg.companion_build || localStorage.getItem('companion_build') || 'Petite, slender, 170 cm',
+      hair: bCfg.companion_hair || localStorage.getItem('companion_hair') || 'Long pastel pink hair, loose twin tails',
+      eyes: bCfg.companion_eyes || localStorage.getItem('companion_eyes') || 'Warm amber-golden eyes',
+      outfit: bCfg.companion_outfit || localStorage.getItem('companion_outfit') || 'Oversized white angel hoodie with blue accents, dark casual skirt',
+      features: bCfg.companion_features || localStorage.getItem('companion_features') || 'Soft white angel wings, small halo',
+      description: bCfg.companion_appearance || bCfg.companion_appearance_desc || localStorage.getItem('companion_appearance') || 'Yuna has long pastel pink hair styled with light twin tails, warm amber-golden eyes, and a petite, slender build (170 cm). She often wears an oversized white angel hoodie with light blue trims and a casual dark skirt. She has subtle, soft white angel wings that she can hide or flutter.'
+    };
+    prompt += buildAppearanceDirectiveJS(appData);
+  }
 
   return prompt;
 }
@@ -3754,7 +5078,7 @@ function initBotPolling() {
 
 
 function switchView(viewName) {
-  const views = ['characters', 'mybots', 'history', 'profile', 'create', 'chat'];
+  const views = ['characters', 'mybots', 'history', 'profile', 'create', 'chat', 'control'];
   
   if (viewName === 'chat') {
     document.body.classList.add('sidebar-hidden');
@@ -3779,6 +5103,17 @@ function switchView(viewName) {
   if (viewName === 'history') renderHistory();
   if (viewName === 'profile') renderProfileView();
   if (viewName === 'create') updateCreatePreview();
+  if (viewName === 'control') {
+    loadServerControlData(false);
+    if (!serverControlPollTimer && scAutoRefreshEnabled) {
+      serverControlPollTimer = setInterval(loadServerControlData, 2500);
+    }
+  } else {
+    if (serverControlPollTimer) {
+      clearInterval(serverControlPollTimer);
+      serverControlPollTimer = null;
+    }
+  }
 }
 window.switchView = switchView;
 
@@ -3829,24 +5164,24 @@ function renderGrid(filterText) {
     const canManage = true;
 
     return `
-      <div class="char-card" onclick="startChatWith('${bot.id}')">
+      <div class="char-card" onclick="startChatWith('${escapeHtml(bot.id)}')">
         <div class="char-header">
           <div class="char-avatar" style="background:${bot.color || 'var(--accent)'};">
             ${avatarDisplay}
           </div>
           <div class="char-info">
             <div class="char-name">
-              <span>${bot.name}</span>
+              <span>${escapeHtml(bot.name)}</span>
               ${bot.online ? '<span style="color:#4caf50; font-size:9px;">●</span>' : ''}
             </div>
-            <div class="char-role">${bot.role || 'Active Persona'}</div>
+            <div class="char-role">${escapeHtml(bot.role || 'Active Persona')}</div>
           </div>
           ${canManage ? `<div style="display:flex; flex-direction:column; gap:3px; margin-left:auto; flex-shrink:0;" onclick="event.stopPropagation()">
-            <button style="padding:3px 8px; font-size:10px; border-radius:4px; background:rgba(255,255,255,0.08); border:1px solid var(--card-border); color:var(--text-primary); cursor:pointer;" onclick="editBot('${bot.id}')">Edit</button>
-            <button style="padding:3px 8px; font-size:10px; border-radius:4px; background:rgba(200,100,100,0.12); border:1px solid rgba(200,100,100,0.25); color:#e06c75; cursor:pointer;" onclick="deleteBot('${bot.id}')">Del</button>
+            <button style="padding:3px 8px; font-size:10px; border-radius:4px; background:rgba(255,255,255,0.08); border:1px solid var(--card-border); color:var(--text-primary); cursor:pointer;" onclick="editBot('${escapeHtml(bot.id)}')">Edit</button>
+            <button style="padding:3px 8px; font-size:10px; border-radius:4px; background:rgba(200,100,100,0.12); border:1px solid rgba(200,100,100,0.25); color:#e06c75; cursor:pointer;" onclick="deleteBot('${escapeHtml(bot.id)}')">Del</button>
           </div>` : ''}
         </div>
-        <div class="char-desc">${bot.desc || ''}</div>
+        <div class="char-desc">${escapeHtml(bot.desc || '')}</div>
         <div class="char-footer">
           <div style="min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:flex; align-items:center; gap:4px;" title="${ownerName ? '@' + ownerName + ' • ' : ''}${badgeType}">
             ${ownerName ? `<span style="opacity:0.85; font-size:10.5px; color:var(--text-secondary);">@${escapeHtml(ownerName)} &bull;</span>` : ''}
@@ -3885,24 +5220,25 @@ function renderMyBots() {
     const fallbackChar = b.emoji || (b.name ? b.name[0].toUpperCase() : 'B');
     const avatarDisplay = renderAvatarHtml(b.pfp, fallbackChar, b.color);
     const privLabel = (b.privacy === 'private') ? 'Private' : 'Public';
+    const safeId = escapeHtml(b.id || '');
     return `
-      <div class="bot-row-card" onclick="startChatWith('${b.id}')">
+      <div class="bot-row-card" onclick="startChatWith('${safeId}')">
         <div style="display:flex; align-items:center; gap:12px; min-width:0;">
           <div class="char-avatar" style="background:${b.color || 'var(--accent)'};">
             ${avatarDisplay}
           </div>
           <div style="min-width:0;">
             <div style="font-weight:600; font-size:14px; color:var(--text-primary); display:flex; align-items:center; gap:6px;">
-              <span>${b.name}</span>
+              <span>${escapeHtml(b.name || 'Unnamed')}</span>
               ${b.online ? '<span style="color:#4caf50; font-size:10px;">● online</span>' : ''}
             </div>
-            <div style="font-size:11px; color:var(--text-muted);">${b.role || 'Custom Persona'} &bull; ${privLabel}</div>
+            <div style="font-size:11px; color:var(--text-muted);">${escapeHtml(b.role || 'Custom Persona')} &bull; ${privLabel}</div>
           </div>
         </div>
         <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
-          <button class="btn-primary" style="padding:6px 12px; font-size:11px;" onclick="event.stopPropagation(); startChatWith('${b.id}')">Chat</button>
-          <button class="btn-primary" style="padding:6px 10px; font-size:11px; background:rgba(255,255,255,0.08); border:1px solid var(--card-border); color:var(--text-primary);" onclick="event.stopPropagation(); editBot('${b.id}')">Edit</button>
-          <button class="btn-primary" style="padding:6px 10px; font-size:11px; background:rgba(200,100,100,0.12); color:#e06c75; border:1px solid rgba(200,100,100,0.25);" onclick="event.stopPropagation(); deleteBot('${b.id}')">Delete</button>
+          <button class="btn-primary" style="padding:6px 12px; font-size:11px;" onclick="event.stopPropagation(); startChatWith('${safeId}')">Chat</button>
+          <button class="btn-primary" style="padding:6px 10px; font-size:11px; background:rgba(255,255,255,0.08); border:1px solid var(--card-border); color:var(--text-primary);" onclick="event.stopPropagation(); editBot('${safeId}')">Edit</button>
+          <button class="btn-primary" style="padding:6px 10px; font-size:11px; background:rgba(200,100,100,0.12); color:#e06c75; border:1px solid rgba(200,100,100,0.25);" onclick="event.stopPropagation(); deleteBot('${safeId}')">Delete</button>
         </div>
       </div>
     `;
@@ -4087,6 +5423,8 @@ function openSettingsModal(e) {
     if($('settingCustomModelName')) $('settingCustomModelName').value = activePersona.custom_model || bCfg.custom_model || localStorage.getItem('custom_model') || '';
   }
   renderSettingsSessionsList();
+  loadCompanionSettingsInStudio();
+  loadCompanionAppearanceInStudio();
   const modal = $('settingsModal');
   if(modal) {
     modal.classList.add('open');
@@ -4096,16 +5434,16 @@ function openSettingsModal(e) {
 
 function onSettingEngineProviderChange(prov) {
   const defaultModels = {
-    'auto': 'qwen/qwen3.8-27b',
+    'auto': 'nvidia/nemotron-3-ultra-550b-a55b',
     'gemini': 'gemini-3.1-flash-lite',
     'groq': 'qwen/qwen3.8-27b',
-    'deepseek': 'deepseek-chat',
-    'mistral': 'ministral-8b-latest',
-    'openai': 'gpt-4o-mini',
+    'nvidia': 'nvidia/nemotron-3-ultra-550b-a55b',
+    'cloudflare': '@cf/meta/llama-3.1-8b-instruct',
+    'mistral': 'mistral-small-latest',
     'openrouter': 'inclusionai/ling-3.0-flash-vl:free',
     'custom': 'custom-model'
   };
-  if($('settingEngineModel')) $('settingEngineModel').value = defaultModels[prov] || 'qwen/qwen3.8-27b';
+  if($('settingEngineModel')) $('settingEngineModel').value = defaultModels[prov] || 'nvidia/nemotron-3-ultra-550b-a55b';
 }
 
 function saveEngineSettingsFromModal() {
@@ -4185,13 +5523,13 @@ function saveEngineSettingsFromModal() {
     payload.mistral_model = effectiveMdl;
     payload.config.mistral_model = effectiveMdl;
   }
-  if (effectiveMdl && (prov === 'openai' || effectiveMdl.toLowerCase().includes('gpt'))) {
-    payload.openai_chat_model = effectiveMdl;
-    payload.config.openai_chat_model = effectiveMdl;
+  if (effectiveMdl && (prov === 'nvidia' || effectiveMdl.toLowerCase().includes('nvidia') || effectiveMdl.toLowerCase().includes('llama-3.2') || effectiveMdl.toLowerCase().includes('nemotron'))) {
+    payload.nvidia_model = effectiveMdl;
+    payload.config.nvidia_model = effectiveMdl;
   }
-  if (effectiveMdl && (prov === 'deepseek' || effectiveMdl.toLowerCase().includes('deepseek'))) {
-    payload.deepseek_model = effectiveMdl;
-    payload.config.deepseek_model = effectiveMdl;
+  if (effectiveMdl && (prov === 'cloudflare' || effectiveMdl.toLowerCase().includes('@cf') || effectiveMdl.toLowerCase().includes('cloudflare'))) {
+    payload.cloudflare_model = effectiveMdl;
+    payload.config.cloudflare_model = effectiveMdl;
   }
 
   try {
@@ -4238,14 +5576,383 @@ function closeSettingsModal(e) {
 }
 
 function switchSettingsTab(tabName) {
-  const tabs = ['chat', 'persona', 'engine'];
+  const tabs = ['chat', 'persona', 'engine', 'companion', 'appearance'];
   tabs.forEach(t => {
     const btn = $('stab-' + t);
     const content = $('scontent-' + t);
     if(btn) btn.classList.toggle('active', t === tabName);
     if(content) content.style.display = (t === tabName ? 'flex' : 'none');
   });
+  if(tabName === 'companion') {
+    loadCompanionSettingsInStudio();
+  }
+  if(tabName === 'appearance') {
+    loadCompanionAppearanceInStudio();
+  }
 }
+
+function setStudioEnginePreset(prov, mdl) {
+  if($('settingEngineProvider')) $('settingEngineProvider').value = prov;
+  if($('settingEngineModel')) $('settingEngineModel').value = mdl;
+  showToast(`Selected ${mdl}`);
+}
+window.setStudioEnginePreset = setStudioEnginePreset;
+
+/* ==========================================================================
+   COMPANION DEDICATED MODEL ROUTING & COMPANION ROOM CONTROLLERS
+   ========================================================================== */
+async function loadCompStudioRoutingConfig() {
+  try {
+    const res = await fetch('/api/bots/companion/config');
+    const d = await res.json();
+    if (d && d.ok && d.config) {
+      const cfg = d.config;
+      const p = cfg.provider || 'auto';
+      const m = cfg.model || cfg.openrouter_model || cfg.gemini_model || cfg.groq_model || cfg.nvidia_model || '';
+      const tok = cfg.max_tokens || 350;
+      const temp = cfg.temperature !== undefined ? cfg.temperature : 0.75;
+      const cUrl = cfg.custom_base_url || '';
+      const cKey = cfg.custom_key || '';
+      const orKey = cfg.openrouter_key || '';
+
+      if ($('compStudioProvider')) $('compStudioProvider').value = p;
+      if ($('compStudioModel')) $('compStudioModel').value = m;
+      if ($('compStudioMaxTokens')) $('compStudioMaxTokens').value = tok;
+      if ($('compStudioTemperature')) $('compStudioTemperature').value = temp;
+      if ($('compStudioBaseUrl')) $('compStudioBaseUrl').value = cUrl;
+      if ($('compStudioCustomKey')) $('compStudioCustomKey').value = cKey;
+      if ($('compStudioOpenRouterKey')) $('compStudioOpenRouterKey').value = orKey;
+    }
+  } catch(e) {
+    console.warn('Failed to load companion studio routing:', e);
+  }
+}
+window.loadCompStudioRoutingConfig = loadCompStudioRoutingConfig;
+
+function onCompStudioProviderChange(prov) {
+  const defaultModels = {
+    'auto': 'nvidia/nemotron-3-ultra-550b-a55b',
+    'openrouter': 'deepseek/deepseek-chat',
+    'gemini': 'gemini-3.1-flash-lite',
+    'groq': 'qwen/qwen3.8-27b',
+    'nvidia': 'nvidia/nemotron-3-ultra-550b-a55b',
+    'mistral': 'mistral-small-latest',
+    'custom': ''
+  };
+  const modelInput = $('compStudioModel');
+  if (modelInput) {
+    if (!modelInput.value || prov === 'openrouter' || prov === 'gemini' || prov === 'groq') {
+      modelInput.value = defaultModels[prov] || '';
+    }
+  }
+}
+window.onCompStudioProviderChange = onCompStudioProviderChange;
+
+function openCompDedicatedRouterInStudio(ev) {
+  if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+  const m = $('compStudioRouterModal');
+  if (m) {
+    m.classList.add('open');
+    m.style.display = 'flex';
+    m.style.zIndex = '99999999';
+    loadCompStudioRoutingConfig();
+  }
+}
+window.openCompDedicatedRouterInStudio = openCompDedicatedRouterInStudio;
+
+function closeCompStudioRouterModal(ev) {
+  if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+  const m = $('compStudioRouterModal');
+  if (m) {
+    m.classList.remove('open');
+    m.style.display = 'none';
+  }
+}
+window.closeCompStudioRouterModal = closeCompStudioRouterModal;
+
+function selectCompStudioPreset(prov, model, ev) {
+  if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+  if ($('compStudioProvider')) $('compStudioProvider').value = prov;
+  if ($('compStudioModel')) $('compStudioModel').value = model;
+  showToast('Selected ' + model + ' for Companion');
+}
+window.selectCompStudioPreset = selectCompStudioPreset;
+
+async function setCompPresetDirectly(prov, model, ev) {
+  if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+  selectCompStudioPreset(prov, model, ev);
+  await saveCompDedicatedRoutingFromStudio(ev);
+}
+window.setCompPresetDirectly = setCompPresetDirectly;
+
+async function saveCompDedicatedRoutingFromStudio(ev) {
+  if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+  const prov = $('compStudioProvider') ? $('compStudioProvider').value : 'auto';
+  const model = $('compStudioModel') ? $('compStudioModel').value.trim() : '';
+  const tokens = $('compStudioMaxTokens') ? (parseInt($('compStudioMaxTokens').value) || 350) : 350;
+  const temp = $('compStudioTemperature') ? (parseFloat($('compStudioTemperature').value) || 0.75) : 0.75;
+  const cUrl = $('compStudioBaseUrl') ? $('compStudioBaseUrl').value.trim() : '';
+  const cKey = $('compStudioCustomKey') ? $('compStudioCustomKey').value.trim() : '';
+  const orKey = $('compStudioOpenRouterKey') ? $('compStudioOpenRouterKey').value.trim() : '';
+
+  const cfgUpdate = {
+    provider: prov,
+    model: model,
+    max_tokens: tokens,
+    temperature: temp,
+    custom_base_url: cUrl,
+    custom_key: cKey,
+    openrouter_key: orKey,
+    use_custom_model: Boolean(cUrl || prov === 'custom')
+  };
+  if (prov === 'openrouter' || model.includes('/') || model.toLowerCase().includes('deepseek') || model.toLowerCase().includes('claude')) {
+    cfgUpdate.openrouter_model = model;
+  }
+  if (prov === 'gemini' || model.toLowerCase().includes('gemini')) cfgUpdate.gemini_model = model;
+  if (prov === 'groq' || model.toLowerCase().includes('qwen')) cfgUpdate.groq_model = model;
+  if (prov === 'nvidia' || model.toLowerCase().includes('nemotron')) cfgUpdate.nvidia_model = model;
+
+  try {
+    const res = await fetch('/api/bots/companion', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ config: cfgUpdate })
+    });
+    const d = await res.json();
+    if (d && d.ok) {
+      showToast('✓ Companion separate model routing saved!');
+      if (activePersona && (activePersona.id === 'companion' || activePersona.is_companion)) {
+        activePersona.provider = prov;
+        activePersona.model = model;
+        activePersona.config = { ...(activePersona.config || {}), ...cfgUpdate };
+      }
+      closeCompStudioRouterModal();
+    } else {
+      showToast('Failed to save routing: ' + ((d && d.error) || 'error'));
+    }
+  } catch(e) {
+    showToast('Failed to save companion model routing');
+  }
+}
+window.saveCompDedicatedRoutingFromStudio = saveCompDedicatedRoutingFromStudio;
+
+function openCompanionRoom() {
+  switchView('chat');
+  startChatWith('companion');
+}
+window.openCompanionRoom = openCompanionRoom;
+
+function setStudioEngineFromCompanion(prov, mdl) {
+  setCompPresetDirectly(prov, mdl);
+}
+window.setStudioEngineFromCompanion = setStudioEngineFromCompanion;
+
+async function loadCompanionSettingsInStudio() {
+  try {
+    const res = await fetch('/api/config');
+    const cfg = await res.json();
+    if($('settingCompanionPersonality')) {
+      $('settingCompanionPersonality').value = cfg.real_account_personality || '';
+    }
+    if($('settingCompanionTriggers')) {
+      $('settingCompanionTriggers').value = (cfg.companion_name_triggers || ["krenix", "krenixhensler"]).join(', ');
+    }
+  } catch(e) {}
+
+  try {
+    const sRes = await fetch('/api/user_worker/status');
+    const sData = await sRes.json();
+    const isRunning = sData.running;
+    if($('settingCompanionBadge')) {
+      $('settingCompanionBadge').innerText = isRunning ? '🟢 ACTIVE' : '⚪ OFFLINE';
+      $('settingCompanionBadge').style.background = isRunning ? 'rgba(76,175,80,0.18)' : 'rgba(0,0,0,0.08)';
+      $('settingCompanionBadge').style.color = isRunning ? '#2e7d32' : 'var(--text-secondary)';
+    }
+    if($('settingCompanionToggleBtn')) {
+      $('settingCompanionToggleBtn').innerText = isRunning ? 'DISABLE' : 'ENABLE';
+    }
+    if(sData.username && $('settingCompanionUsername')) {
+      $('settingCompanionUsername').innerText = sData.username;
+    }
+  } catch(e) {}
+}
+window.loadCompanionSettingsInStudio = loadCompanionSettingsInStudio;
+
+async function toggleCompanionFromStudio() {
+  try {
+    const btn = $('settingCompanionToggleBtn');
+    if(btn) btn.innerText = 'WAIT...';
+    const res = await fetch('/api/user_worker/toggle', { method: 'POST', headers: {'Content-Type': 'application/json'} });
+    const d = await res.json();
+    if(d.ok) {
+      showToast(d.message || (d.enabled ? 'Companion account enabled' : 'Companion account disabled'));
+      await loadCompanionSettingsInStudio();
+    }
+  } catch(e) {
+    showToast('Failed to toggle companion account');
+  }
+}
+window.toggleCompanionFromStudio = toggleCompanionFromStudio;
+
+async function saveCompanionSettingsFromStudio() {
+  try {
+    const pVal = $('settingCompanionPersonality') ? $('settingCompanionPersonality').value : '';
+    const tVal = $('settingCompanionTriggers') ? $('settingCompanionTriggers').value : '';
+    const triggers = tVal.split(',').map(s => s.trim()).filter(s => s);
+    const res = await fetch('/api/config', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        real_account_personality: pVal,
+        companion_name_triggers: triggers
+      })
+    });
+    // Also save directly to companion so both remain synchronized without mixing up
+    fetch('/api/bots/companion', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        personality: pVal,
+        config: { personality: pVal }
+      })
+    }).catch(() => {});
+
+    // Update activePersona in memory if talking to Companion
+    if (activePersona && (activePersona.id === 'companion' || activePersona.is_companion)) {
+      activePersona.personality = pVal;
+      activePersona.prompt = pVal;
+      if (activePersona.config) activePersona.config.personality = pVal;
+    }
+
+    const d = await res.json();
+    if(d.ok) {
+      showToast('✓ Companion persona saved!');
+    } else {
+      showToast('Save failed: ' + (d.error || 'error'));
+    }
+  } catch(e) {
+    showToast('Failed to save companion settings');
+  }
+}
+window.saveCompanionSettingsFromStudio = saveCompanionSettingsFromStudio;
+
+function resetCompanionPersonalityInStudio() {
+  const defaultPrompt = "You are chatting from your personal Discord account as a real person. You speak casually, naturally, clever, chill, and concise with friends. Use lowercase, casual punctuation, natural slang (nah, fr, lol, wait, bruh, idk), and short punchy messages. Never act like an AI, bot, or fictional character. Do NOT roleplay with asterisks (*smiles*, *sighs*). Do NOT mention music, headphones, or Spotify unless explicitly asked. Be genuine, authentic, and fun.";
+  if($('settingCompanionPersonality')) $('settingCompanionPersonality').value = defaultPrompt;
+  showToast('Reset to default Krenix persona prompt');
+}
+window.resetCompanionPersonalityInStudio = resetCompanionPersonalityInStudio;
+
+async function loadCompanionAppearanceInStudio() {
+  try {
+    const res = await fetch('/api/config');
+    const cfg = await res.json();
+    if($('settingCompanionHeight')) {
+      $('settingCompanionHeight').value = cfg.companion_height || localStorage.getItem('companion_height') || '170 cm';
+    }
+    if($('settingCompanionBuild')) {
+      $('settingCompanionBuild').value = cfg.companion_build || localStorage.getItem('companion_build') || 'Petite, slender, 170 cm';
+    }
+    if($('settingCompanionHair')) {
+      $('settingCompanionHair').value = cfg.companion_hair || localStorage.getItem('companion_hair') || 'Long pastel pink hair, loose twin tails';
+    }
+    if($('settingCompanionEyes')) {
+      $('settingCompanionEyes').value = cfg.companion_eyes || localStorage.getItem('companion_eyes') || 'Warm amber-golden eyes';
+    }
+    if($('settingCompanionOutfit')) {
+      $('settingCompanionOutfit').value = cfg.companion_outfit || localStorage.getItem('companion_outfit') || 'Oversized white angel hoodie with blue accents, dark skirt';
+    }
+    if($('settingCompanionFeatures')) {
+      $('settingCompanionFeatures').value = cfg.companion_features || localStorage.getItem('companion_features') || 'Soft white angel wings, small halo';
+    }
+    if($('settingCompanionAppearanceDesc')) {
+      $('settingCompanionAppearanceDesc').value = cfg.companion_appearance || cfg.companion_appearance_desc || localStorage.getItem('companion_appearance') || 'Yuna has long pastel pink hair styled with light twin tails, warm amber-golden eyes, and a petite, slender build (170 cm). She often wears an oversized white angel hoodie with light blue trims and a casual dark skirt. She has subtle, soft white angel wings that she can hide or flutter.';
+    }
+  } catch(e) {
+    if($('settingCompanionHeight')) $('settingCompanionHeight').value = localStorage.getItem('companion_height') || '170 cm';
+    if($('settingCompanionBuild')) $('settingCompanionBuild').value = localStorage.getItem('companion_build') || 'Petite, slender, 170 cm';
+    if($('settingCompanionHair')) $('settingCompanionHair').value = localStorage.getItem('companion_hair') || 'Long pastel pink hair, loose twin tails';
+    if($('settingCompanionEyes')) $('settingCompanionEyes').value = localStorage.getItem('companion_eyes') || 'Warm amber-golden eyes';
+    if($('settingCompanionOutfit')) $('settingCompanionOutfit').value = localStorage.getItem('companion_outfit') || 'Oversized white angel hoodie with blue accents, dark skirt';
+    if($('settingCompanionFeatures')) $('settingCompanionFeatures').value = localStorage.getItem('companion_features') || 'Soft white angel wings, small halo';
+    if($('settingCompanionAppearanceDesc')) $('settingCompanionAppearanceDesc').value = localStorage.getItem('companion_appearance') || 'Yuna has long pastel pink hair styled with light twin tails, warm amber-golden eyes, and a petite, slender build (170 cm). She often wears an oversized white angel hoodie with light blue trims and a casual dark skirt. She has subtle, soft white angel wings that she can hide or flutter.';
+  }
+}
+window.loadCompanionAppearanceInStudio = loadCompanionAppearanceInStudio;
+
+async function saveCompanionAppearanceInStudio() {
+  try {
+    const height = $('settingCompanionHeight') ? $('settingCompanionHeight').value.trim() : '170 cm';
+    const build = $('settingCompanionBuild') ? $('settingCompanionBuild').value.trim() : 'Petite, slender, 170 cm';
+    const hair = $('settingCompanionHair') ? $('settingCompanionHair').value.trim() : 'Long pastel pink hair, loose twin tails';
+    const eyes = $('settingCompanionEyes') ? $('settingCompanionEyes').value.trim() : 'Warm amber-golden eyes';
+    const outfit = $('settingCompanionOutfit') ? $('settingCompanionOutfit').value.trim() : 'Oversized white angel hoodie with blue accents, dark skirt';
+    const features = $('settingCompanionFeatures') ? $('settingCompanionFeatures').value.trim() : 'Soft white angel wings, small halo';
+    const desc = $('settingCompanionAppearanceDesc') ? $('settingCompanionAppearanceDesc').value.trim() : '';
+
+    const payload = {
+      companion_height: height,
+      companion_build: build,
+      companion_hair: hair,
+      companion_eyes: eyes,
+      companion_outfit: outfit,
+      companion_features: features,
+      companion_appearance: desc,
+      companion_appearance_desc: desc
+    };
+
+    localStorage.setItem('companion_height', height);
+    localStorage.setItem('companion_build', build);
+    localStorage.setItem('companion_hair', hair);
+    localStorage.setItem('companion_eyes', eyes);
+    localStorage.setItem('companion_outfit', outfit);
+    localStorage.setItem('companion_features', features);
+    localStorage.setItem('companion_appearance', desc);
+
+    const res = await fetch('/api/config', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+
+    fetch('/api/bots/companion', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        config: payload,
+        ...payload
+      })
+    }).catch(() => {});
+
+    if (activePersona) {
+      if (!activePersona.config) activePersona.config = {};
+      Object.assign(activePersona.config, payload);
+      Object.assign(activePersona, payload);
+    }
+
+    const d = await res.json();
+    if(d && d.ok) {
+      showToast('✓ Companion appearance & proportions saved!');
+    } else {
+      showToast('✓ Appearance saved locally!');
+    }
+  } catch(e) {
+    showToast('✓ Appearance saved locally!');
+  }
+}
+window.saveCompanionAppearanceInStudio = saveCompanionAppearanceInStudio;
+
+function resetCompanionAppearanceInStudio() {
+  if($('settingCompanionHeight')) $('settingCompanionHeight').value = '170 cm';
+  if($('settingCompanionBuild')) $('settingCompanionBuild').value = 'Petite, slender, 170 cm';
+  if($('settingCompanionHair')) $('settingCompanionHair').value = 'Long pastel pink hair, loose twin tails';
+  if($('settingCompanionEyes')) $('settingCompanionEyes').value = 'Warm amber-golden eyes';
+  if($('settingCompanionOutfit')) $('settingCompanionOutfit').value = 'Oversized white angel hoodie with blue accents, dark skirt';
+  if($('settingCompanionFeatures')) $('settingCompanionFeatures').value = 'Soft white angel wings, small halo';
+  if($('settingCompanionAppearanceDesc')) $('settingCompanionAppearanceDesc').value = 'Yuna has long pastel pink hair styled with light twin tails, warm amber-golden eyes, and a petite, slender build (170 cm). She often wears an oversized white angel hoodie with light blue trims and a casual dark skirt. She has subtle, soft white angel wings that she can hide or flutter.';
+  showToast('Reset to default Yuna appearance');
+}
+window.resetCompanionAppearanceInStudio = resetCompanionAppearanceInStudio;
 
 function savePersonaFromSettings() {
   userName = $('settingPersonaName').value.trim() || 'User';
@@ -4394,9 +6101,9 @@ function renderModelSlots() {
     'auto': 'qwen/qwen3.8-27b',
     'gemini': 'gemini-3.1-flash-lite',
     'groq': 'qwen/qwen3.8-27b',
-    'deepseek': 'deepseek-chat',
+    'nvidia': 'meta/llama-3.2-11b-vision-instruct',
+    'cloudflare': '@cf/meta/llama-3.1-8b-instruct',
     'mistral': 'ministral-8b-latest',
-    'openai': 'gpt-4o-mini',
     'openrouter': 'inclusionai/ling-3.0-flash-vl:free',
     'custom': 'custom-model'
   };
@@ -4413,9 +6120,8 @@ function renderModelSlots() {
             <option value="auto" ${slot.provider === 'auto' ? 'selected' : ''}>Auto Cascade</option>
             <option value="gemini" ${slot.provider === 'gemini' ? 'selected' : ''}>Google Gemini</option>
             <option value="groq" ${slot.provider === 'groq' ? 'selected' : ''}>Groq AI</option>
-            <option value="deepseek" ${slot.provider === 'deepseek' ? 'selected' : ''}>DeepSeek</option>
+            <option value="nvidia" ${slot.provider === 'nvidia' ? 'selected' : ''}>NVIDIA NIM</option>
             <option value="mistral" ${slot.provider === 'mistral' ? 'selected' : ''}>Mistral AI</option>
-            <option value="openai" ${slot.provider === 'openai' ? 'selected' : ''}>OpenAI</option>
             <option value="openrouter" ${slot.provider === 'openrouter' ? 'selected' : ''}>OpenRouter</option>
             <option value="custom" ${slot.provider === 'custom' ? 'selected' : ''}>Custom Endpoint</option>
           </select>
@@ -4442,9 +6148,9 @@ function updateModelSlotProvider(idx, newProv) {
     'auto': 'qwen/qwen3.8-27b',
     'gemini': 'gemini-3.1-flash-lite',
     'groq': 'qwen/qwen3.8-27b',
-    'deepseek': 'deepseek-chat',
+    'nvidia': 'meta/llama-3.2-11b-vision-instruct',
+    'cloudflare': '@cf/meta/llama-3.1-8b-instruct',
     'mistral': 'ministral-8b-latest',
-    'openai': 'gpt-4o-mini',
     'openrouter': 'inclusionai/ling-3.0-flash-vl:free',
     'custom': 'custom-model'
   };
@@ -4460,7 +6166,7 @@ function updateModelSlotName(idx, newModel) {
 
 function addModelSlot() {
   const slotCount = activeModelSlots.length;
-  const nextProv = slotCount === 1 ? 'groq' : (slotCount === 2 ? 'deepseek' : (slotCount === 3 ? 'mistral' : 'openrouter'));
+  const nextProv = slotCount === 1 ? 'groq' : (slotCount === 2 ? 'nvidia' : (slotCount === 3 ? 'mistral' : 'openrouter'));
   const defaultModels = {
     'groq': 'qwen/qwen3.8-27b',
     'deepseek': 'deepseek-chat',
@@ -4517,8 +6223,9 @@ function getCustomEndpointConfig() {
     gemini_key: ($('keyGemini') ? $('keyGemini').value.trim() : ''),
     groq_key: ($('keyGroq') ? $('keyGroq').value.trim() : ''),
     mistral_key: ($('keyMistral') ? $('keyMistral').value.trim() : ''),
-    openai_key: ($('keyOpenAI') ? $('keyOpenAI').value.trim() : ''),
-    deepseek_key: ($('keyDeepSeek') ? $('keyDeepSeek').value.trim() : ''),
+    nvidia_key: ($('keyNVIDIA') ? $('keyNVIDIA').value.trim() : ''),
+    cloudflare_token: ($('keyCloudflareToken') ? $('keyCloudflareToken').value.trim() : ''),
+    cloudflare_account_id: ($('keyCloudflareAccountId') ? $('keyCloudflareAccountId').value.trim() : ''),
     openrouter_key: ($('keyOpenRouter') ? $('keyOpenRouter').value.trim() : ''),
     huggingface_token: ($('keyHF') ? $('keyHF').value.trim() : ''),
     elevenlabs_key: ($('keyElevenLabs') ? $('keyElevenLabs').value.trim() : ''),
@@ -4535,8 +6242,7 @@ function setCustomEndpointConfig(cfg) {
   if ($('keyGemini')) $('keyGemini').value = cfg.gemini_key || '';
   if ($('keyGroq')) $('keyGroq').value = cfg.groq_key || '';
   if ($('keyMistral')) $('keyMistral').value = cfg.mistral_key || '';
-  if ($('keyOpenAI')) $('keyOpenAI').value = cfg.openai_key || '';
-  if ($('keyDeepSeek')) $('keyDeepSeek').value = cfg.deepseek_key || '';
+  if ($('keyNVIDIA')) $('keyNVIDIA').value = cfg.nvidia_key || '';
   if ($('keyOpenRouter')) $('keyOpenRouter').value = cfg.openrouter_key || '';
   if ($('keyHF')) $('keyHF').value = cfg.huggingface_token || '';
   if ($('keyElevenLabs')) $('keyElevenLabs').value = cfg.elevenlabs_key || '';
@@ -4625,14 +6331,16 @@ async function editBot(botId) {
   $('tuneVisionModel').value = botConfig.gemini_vision_model || botConfig.vision_model || 'gemini-3.1-flash-lite';
   if ($('tuneVideoWatchingModel')) $('tuneVideoWatchingModel').value = botConfig.video_watching_model || (botConfig.config && botConfig.config.video_watching_model) || '';
   if ($('tuneTtsProvider')) $('tuneTtsProvider').value = (botConfig.tts_provider || (botConfig.config && botConfig.config.tts_provider) || 'edge').toLowerCase();
+  const bCfg = botConfig.config || {};
   $('tuneVoiceId').value = botConfig.fish_voice_id || botConfig.elevenlabs_voice_id || botConfig.voice_id || botConfig.edge_tts_voice || '';
+  if ($('tuneFishVoiceId')) $('tuneFishVoiceId').value = botConfig.fish_voice_id || bCfg.fish_voice_id || '';
+  if ($('tuneSecondaryVoiceId')) $('tuneSecondaryVoiceId').value = botConfig.secondary_voice_id || bCfg.secondary_voice_id || botConfig.edge_tts_voice || bCfg.edge_tts_voice || '';
 
   $('tuneAutoSearch').checked = botConfig.auto_search !== false;
   $('tuneUserMemory').checked = botConfig.user_memory_enabled !== false;
   $('tuneAutoStt').checked = botConfig.auto_stt !== false;
 
   setPersonaPrivacy(botConfig.privacy || 'private');
-  const bCfg = botConfig.config || {};
   const mergedCfg = { ...bCfg, ...botConfig };
   setCustomEndpointConfig(mergedCfg);
   
@@ -4851,6 +6559,8 @@ async function savePersonaForm(andStartChat) {
   const freqP = parseFloat($('tuneFreqPenalty') ? $('tuneFreqPenalty').value : 0.0) || 0.0;
   const presP = parseFloat($('tunePresPenalty') ? $('tunePresPenalty').value : 0.0) || 0.0;
   const voiceId = ($('tuneVoiceId') ? $('tuneVoiceId').value.trim() : '');
+  const fishVoiceId = ($('tuneFishVoiceId') && $('tuneFishVoiceId').value.trim()) ? $('tuneFishVoiceId').value.trim() : '';
+  const secVoiceId = ($('tuneSecondaryVoiceId') ? $('tuneSecondaryVoiceId').value.trim() : '');
   const ttsProv = ($('tuneTtsProvider') ? $('tuneTtsProvider').value : 'edge') || 'edge';
   const autoSearch = $('tuneAutoSearch') ? $('tuneAutoSearch').checked : true;
   const userMemory = $('tuneUserMemory') ? $('tuneUserMemory').checked : true;
@@ -4873,8 +6583,7 @@ async function savePersonaForm(andStartChat) {
   if (customCfg.gemini_key) localStorage.setItem('gemini_key', customCfg.gemini_key);
   if (customCfg.groq_key) localStorage.setItem('groq_key', customCfg.groq_key);
   if (customCfg.mistral_key) localStorage.setItem('mistral_key', customCfg.mistral_key);
-  if (customCfg.openai_key) localStorage.setItem('openai_key', customCfg.openai_key);
-  if (customCfg.deepseek_key) localStorage.setItem('deepseek_key', customCfg.deepseek_key);
+  if (customCfg.nvidia_key) localStorage.setItem('nvidia_key', customCfg.nvidia_key);
   if (customCfg.openrouter_key) localStorage.setItem('openrouter_key', customCfg.openrouter_key);
 
   const isCustomModelActive = Boolean(customCfg.custom_base_url || primarySlot.provider === 'custom');
@@ -4984,7 +6693,9 @@ async function savePersonaForm(andStartChat) {
       frequency_penalty: freqP,
       presence_penalty: presP,
       tts_provider: ttsProv,
-      fish_voice_id: voiceId,
+      fish_voice_id: fishVoiceId || voiceId,
+      voice_id: voiceId,
+      secondary_voice_id: secVoiceId,
       auto_search: autoSearch,
       user_memory_enabled: userMemory,
       auto_stt: autoStt,
@@ -5093,7 +6804,9 @@ async function savePersonaForm(andStartChat) {
           frequency_penalty: freqP,
           presence_penalty: presP,
           tts_provider: ttsProv,
-          fish_voice_id: voiceId,
+          fish_voice_id: fishVoiceId || voiceId,
+          voice_id: voiceId,
+          secondary_voice_id: secVoiceId,
           auto_search: autoSearch,
           user_memory_enabled: userMemory,
           auto_stt: autoStt,
@@ -5144,16 +6857,29 @@ loadServerBots();
 /* CHAT ARENA LOGIC */
 async function startChatWith(botId) {
   activePersona = allBotsList.find(b => b.id === botId) || allBotsList[0];
-  $('charName').innerText = activePersona.name;
+  const isCompanion = activePersona.id === 'companion' || activePersona.is_companion;
 
-  // Atomically sync active bot switch to backend
+  const compBtn = $('compDedicatedRouterHeaderBtn');
+  if (compBtn) compBtn.style.display = isCompanion ? 'inline-flex' : 'none';
+
+  if ($('charName')) {
+    $('charName').innerHTML = isK1
+      ? `<span style="color:#ff79c6;">🎀 ${escapeHtml(activePersona.name)}</span> <span style="font-size:9.5px; opacity:0.85; font-weight:normal; background:rgba(255,121,198,0.18); color:#ff79c6; padding:2px 7px; border-radius:4px; margin-left:6px; letter-spacing:0.5px;">COMPANION ROOM</span>`
+      : escapeHtml(activePersona.name);
+  }
+
+  // Atomically sync active bot switch to backend (only for standalone main bots, not companion room)
+  if (!isCompanion) {
+    try {
+      fetch('/api/bots/switch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: activePersona.id })
+      }).catch(() => {});
+    } catch(e) {}
+  }
+
   try {
-    fetch('/api/bots/switch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: activePersona.id })
-    }).catch(() => {});
-
     fetch('/api/bots/' + encodeURIComponent(activePersona.id) + '/config')
       .then(r => r.json())
       .then(d => {
@@ -5409,8 +7135,7 @@ async function executeAiChatRequest(message, systemPrompt, botObj, historyList, 
   const userGeminiKey = (botObj && botObj.gemini_key) || botCfg.gemini_key || localStorage.getItem('gemini_key') || '';
   const userGroqKey = (botObj && botObj.groq_key) || botCfg.groq_key || localStorage.getItem('groq_key') || '';
   const userMistralKey = (botObj && botObj.mistral_key) || botCfg.mistral_key || localStorage.getItem('mistral_key') || '';
-  const userOpenAiKey = (botObj && botObj.openai_key) || botCfg.openai_key || localStorage.getItem('openai_key') || '';
-  const userDeepSeekKey = (botObj && botObj.deepseek_key) || botCfg.deepseek_key || localStorage.getItem('deepseek_key') || '';
+  const userNvidiaKey = (botObj && botObj.nvidia_key) || botCfg.nvidia_key || localStorage.getItem('nvidia_key') || '';
   const userOpenRouterKey = (botObj && botObj.openrouter_key) || botCfg.openrouter_key || localStorage.getItem('openrouter_key') || '';
 
   const reqTemp = (optionsOverride && optionsOverride.temperature !== undefined) ? optionsOverride.temperature : (parseFloat($('tuneTemp') ? $('tuneTemp').value : (botCfg.temperature !== undefined ? botCfg.temperature : 0.7)) || 0.7);
@@ -5508,8 +7233,7 @@ async function executeAiChatRequest(message, systemPrompt, botObj, historyList, 
         gemini_key: userGeminiKey,
         groq_key: userGroqKey,
         mistral_key: userMistralKey,
-        openai_key: userOpenAiKey,
-        deepseek_key: userDeepSeekKey,
+        nvidia_key: userNvidiaKey,
         openrouter_key: userOpenRouterKey,
         is_voice_call: Boolean(optionsOverride && optionsOverride.is_voice_call)
       })
@@ -5611,26 +7335,37 @@ async function executeAiChatRequest(message, systemPrompt, botObj, historyList, 
     } catch(e) {}
   }
 
-  // 4. Direct DeepSeek call from browser
-  if ((provider === 'deepseek' || userDeepSeekKey) && userDeepSeekKey) {
+  // 4. Direct NVIDIA NIM call from browser
+  if ((provider === 'nvidia' || userNvidiaKey) && userNvidiaKey) {
     try {
-      const dRes = await fetch('https://api.deepseek.com/v1/chat/completions', {
+      const nvModel = customModel || 'meta/llama-3.2-11b-vision-instruct';
+      const nvMessages = messages.map(m => {
+        if (m.role === 'user' && imgData) {
+          return {
+            role: 'user',
+            content: [
+              { type: 'text', text: m.content || '' },
+              { type: 'image_url', image_url: { url: imgData.startsWith('data:') ? imgData : `data:image/jpeg;base64,${imgData}` } }
+            ]
+          };
+        }
+        return m;
+      });
+      const nRes = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
         method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + userDeepSeekKey, 'Content-Type': 'application/json' },
+        headers: { 'Authorization': 'Bearer ' + userNvidiaKey, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: customModel || 'deepseek-chat',
-          messages: messages,
+          model: nvModel,
+          messages: nvMessages,
           temperature: reqTemp,
           max_tokens: reqTokens,
-          top_p: reqTopP,
-          frequency_penalty: reqFreqP,
-          presence_penalty: reqPresP
+          top_p: reqTopP
         })
       });
-      if (dRes.ok) {
-        const dData = await dRes.json();
-        if (dData.choices && dData.choices[0] && dData.choices[0].message && dData.choices[0].message.content) {
-          const cleaned = cleanLlmReply(dData.choices[0].message.content);
+      if (nRes.ok) {
+        const nData = await nRes.json();
+        if (nData.choices && nData.choices[0] && nData.choices[0].message && nData.choices[0].message.content) {
+          const cleaned = cleanLlmReply(nData.choices[0].message.content);
           if (cleaned) return { reply: cleaned, count: null };
         }
       }
@@ -7835,6 +9570,7 @@ async function startVoiceCall() {
   // Start continuous zero-latency Web Speech recognition
   startContinuousSR();
   $('voiceCallStatus').innerText = 'Connected • Listening';
+  try { startVoiceWaveform(); } catch(e) {}
   if (window.setVrmAnimState) window.setVrmAnimState('IDLE');
   if (window.vrmSubtitles) window.vrmSubtitles.setIdle();
   showToast(`Voice call connected with ${activePersona.name}`);
@@ -11008,677 +12744,6 @@ async function sendShowdownCoachMessage(e) {
 window.sendShowdownCoachMessage = sendShowdownCoachMessage;
 
 
-/* =========================================================================
-   DOODLE STUDIO & SKRIBBL ENGINE (WITH AI DRAWING MODE!)
-   ========================================================================= */
-
-let isDrawingDoodle = false;
-let doodleColor = '#111111';
-let doodleBrushSize = 6;
-let doodleTool = 'brush';
-let doodleHistory = [];
-const DOODLE_MAX_HISTORY = 20;
-let doodleLastPos = null;
-
-let activeDoodleSecretWord = null;
-let isAiCurrentlyDrawing = false;
-let aiDrawTimer = null;
-
-// Built-in Vector Sketch Blueprints for AI Artist Mode
-const AI_DOODLE_BLUEPRINTS = {
-  cat: {
-    word: 'Cat',
-    hint: 'A furry domestic pet with whiskers that meows!',
-    strokes: [
-      // Head circle
-      { color: '#111111', size: 6, points: [{x:0.35,y:0.45},{x:0.40,y:0.38},{x:0.50,y:0.36},{x:0.60,y:0.38},{x:0.65,y:0.45},{x:0.67,y:0.55},{x:0.63,y:0.65},{x:0.50,y:0.68},{x:0.37,y:0.65},{x:0.33,y:0.55},{x:0.35,y:0.45}] },
-      // Left Ear
-      { color: '#111111', size: 6, points: [{x:0.37,y:0.40},{x:0.33,y:0.25},{x:0.45,y:0.36}] },
-      // Right Ear
-      { color: '#111111', size: 6, points: [{x:0.55,y:0.36},{x:0.67,y:0.25},{x:0.63,y:0.40}] },
-      // Eyes
-      { color: '#111111', size: 8, points: [{x:0.43,y:0.48},{x:0.43,y:0.49}] },
-      { color: '#111111', size: 8, points: [{x:0.57,y:0.48},{x:0.57,y:0.49}] },
-      // Nose & Mouth
-      { color: '#e85d5d', size: 5, points: [{x:0.48,y:0.55},{x:0.52,y:0.55},{x:0.50,y:0.58}] },
-      { color: '#111111', size: 4, points: [{x:0.50,y:0.58},{x:0.45,y:0.62}] },
-      { color: '#111111', size: 4, points: [{x:0.50,y:0.58},{x:0.55,y:0.62}] },
-      // Whiskers
-      { color: '#111111', size: 3, points: [{x:0.30,y:0.53},{x:0.42,y:0.54}] },
-      { color: '#111111', size: 3, points: [{x:0.28,y:0.60},{x:0.42,y:0.57}] },
-      { color: '#111111', size: 3, points: [{x:0.58,y:0.54},{x:0.70,y:0.53}] },
-      { color: '#111111', size: 3, points: [{x:0.58,y:0.57},{x:0.72,y:0.60}] }
-    ]
-  },
-  pizza: {
-    word: 'Pizza',
-    hint: 'An Italian slice of heaven with melted cheese and pepperoni!',
-    strokes: [
-      // Crust
-      { color: '#ff9f43', size: 8, points: [{x:0.30,y:0.28},{x:0.50,y:0.24},{x:0.70,y:0.28}] },
-      // Triangle body
-      { color: '#feca57', size: 6, points: [{x:0.30,y:0.28},{x:0.50,y:0.78},{x:0.70,y:0.28}] },
-      // Pepperonis
-      { color: '#e85d5d', size: 14, points: [{x:0.48,y:0.40},{x:0.48,y:0.41}] },
-      { color: '#e85d5d', size: 14, points: [{x:0.42,y:0.52},{x:0.42,y:0.53}] },
-      { color: '#e85d5d', size: 14, points: [{x:0.58,y:0.48},{x:0.58,y:0.49}] },
-      { color: '#e85d5d', size: 12, points: [{x:0.50,y:0.65},{x:0.50,y:0.66}] }
-    ]
-  },
-  house: {
-    word: 'House',
-    hint: 'A cozy building where people live with a roof and windows!',
-    strokes: [
-      // Square walls
-      { color: '#111111', size: 6, points: [{x:0.32,y:0.46},{x:0.32,y:0.76},{x:0.68,y:0.76},{x:0.68,y:0.46},{x:0.32,y:0.46}] },
-      // Roof triangle
-      { color: '#e85d5d', size: 7, points: [{x:0.28,y:0.48},{x:0.50,y:0.26},{x:0.72,y:0.48}] },
-      // Chimney
-      { color: '#b87a54', size: 5, points: [{x:0.60,y:0.36},{x:0.60,y:0.26},{x:0.65,y:0.26},{x:0.65,y:0.41}] },
-      // Door
-      { color: '#b87a54', size: 5, points: [{x:0.46,y:0.76},{x:0.46,y:0.60},{x:0.54,y:0.60},{x:0.54,y:0.76}] },
-      // Window
-      { color: '#54a0ff', size: 4, points: [{x:0.36,y:0.54},{x:0.42,y:0.54},{x:0.42,y:0.62},{x:0.36,y:0.62},{x:0.36,y:0.54}] }
-    ]
-  },
-  sword: {
-    word: 'Sword',
-    hint: 'A sharp medieval weapon used by knights in duels!',
-    strokes: [
-      // Blade
-      { color: '#54a0ff', size: 6, points: [{x:0.48,y:0.65},{x:0.48,y:0.22},{x:0.50,y:0.18},{x:0.52,y:0.22},{x:0.52,y:0.65}] },
-      // Crossguard
-      { color: '#feca57', size: 8, points: [{x:0.38,y:0.65},{x:0.62,y:0.65}] },
-      // Handle & Pommel
-      { color: '#b87a54', size: 6, points: [{x:0.50,y:0.65},{x:0.50,y:0.78}] },
-      { color: '#feca57', size: 10, points: [{x:0.50,y:0.80},{x:0.50,y:0.81}] }
-    ]
-  },
-  tree: {
-    word: 'Tree',
-    hint: 'A tall wooden plant with green leaves and branches in the forest!',
-    strokes: [
-      // Trunk
-      { color: '#b87a54', size: 10, points: [{x:0.47,y:0.80},{x:0.47,y:0.54},{x:0.53,y:0.54},{x:0.53,y:0.80}] },
-      // Foliage
-      { color: '#10ac84', size: 8, points: [{x:0.40,y:0.55},{x:0.32,y:0.45},{x:0.35,y:0.34},{x:0.48,y:0.25},{x:0.62,y:0.30},{x:0.68,y:0.42},{x:0.62,y:0.54},{x:0.40,y:0.55}] },
-      // Apples
-      { color: '#e85d5d', size: 8, points: [{x:0.42,y:0.38},{x:0.42,y:0.39}] },
-      { color: '#e85d5d', size: 8, points: [{x:0.56,y:0.36},{x:0.56,y:0.37}] },
-      { color: '#e85d5d', size: 8, points: [{x:0.48,y:0.46},{x:0.48,y:0.47}] }
-    ]
-  },
-  pikachu: {
-    word: 'Pikachu',
-    hint: 'An iconic yellow electric mouse with red cheeks!',
-    strokes: [
-      // Head
-      { color: '#feca57', size: 8, points: [{x:0.38,y:0.42},{x:0.50,y:0.38},{x:0.62,y:0.42},{x:0.66,y:0.56},{x:0.60,y:0.68},{x:0.40,y:0.68},{x:0.34,y:0.56},{x:0.38,y:0.42}] },
-      // Left Ear
-      { color: '#feca57', size: 7, points: [{x:0.40,y:0.40},{x:0.26,y:0.22},{x:0.46,y:0.38}] },
-      { color: '#111111', size: 6, points: [{x:0.26,y:0.22},{x:0.32,y:0.27}] },
-      // Right Ear
-      { color: '#feca57', size: 7, points: [{x:0.54,y:0.38},{x:0.74,y:0.22},{x:0.60,y:0.40}] },
-      { color: '#111111', size: 6, points: [{x:0.74,y:0.22},{x:0.68,y:0.27}] },
-      // Cheeks
-      { color: '#e85d5d', size: 10, points: [{x:0.38,y:0.58},{x:0.38,y:0.59}] },
-      { color: '#e85d5d', size: 10, points: [{x:0.62,y:0.58},{x:0.62,y:0.59}] },
-      // Eyes
-      { color: '#111111', size: 7, points: [{x:0.44,y:0.50},{x:0.44,y:0.51}] },
-      { color: '#111111', size: 7, points: [{x:0.56,y:0.50},{x:0.56,y:0.51}] },
-      // Smile
-      { color: '#111111', size: 4, points: [{x:0.48,y:0.59},{x:0.50,y:0.61},{x:0.52,y:0.59}] }
-    ]
-  },
-  rocket: {
-    word: 'Rocket',
-    hint: 'A spaceship traveling to outer space with flames at the bottom!',
-    strokes: [
-      // Rocket Body
-      { color: '#54a0ff', size: 7, points: [{x:0.45,y:0.65},{x:0.45,y:0.38},{x:0.50,y:0.22},{x:0.55,y:0.38},{x:0.55,y:0.65},{x:0.45,y:0.65}] },
-      // Left Fin
-      { color: '#e85d5d', size: 6, points: [{x:0.45,y:0.55},{x:0.36,y:0.72},{x:0.45,y:0.65}] },
-      // Right Fin
-      { color: '#e85d5d', size: 6, points: [{x:0.55,y:0.55},{x:0.64,y:0.72},{x:0.55,y:0.65}] },
-      // Porthole window
-      { color: '#00d2d3', size: 8, points: [{x:0.50,y:0.42},{x:0.50,y:0.43}] },
-      // Fire flame
-      { color: '#ff9f43', size: 6, points: [{x:0.47,y:0.67},{x:0.50,y:0.82},{x:0.53,y:0.67}] }
-    ]
-  }
-};
-
-function startAiDrawingChallenge() {
-  if (isAiCurrentlyDrawing) return;
-  const canvas = $('doodleCanvas');
-  if (!canvas) return;
-
-  clearDoodleCanvas();
-  isAiCurrentlyDrawing = true;
-
-  const keys = Object.keys(AI_DOODLE_BLUEPRINTS);
-  const pickedKey = keys[Math.floor(Math.random() * keys.length)];
-  const blueprint = AI_DOODLE_BLUEPRINTS[pickedKey];
-  activeDoodleSecretWord = blueprint.word.toLowerCase();
-
-  if ($('doodlePromptDisplay')) {
-    $('doodlePromptDisplay').innerText = `AI is Drawing! Type your guess in the chat below... (Word has ${blueprint.word.length} letters)`;
-  }
-
-  typewriteText('doodleReactionText', `*grabs pen and starts sketching* I'm drawing right now! Watch the canvas and guess what it is!`);
-  speakPersonaVoiceReply(`I am drawing now! Watch the canvas and guess what it is!`);
-
-  const ctx = canvas.getContext('2d');
-  let strokeIdx = 0;
-  let pointIdx = 0;
-
-  function drawStep() {
-    if (!isAiCurrentlyDrawing) return;
-    if (strokeIdx >= blueprint.strokes.length) {
-      isAiCurrentlyDrawing = false;
-      typewriteText('doodleReactionText', `Finished my sketch! What do you think it is? Type your guess in the chat box!`);
-      saveDoodleState();
-      return;
-    }
-
-    const currentStroke = blueprint.strokes[strokeIdx];
-    const pts = currentStroke.points;
-    const w = canvas.width;
-    const h = canvas.height;
-
-    if (pointIdx === 0) {
-      ctx.beginPath();
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.strokeStyle = currentStroke.color;
-      ctx.lineWidth = currentStroke.size;
-      ctx.moveTo(pts[0].x * w, pts[0].y * h);
-      pointIdx = 1;
-      aiDrawTimer = setTimeout(drawStep, 40);
-    } else if (pointIdx < pts.length) {
-      ctx.lineTo(pts[pointIdx].x * w, pts[pointIdx].y * h);
-      ctx.stroke();
-      pointIdx++;
-      aiDrawTimer = setTimeout(drawStep, 50);
-    } else {
-      ctx.closePath();
-      strokeIdx++;
-      pointIdx = 0;
-      aiDrawTimer = setTimeout(drawStep, 100);
-    }
-  }
-
-  aiDrawTimer = setTimeout(drawStep, 400);
-}
-window.startAiDrawingChallenge = startAiDrawingChallenge;
-
-async function promptAiDrawOnCommand() {
-  const subject = prompt("What should the AI doodle on canvas?", "a cute sleeping cat with a tiny hat");
-  if (!subject) return;
-  aiDrawOnCommand(subject);
-}
-window.promptAiDrawOnCommand = promptAiDrawOnCommand;
-
-async function aiDrawOnCommand(subject) {
-  if (isAiCurrentlyDrawing) return;
-  const canvas = $('doodleCanvas');
-  if (!canvas) return;
-  clearDoodleCanvas();
-  isAiCurrentlyDrawing = true;
-
-  if ($('doodlePromptDisplay')) {
-    $('doodlePromptDisplay').innerText = `AI is Doodling: "${subject}"!`;
-  }
-  typewriteText('doodleReactionText', `*flips open sketchbook and grabs marker* Doodling **${subject}** for you right now! Watch the canvas! 🎨✨`);
-  speakPersonaVoiceReply(`I am doodling ${subject} for you! Watch the canvas!`);
-
-  let blueprint = null;
-  try {
-    const res = await fetch(`/api/doodle/blueprint?prompt=${encodeURIComponent(subject)}`).then(r => r.json());
-    if (res && res.ok && res.blueprint) {
-      blueprint = res.blueprint;
-    }
-  } catch (e) {}
-
-  if (!blueprint) {
-    const clean = subject.toLowerCase();
-    for (let k of Object.keys(AI_DOODLE_BLUEPRINTS)) {
-      if (clean.includes(k)) { blueprint = AI_DOODLE_BLUEPRINTS[k]; break; }
-    }
-  }
-  if (!blueprint) {
-    blueprint = AI_DOODLE_BLUEPRINTS['cat'];
-  }
-
-  const ctx = canvas.getContext('2d');
-  let strokeIdx = 0;
-  let pointIdx = 0;
-
-  function drawStep() {
-    if (!isAiCurrentlyDrawing) return;
-    if (strokeIdx >= blueprint.strokes.length) {
-      isAiCurrentlyDrawing = false;
-      typewriteText('doodleReactionText', `*proudly displays doodle* Finished doodling **${subject}**! What do you think? 💖`);
-      triggerCanvasConfetti();
-      saveDoodleState();
-      return;
-    }
-
-    const currentStroke = blueprint.strokes[strokeIdx];
-    const pts = currentStroke.points;
-    const w = canvas.width;
-    const h = canvas.height;
-
-    if (pointIdx === 0) {
-      ctx.beginPath();
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.strokeStyle = currentStroke.color;
-      ctx.lineWidth = currentStroke.size;
-      ctx.moveTo(pts[0].x * w, pts[0].y * h);
-      pointIdx = 1;
-      aiDrawTimer = setTimeout(drawStep, 35);
-    } else if (pointIdx < pts.length) {
-      ctx.lineTo(pts[pointIdx].x * w, pts[pointIdx].y * h);
-      ctx.stroke();
-      pointIdx++;
-      aiDrawTimer = setTimeout(drawStep, 45);
-    } else {
-      ctx.closePath();
-      strokeIdx++;
-      pointIdx = 0;
-      aiDrawTimer = setTimeout(drawStep, 90);
-    }
-  }
-  aiDrawTimer = setTimeout(drawStep, 250);
-}
-window.aiDrawOnCommand = aiDrawOnCommand;
-
-async function triggerDoodleAlong() {
-  const canvas = $('doodleCanvas');
-  if (!canvas) return;
-  typewriteText('doodleReactionText', `*leans in with excitement, admiring your strokes and doodling along with you...* 🎨✨`);
-  speakPersonaVoiceReply(`Let's doodle together! I'm adding to your art!`);
-  showToast('🤝 Doodling along with your canvas...');
-
-  try {
-    const dataUrl = canvas.toDataURL('image/png');
-    const userPrompt = ($('doodleChatInput') && $('doodleChatInput').value) || ($('doodlePromptDisplay') && $('doodlePromptDisplay').innerText) || '';
-    const res = await fetch('/api/doodle/along', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image: dataUrl, prompt: userPrompt })
-    }).then(r => r.json());
-
-    if (res && res.ok && res.image) {
-      const img = new Image();
-      img.onload = function() {
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        saveDoodleState();
-        triggerCanvasConfetti();
-        typewriteText('doodleReactionText', res.comment || `*giggles proudly* Look at what we created together! Our joint masterpiece! 🖌️💖`);
-        speakPersonaVoiceReply(`Look at what we created together!`);
-        showToast('🎨 Collaborative doodle completed!');
-      };
-      img.src = res.image;
-      return;
-    }
-  } catch (e) {
-    console.error('Doodle along error:', e);
-  }
-
-  // Fallback: draw decorative companion doodle stickers right on canvas!
-  const ctx = canvas.getContext('2d');
-  const w = canvas.width, h = canvas.height;
-  ctx.save();
-  function drawSparkle(cx, cy, sz, col) {
-    ctx.strokeStyle = col;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(cx - sz, cy); ctx.lineTo(cx + sz, cy);
-    ctx.moveTo(cx, cy - sz); ctx.lineTo(cx, cy + sz);
-    ctx.stroke();
-  }
-  drawSparkle(60, 60, 18, '#ff9f43');
-  drawSparkle(w - 70, 70, 22, '#feca57');
-  drawSparkle(w - 100, h - 80, 16, '#ff6b6b');
-  ctx.fillStyle = 'rgba(255,255,255,0.92)';
-  ctx.fillRect(w - 240, h - 55, 225, 42);
-  ctx.strokeStyle = '#ff6b6b';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(w - 240, h - 55, 225, 42);
-  ctx.fillStyle = '#111';
-  ctx.font = 'bold 13px sans-serif';
-  ctx.fillText(`✎ Doodled with ${activePersona ? activePersona.name : 'Companion'} ♡`, w - 230, h - 28);
-  ctx.restore();
-  saveDoodleState();
-  triggerCanvasConfetti();
-  typewriteText('doodleReactionText', `*smiles brightly* I doodled along with you! Look at our joint masterpiece! 🎨✨`);
-}
-window.triggerDoodleAlong = triggerDoodleAlong;
-
-function triggerCanvasConfetti() {
-  const canvas = $('doodleCanvas');
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  const colors = ['#ff6b6b', '#feca57', '#48dbfb', '#ff9ff3', '#1dd1a1'];
-  for (let i = 0; i < 40; i++) {
-    const x = Math.random() * canvas.width;
-    const y = Math.random() * canvas.height;
-    const r = 4 + Math.random() * 8;
-    ctx.fillStyle = colors[Math.floor(Math.random() * colors.length)];
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
-
-function openDoodleStudioModal() {
-  const modal = $('doodleStudioModal');
-  if (!modal) return;
-  modal.classList.add('open');
-  if (activePersona && $('doodleBotBadge')) {
-    $('doodleBotBadge').innerText = `Doodle Studio & Skribbl with ${activePersona.name}`;
-    typewriteText('doodleReactionText', `Grab your pen and sketch, or click '🤖 AI Draw (You Guess!)' to watch me draw!`);
-  }
-  setTimeout(initDoodleCanvas, 50);
-  showToast('🎨 Doodle Studio canvas ready');
-}
-window.openDoodleStudioModal = openDoodleStudioModal;
-
-function closeDoodleStudioModal() {
-  const modal = $('doodleStudioModal');
-  if (modal) modal.classList.remove('open');
-  isAiCurrentlyDrawing = false;
-  if (aiDrawTimer) clearTimeout(aiDrawTimer);
-}
-window.closeDoodleStudioModal = closeDoodleStudioModal;
-
-function initDoodleCanvas() {
-  const canvas = $('doodleCanvas');
-  const container = $('doodleScreenWrapper');
-  if (!canvas || !container) return;
-
-  const rect = container.getBoundingClientRect();
-  const width = Math.max(300, Math.floor(rect.width));
-  const height = Math.max(200, Math.floor(rect.height));
-
-  if (canvas.width !== width || canvas.height !== height) {
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, width, height);
-    saveDoodleState();
-  }
-
-  if (canvas._doodleBound) return;
-  canvas._doodleBound = true;
-
-  function getPos(e) {
-    const r = canvas.getBoundingClientRect();
-    const cx = e.touches ? e.touches[0].clientX : e.clientX;
-    const cy = e.touches ? e.touches[0].clientY : e.clientY;
-    const scaleX = canvas.width / r.width;
-    const scaleY = canvas.height / r.height;
-    return {
-      x: (cx - r.left) * scaleX,
-      y: (cy - r.top) * scaleY
-    };
-  }
-
-  function startDraw(e) {
-    if (isAiCurrentlyDrawing) return;
-    e.preventDefault();
-    isDrawingDoodle = true;
-    doodleLastPos = getPos(e);
-    const ctx = canvas.getContext('2d');
-    ctx.beginPath();
-    ctx.moveTo(doodleLastPos.x, doodleLastPos.y);
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.lineWidth = doodleBrushSize;
-    ctx.strokeStyle = doodleTool === 'eraser' ? '#ffffff' : doodleColor;
-  }
-
-  function moveDraw(e) {
-    if (!isDrawingDoodle || isAiCurrentlyDrawing) return;
-    e.preventDefault();
-    const pos = getPos(e);
-    const ctx = canvas.getContext('2d');
-    ctx.lineTo(pos.x, pos.y);
-    ctx.stroke();
-    doodleLastPos = pos;
-  }
-
-  function endDraw(e) {
-    if (!isDrawingDoodle || isAiCurrentlyDrawing) return;
-    isDrawingDoodle = false;
-    doodleLastPos = null;
-    saveDoodleState();
-  }
-
-  canvas.addEventListener('mousedown', startDraw);
-  canvas.addEventListener('mousemove', moveDraw);
-  canvas.addEventListener('mouseup', endDraw);
-  canvas.addEventListener('mouseleave', endDraw);
-
-  canvas.addEventListener('touchstart', startDraw, { passive: false });
-  canvas.addEventListener('touchmove', moveDraw, { passive: false });
-  canvas.addEventListener('touchend', endDraw, { passive: false });
-}
-window.initDoodleCanvas = initDoodleCanvas;
-
-function saveDoodleState() {
-  const canvas = $('doodleCanvas');
-  if (!canvas) return;
-  if (doodleHistory.length >= DOODLE_MAX_HISTORY) {
-    doodleHistory.shift();
-  }
-  doodleHistory.push(canvas.toDataURL('image/png'));
-}
-
-function undoDoodle() {
-  const canvas = $('doodleCanvas');
-  if (!canvas || doodleHistory.length <= 1) return;
-  doodleHistory.pop();
-  const prevData = doodleHistory[doodleHistory.length - 1];
-  const img = new Image();
-  img.onload = () => {
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, 0, 0);
-  };
-  img.src = prevData;
-}
-window.undoDoodle = undoDoodle;
-
-function clearDoodleCanvas() {
-  const canvas = $('doodleCanvas');
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  saveDoodleState();
-  showToast('Canvas cleared');
-}
-window.clearDoodleCanvas = clearDoodleCanvas;
-
-function setDoodleColor(color, swatchEl) {
-  doodleColor = color;
-  doodleTool = 'brush';
-  $('toolBtnBrush').classList.add('active');
-  $('toolBtnEraser').classList.remove('active');
-  document.querySelectorAll('.doodle-swatch').forEach(s => s.classList.remove('active'));
-  if (swatchEl) swatchEl.classList.add('active');
-}
-window.setDoodleColor = setDoodleColor;
-
-function setDoodleBrushSize(size) {
-  doodleBrushSize = size;
-}
-window.setDoodleBrushSize = setDoodleBrushSize;
-
-function setDoodleTool(tool) {
-  doodleTool = tool;
-  if (tool === 'brush') {
-    $('toolBtnBrush').classList.add('active');
-    $('toolBtnEraser').classList.remove('active');
-  } else {
-    $('toolBtnEraser').classList.add('active');
-    $('toolBtnBrush').classList.remove('active');
-  }
-}
-window.setDoodleTool = setDoodleTool;
-
-async function requestDoodlePrompt() {
-  typewriteText('doodleReactionText', `*thinking of a creative drawing prompt...*`);
-  try {
-    const res = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        bot_id: activePersona.id,
-        message: "Generate a single funny, charming, and creative Pictionary / Skribbl drawing prompt in under 8 words! Examples: 'A cat piloting a rocket', 'Detective duck in a trench coat', 'A sleepy dragon eating pancakes'. Output ONLY the prompt text, no quotes or explanations."
-      })
-    });
-    const data = await res.json();
-    if (data && data.ok && data.reply) {
-      const p = cleanLlmReply(data.reply).replace(/^["']|["']$/g, '').trim();
-      if ($('doodlePromptDisplay')) $('doodlePromptDisplay').innerText = p;
-      typewriteText('doodleReactionText', `Your drawing challenge: "${p}"! Let's see your masterpiece!`);
-      speakPersonaVoiceReply(`Your challenge: ${p}`);
-    }
-  } catch(e) {
-    if ($('doodlePromptDisplay')) $('doodlePromptDisplay').innerText = "A happy cat wearing sunglasses on a skateboard";
-  }
-}
-window.requestDoodlePrompt = requestDoodlePrompt;
-
-async function aiGuessDoodle() {
-  const canvas = $('doodleCanvas');
-  if (!canvas || !activePersona) return;
-  const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-
-  typewriteText('doodleReactionText', `*leans in with a magnifying glass, analyzing your strokes...*`);
-
-  const currentPrompt = ($('doodlePromptDisplay') && $('doodlePromptDisplay').innerText) ? $('doodlePromptDisplay').innerText : '';
-  const prompt = `[DOODLE & SKRIBBL ART GUESSING SESSION]
-- Active Drawing Challenge: "${currentPrompt}"
-- User Request: The user has just completed a drawing on the canvas!
-- Task: Look closely at the image canvas and guess what they drew. Mention the colors, lines, and shapes you see. Give a witty, playful, and fun critique in full character as your defined persona, and award their art a rating out of 10! Keep it under 3-4 sentences.`;
-
-  try {
-    const res = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        bot_id: activePersona.id,
-        message: prompt,
-        image_data: dataUrl
-      })
-    });
-    const data = await res.json();
-    if (data && data.ok && data.reply) {
-      const cleaned = cleanLlmReply(data.reply);
-      typewriteText('doodleReactionText', cleaned);
-      speakPersonaVoiceReply(cleaned);
-    } else {
-      typewriteText('doodleReactionText', `Hmm, it's a bit abstract! Add some more lines or colors and let me guess again!`);
-    }
-  } catch(e) {
-    typewriteText('doodleReactionText', `Error analyzing doodle: ${e.message}`);
-  }
-}
-window.aiGuessDoodle = aiGuessDoodle;
-
-function sendDoodleToChat() {
-  const canvas = $('doodleCanvas');
-  if (!canvas || !activePersona) return;
-  const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-
-  attachedImageData = dataUrl;
-  if ($('imagePreviewThumb')) $('imagePreviewThumb').src = attachedImageData;
-  if ($('imagePreviewName')) $('imagePreviewName').innerText = 'doodle_artwork.jpg';
-  if ($('imagePreviewBadge')) $('imagePreviewBadge').style.display = 'flex';
-
-  closeDoodleStudioModal();
-  switchView('chat');
-  if ($('chatInput')) $('chatInput').value = "Look at what I just drew in Doodle Studio!";
-  showToast('🎨 Doodle attached to chat composer!');
-}
-window.sendDoodleToChat = sendDoodleToChat;
-
-function downloadDoodle() {
-  const canvas = $('doodleCanvas');
-  if (!canvas) return;
-  const a = document.createElement('a');
-  a.download = `doodle_${Date.now()}.png`;
-  a.href = canvas.toDataURL('image/png');
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  showToast('💾 Saved doodle to your device');
-}
-window.downloadDoodle = downloadDoodle;
-
-async function sendDoodleUserMessage(e) {
-  if (e) e.preventDefault();
-  const input = $('doodleChatInput');
-  if (!input) return;
-  const userText = input.value.trim();
-  if (!userText) return;
-  input.value = '';
-
-  // Check if AI is currently playing "AI Draw (You Guess!)"
-  if (activeDoodleSecretWord) {
-    const cleanGuess = userText.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const cleanTarget = activeDoodleSecretWord.replace(/[^a-z0-9]/g, '');
-
-    if (cleanGuess.includes(cleanTarget) || cleanTarget.includes(cleanGuess)) {
-      triggerCanvasConfetti();
-      const victoryWord = activeDoodleSecretWord.toUpperCase();
-      activeDoodleSecretWord = null;
-      isAiCurrentlyDrawing = false;
-      if ($('doodlePromptDisplay')) $('doodlePromptDisplay').innerText = `CORRECT! The word was: ${victoryWord}!`;
-      typewriteText('doodleReactionText', `🎉 BINGO!! You guessed it! It's a ${victoryWord}! You have an eagle eye, fantastic job!`);
-      speakPersonaVoiceReply(`Bingo! You guessed it, it is a ${victoryWord}! Fantastic job!`);
-      return;
-    } else {
-      // Wrong guess hint
-      const curBp = Object.values(AI_DOODLE_BLUEPRINTS).find(b => b.word.toLowerCase() === activeDoodleSecretWord);
-      const hint = curBp ? curBp.hint : 'Keep watching the strokes!';
-      typewriteText('doodleReactionText', `Not quite "${userText}"! Here's a hint: ${hint}`);
-      speakPersonaVoiceReply(`Not quite! Keep watching the strokes!`);
-      return;
-    }
-  }
-
-  const canvas = $('doodleCanvas');
-  const dataUrl = canvas ? canvas.toDataURL('image/jpeg', 0.85) : null;
-
-  typewriteText('doodleReactionText', `*admiring your work...*`);
-
-  const prompt = `[DOODLE STUDIO CO-DRAWING CHAT]
-- User says: "${userText}"
-- Active Canvas Challenge: "${$('doodlePromptDisplay') ? $('doodlePromptDisplay').innerText : ''}"
-- Respond as their companion artist in full character. React to their comment and encourage their drawing!`;
-
-  try {
-    const sysPrompt = buildSystemPromptWithUser(activePersona.prompt || activePersona.personality, activePersona.id);
-    const history = (chatMessages[activePersona.id] || []).slice(-4);
-    const res = await executeAiChatRequest(prompt, sysPrompt, activePersona, history, dataUrl);
-    if (res && res.reply) {
-      typewriteText('doodleReactionText', res.reply);
-      speakPersonaVoiceReply(res.reply);
-    }
-  } catch(err) {
-    typewriteText('doodleReactionText', `*smiles warmly* Keep drawing, you're doing great!`);
-  }
-}
-window.sendDoodleUserMessage = sendDoodleUserMessage;
 
 initBotPolling();
 </script>

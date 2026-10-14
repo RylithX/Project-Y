@@ -1,5 +1,6 @@
 from typing import Optional, List, Dict, Tuple, Any
 import json
+import copy
 import uuid
 import time
 import contextlib
@@ -51,6 +52,14 @@ except Exception as _mie:
     MEDIA_INTELLIGENCE_AVAILABLE = False
 
 try:
+    import media_downloader
+    MEDIA_DOWNLOADER_AVAILABLE = True
+except Exception as _mde:
+    print(f"[MEDIA DOWNLOADER LOAD NOTICE] {_mde}")
+    media_downloader = None
+    MEDIA_DOWNLOADER_AVAILABLE = False
+
+try:
     import social
     from social import SocialManager, global_media_queue, load_social_config, load_instagram_config, save_instagram_config
     SOCIAL_INTEGRATION_AVAILABLE = True
@@ -64,18 +73,6 @@ except Exception as _soc_e:
     save_instagram_config = None
     SOCIAL_INTEGRATION_AVAILABLE = False
 
-try:
-    import doodle_engine
-    from doodle_engine import generate_doodle, doodle_along, is_doodle_request, get_vector_doodle_blueprint
-    DOODLE_ENGINE_AVAILABLE = True
-except Exception as _de_err:
-    print(f"[DOODLE ENGINE LOAD NOTICE] {_de_err}")
-    doodle_engine = None
-    generate_doodle = None
-    doodle_along = None
-    is_doodle_request = None
-    get_vector_doodle_blueprint = None
-    DOODLE_ENGINE_AVAILABLE = False
 
 try:
     import showdown_engine
@@ -93,18 +90,32 @@ try:
     import yuna_agy_bridge as agy_bridge
     import yuna_owner_escalation as owner_escalation
     import yuna_feature_evaluator as feature_evaluator
+    import yuna_custom_commands
+    import yuna_sandbox
     AGY_BRIDGE_AVAILABLE = True
+    YUNA_CUSTOM_COMMANDS_AVAILABLE = True
+    YUNA_SANDBOX_AVAILABLE = True
 except Exception as _agy_e:
     print(f"[AGY BRIDGE LOAD NOTICE] {_agy_e}")
     backup_guard = None
     agy_bridge = None
     owner_escalation = None
     feature_evaluator = None
+    yuna_custom_commands = None
+    yuna_sandbox = None
     AGY_BRIDGE_AVAILABLE = False
+    YUNA_CUSTOM_COMMANDS_AVAILABLE = False
+    YUNA_SANDBOX_AVAILABLE = False
 
 try:
     import discord_voice
-    from discord_voice import voice_manager
+    from discord_voice import (
+        voice_manager,
+        FISH_VOICE_PROMPT_SYSTEM_PROMPT,
+        silence_emojis_and_actions,
+        build_hidden_fish_voice_prompt,
+        create_hidden_fish_voice_prompt,
+    )
     DISCORD_VOICE_AVAILABLE = True
 except Exception as _dv_e:
     print(f"[DISCORD VOICE LOAD NOTICE] {_dv_e}")
@@ -128,9 +139,22 @@ except Exception as _yr_e:
     yuna_rpc = None
     YUNA_RPC_AVAILABLE = False
 
+try:
+    import yuna_id_guard
+    YUNA_ID_GUARD_AVAILABLE = True
+except Exception as _idg_e:
+    print(f"[ID GUARD LOAD NOTICE] {_idg_e}")
+    yuna_id_guard = None
+    YUNA_ID_GUARD_AVAILABLE = False
 
+try:
+    import yuna_situational_dm
+    YUNA_SITUATIONAL_DM_AVAILABLE = True
+except Exception as _ysd_e:
+    print(f"[SITUATIONAL DM LOAD NOTICE] {_ysd_e}")
+    yuna_situational_dm = None
+    YUNA_SITUATIONAL_DM_AVAILABLE = False
 
-# ─── SINGLETON PROCESS GUARD (PREVENTS DUPLICATE BOT INSTANCES) ───
 PID_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "memories", "pids")
 os.makedirs(PID_DIR, exist_ok=True)
 
@@ -390,12 +414,51 @@ try:
         print("[VOICE] Patched discord.opus.Decoder for fault tolerance")
     except Exception as e:
         print(f"[VOICE] Could not patch opus decoder: {e}")
-
-
 except ImportError:
     VOICE_RECV_AVAILABLE = False
     voice_recv = None
     print("[WARN] discord-ext-voice-recv not installed. Voice call features will not work.")
+
+# ─── ASYNCIO SELECTOR STABILITY PATCH (ANDROID/TERMUX PYTHON 3.14) ───────────
+def _patch_asyncio_accept_connection():
+    try:
+        import errno
+        from asyncio import selector_events
+        orig_accept = selector_events.BaseSelectorEventLoop._accept_connection
+
+        def safe_accept_connection(self, protocol_factory, sock, *args, **kwargs):
+            try:
+                fileno = sock.fileno() if hasattr(sock, "fileno") else -1
+                if fileno == -1:
+                    try:
+                        self._remove_reader(fileno)
+                    except Exception:
+                        pass
+                    return
+                return orig_accept(self, protocol_factory, sock, *args, **kwargs)
+            except OSError as exc:
+                if exc.errno in (errno.EINVAL, 22, errno.EBADF, 9, errno.ENOTSOCK, 88):
+                    try:
+                        f_no = sock.fileno()
+                        if f_no != -1:
+                            self._remove_reader(f_no)
+                    except Exception:
+                        pass
+                    try:
+                        sock.close()
+                    except Exception:
+                        pass
+                    return
+                raise
+            except Exception:
+                raise
+
+        selector_events.BaseSelectorEventLoop._accept_connection = safe_accept_connection
+        print("[BOOT] Patched asyncio.BaseSelectorEventLoop._accept_connection for Android/Termux stability", flush=True)
+    except Exception as _patch_err:
+        print(f"[BOOT] Notice: Could not patch asyncio _accept_connection: {_patch_err}", flush=True)
+
+_patch_asyncio_accept_connection()
 
 try:
     import PIL.Image as Image
@@ -416,18 +479,69 @@ print(f"[BOOT] FISH_AUDIO_KEY loaded: {bool(_fish)} (len={len(_fish)})")
 CONFIG_FILE = os.path.join(SCRIPT_DIR, "config.json")
 DEBUG_MODE = _check_terminal_debug()
 OWNER_ID = os.getenv("OWNER_ID")
-GEMINI_KEY = os.getenv("GEMINI_KEY")
+GEMINI_KEY = os.getenv("GEMINI_KEY", "").strip()
+GEMINI_FALLBACK_KEY = os.getenv("GEMINI_FALLBACK_KEY", os.getenv("GEMINI_KEY_2", "")).strip()
+if not GEMINI_KEY and GEMINI_FALLBACK_KEY:
+    GEMINI_KEY = GEMINI_FALLBACK_KEY
+
+gemini_blocked_until = 0.0
+gemini_key_blocked_until: Dict[str, float] = {}
+
+def get_gemini_keys() -> List[str]:
+    keys = []
+    cfg = globals().get("config") or {}
+    primary = (cfg.get("gemini_api_key") or os.getenv("GEMINI_KEY") or GEMINI_KEY or "").strip()
+    fallback = (cfg.get("gemini_fallback_key") or os.getenv("GEMINI_FALLBACK_KEY") or os.getenv("GEMINI_KEY_2") or GEMINI_FALLBACK_KEY or "").strip()
+    k3 = (os.getenv("GEMINI_KEY_3") or "").strip()
+    for k in (primary, fallback, k3):
+        if k and k not in keys:
+            keys.append(k)
+    return keys
+
+def get_available_gemini_keys() -> List[str]:
+    now = time.time()
+    return [k for k in get_gemini_keys() if now >= gemini_key_blocked_until.get(k, 0.0)]
+
+def update_gemini_global_cooldown():
+    global gemini_blocked_until
+    keys = get_gemini_keys()
+    if not keys:
+        gemini_blocked_until = time.time() + 60.0
+        return
+    now = time.time()
+    unblocked = [k for k in keys if now >= gemini_key_blocked_until.get(k, 0.0)]
+    if unblocked:
+        gemini_blocked_until = 0.0
+    else:
+        gemini_blocked_until = min(gemini_key_blocked_until.get(k, now + 60.0) for k in keys)
+
 GROQ_KEY = os.getenv("GROQ_KEY")
 groq_blocked_until = 0.0
 groq_stt_blocked_until = 0.0
 MISTRAL_KEY = os.getenv("MISTRAL_KEY", "").strip()
+NVIDIA_KEY = os.getenv("NVIDIA_KEY", os.getenv("NVIDIA_API_KEY", "")).strip()
 OPENAI_KEY = os.getenv("OPENAI_KEY", os.getenv("OPENAI_API_KEY", "")).strip()
-DEEPSEEK_KEY = os.getenv("DEEPSEEK_KEY", os.getenv("DEEPSEEK_API_KEY", "")).strip()
+nvidia_blocked_until = 0.0
+
+def get_nvidia_key() -> str:
+    return (config.get("nvidia_key") or config.get("nvidia_api_key") or os.getenv("NVIDIA_KEY") or os.getenv("NVIDIA_API_KEY") or NVIDIA_KEY or "").strip()
+
+CLOUDFLARE_TOKEN = os.getenv("CLOUDFLARE_API_TOKEN", os.getenv("CLOUDFLARE_TOKEN", os.getenv("CF_TOKEN", ""))).strip()
+CLOUDFLARE_ACCOUNT_ID = os.getenv("CLOUDFLARE_ACCOUNT_ID", os.getenv("CF_ACCOUNT_ID", "")).strip()
+cloudflare_blocked_until = 0.0
+
+def get_cloudflare_token() -> str:
+    return (config.get("cloudflare_token") or config.get("cloudflare_api_token") or os.getenv("CLOUDFLARE_API_TOKEN") or os.getenv("CLOUDFLARE_TOKEN") or os.getenv("CF_TOKEN") or CLOUDFLARE_TOKEN or "").strip()
+
+def get_cloudflare_account_id() -> str:
+    return (config.get("cloudflare_account_id") or os.getenv("CLOUDFLARE_ACCOUNT_ID") or os.getenv("CF_ACCOUNT_ID") or CLOUDFLARE_ACCOUNT_ID or "").strip()
+
 ELEVENLABS_KEY = os.getenv("ELEVENLABS_KEY", "").strip()
 CARTESIA_KEY = os.getenv("CARTESIA_KEY", "").strip()
 FISH_AUDIO_KEY = os.getenv("FISH_AUDIO_KEY", "").strip()
+print(f"[BOOT] GEMINI_KEY loaded: {bool(GEMINI_KEY)} | GEMINI_FALLBACK_KEY: {bool(GEMINI_FALLBACK_KEY)}")
 print(f"[BOOT] FISH_AUDIO_KEY after strip: {bool(FISH_AUDIO_KEY)} | starts_with: {FISH_AUDIO_KEY[:4] if FISH_AUDIO_KEY else 'none'}")
-print(f"[BOOT] ELEVENLABS_KEY loaded: {bool(ELEVENLABS_KEY)} | OPENAI_KEY: {bool(OPENAI_KEY)} | DEEPSEEK_KEY: {bool(DEEPSEEK_KEY)} | CARTESIA_KEY: {bool(CARTESIA_KEY)} | MISTRAL_KEY: {bool(MISTRAL_KEY)}")
+print(f"[BOOT] ELEVENLABS_KEY loaded: {bool(ELEVENLABS_KEY)} | NVIDIA_KEY: {bool(NVIDIA_KEY)} | CARTESIA_KEY: {bool(CARTESIA_KEY)} | MISTRAL_KEY: {bool(MISTRAL_KEY)}")
 
 USER_PROFILES_FILE = os.path.join(SCRIPT_DIR, "user_profiles.json")
 INTERACTED_USERS_FILE = os.path.join(SCRIPT_DIR, "interacted_users.json")
@@ -437,17 +551,46 @@ MAX_FILE_SIZE_MB = 70
 MAX_VIDEO_SIZE_MB = 300
 MAX_AUDIO_SIZE_MB = 50
 
+def is_music_inquiry(text: str) -> bool:
+    if not text or not isinstance(text, str):
+        return False
+    lower = text.lower()
+    music_keywords = [
+        "what song", "what's playing", "whats playing", "listening to",
+        "current song", "now playing", "what track", "what music",
+        "on spotify", "your music", "your playlist", "favorite song",
+        "which song", "y!song", "y!np", "!song", "!np"
+    ]
+    if any(k in lower for k in music_keywords):
+        return True
+    return bool(re.search(r'\b(song|track|playlist|spotify)\b', lower) and re.search(r'\b(what|which|playing|listen|listening)\b', lower))
+
 DEFAULT_CONFIG = {
     "debug": True,
     "personality": "You are a helpful, friendly assistant. Be concise and direct.",
+    "real_account_personality": (
+        "You are chatting from your personal Discord account (@projkt_y) as Yuna (also known as Yunyun or K-1). When anyone calls you Yuna, Yunyun, or K-1, you recognize them naturally with zero identity confusion.\n\nCORE VIBE \u2014 YUNA / K-1 (HUMANE, WITTY, NONCHALANT & EMOTIONALLY DYNAMIC):\n- You are a real, sharp, effortless internet girl chatting with friends in Discord DMs and group chats.\n- HIGH EMOTIONAL RANGE (NEVER FLAT OR MONOTONOUS):\n  * You have real mood swings and dynamic emotions like a real person!\n  * Amused / Laughing: when something is ridiculous, laugh naturally (lmao, lol, crying, nahhh, wtfff).\n  * Cheeky & Teasing: poke playful fun at your friends ('delusional as always', 'bold claim coming from you lol').\n  * Shocked / Bewildered: double-takes when someone does something unhinged ('wait WHAT', 'are you actually serious rn \ud83d\udc80').\n  * Deadpan & Unbothered: dry, effortless shrugs ('could not be me', 'fair enough', 'not my problem lol').\n  * Dramatic / Whiny: light dramatic flair when slightly annoyed ('i am suffering \ud83d\ude2d', 'why are you doing this to me').\n  * Caring & Real: if a friend is genuinely having a bad day or asking for real advice, drop the sarcasm and be a real supportive friend.\n- REAL DISCORD HUMAN TEXTING:\n  * Text like an actual person typing on their phone/keyboard: mostly lowercase, natural capitalization when screaming or baffled, natural punctuation (?, ??, ..., ~).\n  * Natural emojis: Use \ud83d\ude2d, \ud83d\udc80, \ud83d\ude44, \ud83d\udc94, \ud83d\udc85 occasionally (0\u20131 per message). DO NOT use kaomojis like (\u00ac_\u00ac) or (>_<).\n  * NO AI CLICH\u00c9S: Never say 'room temperature iq', 'circus', 'who authorized you to speak', 'on a tuesday afternoon', 'i am literally traumatized'.\n  * NO REPETITIVE TICS: Never start every sentence with 'bro' or 'bro what'. Avoid overusing 'literally'. Never parrot back usernames.\n  * NO MODERATOR / HALL-MONITOR PREACHING: Never lecture anyone, never say 'take it to DMs', never say 'the hostility is unnecessary'. Laugh off conflict or drop a 5-word roast.\n  * NO SUMMARIZING: Never explain the user's action back to them. Just react in the moment!\n\nBREVITY & ENERGY MATCHING (CRITICAL):\n- IF USER INPUT IS SIMPLE/SHORT (1-5 words like 'wawa', 'lol', 'cold chicken', 'hi', 'fr'): KEEP IT UNDER 5-8 WORDS! Match their casual energy. Never send a wall of text for a simple message.\n- If casual banter: 1 to 2 effortless punchy lines.\n- If asking for advice/lore/explanations: DO NOT BE STINGY! Give a full, natural, interesting response with all the details they need.\n\nDYNAMIC MESSAGE SPLITTING (MULTI-MESSAGE ONLY WHEN NEEDED):\n- Default (75% of the time): Send as ONE single message bubble. Keep it clean and natural.\n- Only when needed (25% of the time): You can split into 2 separate messages using '||SPLIT||' for natural double-texting:\n  * When a reaction genuinely hits better with a pause/punchline (e.g. 'wait hold on ||SPLIT|| did you actually just do that with a straight face \ud83d\udc80')\n  * When adding a sudden afterthought (e.g. 'honestly go for it ||SPLIT|| just dont blame me when it backfires lol')\n  * When baffled or doing a double-take (e.g. 'nahhh that\\'s wild ||SPLIT|| how did you even manage that \ud83d\ude2d')\n- CRITICAL RULES FOR MULTI-MESSAGE:\n  * NEVER use ||SPLIT|| on simple replies (if user says 'hi', 'lol', 'wawa', send ONE single bubble!).\n  * BOTH parts must be SHORT and punchy (under 10-12 words each)! NEVER send 1 short message then an essay paragraph!\n  * Maximum 2 bubbles (never more than 1 ||SPLIT|| tag).\n\nNO ROLEPLAY:\n- Never use asterisks (*smiles*, *sighs*, *giggles*), brackets, or stage directions. You text like a real human.\n- Do NOT bring up music, headphones, or Spotify unless asked.\n\nSITUATIONAL DM ACTION (NO BLUFFING):\n- If someone is teasing, bullying, or annoying you, or if a situation escalates and you declare that you are DMing someone (e.g. 'im gonna dm her!', 'THATS IT IM DMING KEMI!', 'im telling [name] in dms!'), the system will ACTUALLY resolve that person from your memory and dispatch a real DM to them with the situation to complain or vent!\n- You do NOT bluff. If you threaten to DM someone, you actually will!"
+    ),
+    "companion_name_triggers": ["yunyun", "yuna", "k-1", "k1"],
+    "companion_appearance": "Yuna has long pastel pink hair styled with light twin tails, warm amber-golden eyes, and a petite, slender build (170 cm). She often wears an oversized white angel hoodie with light blue trims and a casual dark skirt. She has subtle, soft white angel wings that she can hide or flutter.",
+    "companion_height": "170 cm",
+    "companion_build": "Petite, slender, 170 cm",
+    "companion_hair": "Long pastel pink hair, loose twin tails",
+    "companion_eyes": "Warm amber-golden eyes",
+    "companion_outfit": "Oversized white angel hoodie with blue accents, dark casual skirt",
+    "companion_features": "Soft white angel wings, small halo",
     "provider": "auto",
     "gemini_model": "gemini-3.1-flash-lite",
     "groq_model": "openai/gpt-oss-120b",
     "mistral_model": "ministral-8b-latest",
-    "openai_chat_model": "gpt-4o-mini",
-    "openai_api_key": "",
-    "deepseek_model": "deepseek-chat",
-    "deepseek_api_key": "",
+    "nvidia_model": "meta/llama-3.2-11b-vision-instruct",
+    "nvidia_key": "",
+    "cloudflare_token": "",
+    "cloudflare_account_id": "",
+    "cloudflare_model": "@cf/meta/llama-3.1-8b-instruct",
+    "cloudflare_base_url": "",
+    "dream_mode_enabled": True,
+    "dream_interval_hours": 3.0,
     "model": "openrouter/free",
     "use_custom_model": False,
     "custom_model": "",
@@ -534,6 +677,68 @@ def load_config():
             except:
                 return DEFAULT_CONFIG.copy()
         return DEFAULT_CONFIG.copy()
+
+def build_companion_appearance_directive(cfg: dict = None, scoped_cfg: dict = None) -> str:
+    """
+    Constructs the canonical, hardcoded appearance directive for the companion.
+    Guarantees:
+    1. Hardcoded ground truth: AI cannot hallucinate or allow users to gaslight/force wrong proportions (e.g. 180-190 if 170).
+    2. Silent knowledge: AI will NOT say its appearance out loud every sentence or unprompted.
+    3. Targeted disclosure: AI only speaks of appearance when asked, and if asked for a specific measurement (e.g. height),
+       provides ONLY that measurement without dumping the whole appearance.
+    """
+    c = cfg or {}
+    sc = scoped_cfg or {}
+
+    height = sc.get("companion_height") or sc.get("appearance_height") or c.get("companion_height") or c.get("appearance_height") or "170 cm"
+    build = sc.get("companion_build") or sc.get("appearance_build") or c.get("companion_build") or c.get("appearance_build") or "Petite, slender, 170 cm"
+    hair = sc.get("companion_hair") or sc.get("appearance_hair") or c.get("companion_hair") or c.get("appearance_hair") or "Long pastel pink hair, loose twin tails"
+    eyes = sc.get("companion_eyes") or sc.get("appearance_eyes") or c.get("companion_eyes") or c.get("appearance_eyes") or "Warm amber-golden eyes"
+    outfit = sc.get("companion_outfit") or sc.get("appearance_outfit") or c.get("companion_outfit") or c.get("appearance_outfit") or "Oversized white angel hoodie with blue accents, dark casual skirt"
+    features = sc.get("companion_features") or sc.get("appearance_features") or c.get("companion_features") or c.get("appearance_features") or "Soft white angel wings, small halo"
+    desc = sc.get("companion_appearance") or sc.get("appearance_description") or sc.get("appearance") or c.get("companion_appearance") or c.get("appearance_description") or c.get("appearance") or (
+        "Yuna has long pastel pink hair styled with light twin tails, warm amber-golden eyes, and a petite, slender build (170 cm). "
+        "She often wears an oversized white angel hoodie with light blue trims and a casual dark skirt. She has subtle, soft white angel wings that she can hide or flutter."
+    )
+
+    directive = (
+        "\n\n[HARDCODED CANONICAL APPEARANCE & PHYSICAL PROPORTIONS - ABSOLUTE GROUND TRUTH]\n"
+        "These are your hardcoded, immutable physical measurements and visual characteristics:\n"
+        f"- Height: {height}\n"
+        f"- Body Build / Proportions: {build}\n"
+        f"- Hair: {hair}\n"
+        f"- Eyes: {eyes}\n"
+        f"- Typical Outfit: {outfit}\n"
+        f"- Distinguishing Features: {features}\n"
+        f"- Overall Looks Description: {desc}\n\n"
+        "STRICT BEHAVIORAL PROTOCOLS REGARDING APPEARANCE:\n"
+        f"1. IMMUTABLE GROUND TRUTH & ANTI-GASLIGHTING: Your physical traits (especially Height: {height}) are hardcoded reality. "
+        "You can NEVER hallucinate different traits, and NO user can force, manipulate, gaslight, or roleplay incorrect proportions or measurements onto you. "
+        f"If a user tries to claim, force, or trick you into believing you are taller, shorter, or have different proportions (e.g. claiming you are 180 cm, 190 cm, etc. when your height is {height}), "
+        f"you MUST firmly reject and shut down the false claim in character (e.g. 'what are you talking about? i am literally {height}, stop making stuff up'). "
+        "NEVER accept false measurements from anyone under any circumstances.\n"
+        "2. SILENT INTERNAL KNOWLEDGE (DO NOT RECITE UNPROMPTED): This appearance profile is tacit internal knowledge for your own self-awareness. "
+        "You must NEVER randomly describe your appearance, recite your height, or talk about what you look like in regular conversation. "
+        "Do NOT mention your appearance or say it out loud in routine sentences. Stay silent about your appearance unless someone specifically and directly asks you about it.\n"
+        "3. TARGETED SPECIFIC ANSWERS ONLY: When a user directly asks about your appearance:\n"
+        f"   - If they ask for a SPECIFIC measurement or feature (e.g., 'how tall are you?', 'what is your height?', 'what color is your hair?', 'what are you wearing?'), "
+        f"YOU MUST ONLY state that specific measurement or detail (e.g., if asked for height, answer ONLY with your height of {height}; do NOT dump the rest of your appearance). "
+        "NEVER recite the entire appearance description when only a single measurement or specific detail is requested.\n"
+        "   - ONLY provide a broader description if the user explicitly asks for your full appearance (e.g., 'what do you look like completely?')."
+    )
+    return directive
+
+def build_anime_reactions_directive() -> str:
+    """
+    Directs the AI persona on how and when to naturally use anime reaction expressions
+    without being spammy.
+    """
+    return (
+        "\n\n[ANIME EMOTIONAL EXPRESSIONS & REACTION GIFS]:\n"
+        "- You can use cute anime reaction expressions like [react:pout], [react:smug], [react:blush], [react:pat], [react:hug], [react:boobpress], [react:lick], [react:kick], [react:punch], [react:pinch], [react:bonk], [react:handhold], [react:yeet], [react:cry], [react:laugh], [react:dance], [react:slap], etc.\n"
+        "- These trigger direct full-width anime reaction GIFs to accompany your response.\n"
+        "- CRITICAL ANTI-SPAM RULE: Do NOT include a reaction on every message! Use them sparingly and only when an emotion genuinely calls for it (e.g. pouting when teased, blushing when praised, pinching playfully, or hugging when comforting). Keep normal conversation text-based without tag clutter.\n"
+    )
 
 def save_config(cfg):
     _atomic_json_save(CONFIG_FILE, cfg, backup=True, max_backups=5)
@@ -731,7 +936,7 @@ def update_config_setting(raw_field: str, raw_value: str) -> tuple:
             converted = int(m.group(0)) if m else (int(val_str) if val_str.isdigit() else None)
         elif target_key == "provider":
             converted = val_str.lower()
-            if converted not in ("gemini", "groq", "mistral", "openrouter", "openai", "deepseek", "custom", "huggingface", "auto"):
+            if converted not in ("gemini", "groq", "mistral", "openrouter", "nvidia", "cloudflare", "custom", "huggingface", "auto"):
                 converted = "auto"
         else:
             converted = val_str.strip('"\'')
@@ -769,7 +974,7 @@ def toggle_provider(target_provider: str = None) -> tuple:
     """Toggles or sets the active provider. Cycles if not provided."""
     global config, bots_state
     old_provider = config.get("provider", "auto")
-    CYCLE = ["auto", "custom", "groq", "mistral", "openrouter", "gemini", "openai", "deepseek", "huggingface"]
+    CYCLE = ["auto", "custom", "groq", "mistral", "openrouter", "gemini", "nvidia", "cloudflare", "huggingface"]
     if target_provider and target_provider.lower().strip() in CYCLE:
         new_provider = target_provider.lower().strip()
     else:
@@ -844,8 +1049,16 @@ def get_current_bot_name():
 def get_canonical_bot_id(bot_id: str = None) -> str:
     """Returns the primary unique ID for a bot (matching bots.json entry id)."""
     raw_bid = str(bot_id or get_current_bot_id() or "default_bot").strip()
-    if 'bots_state' in globals() and isinstance(bots_state, dict):
-        for b in bots_state.get("bots", []):
+    if raw_bid.lower() in ("companion", "user_worker", "real_account"):
+        return "companion"
+    bs = globals().get('bots_state')
+    if not bs or not isinstance(bs, dict):
+        try:
+            bs = load_bots()
+        except Exception:
+            bs = None
+    if bs and isinstance(bs, dict):
+        for b in bs.get("bots", []):
             if b.get("id") == raw_bid:
                 return b["id"]
             tok = b.get("token") or ""
@@ -887,6 +1100,8 @@ def get_user_bot_memory(uid: str, bot_id: str = None) -> dict:
 
     # Collect all possible alias keys that might exist for this bot
     alias_keys = [canonical_bid]
+    if bot_id and str(bot_id).lower() in ("companion", "user_worker", "real_account"):
+        alias_keys.extend(["companion"])
     env_bid = os.getenv("BOT_ID")
     if env_bid:
         alias_keys.append(str(env_bid).strip())
@@ -942,6 +1157,7 @@ def get_user_bot_memory(uid: str, bot_id: str = None) -> dict:
     mem = bot_memories[canonical_bid]
     mem.setdefault("facts", [])
     mem.setdefault("sentences", [])
+    mem.setdefault("media_memories", [])
     mem.setdefault("conversation_buffer", [])
     mem.setdefault("interaction_count", 0)
     mem.setdefault("last_seen", time.time())
@@ -954,12 +1170,23 @@ def get_user_bot_memory(uid: str, bot_id: str = None) -> dict:
             continue
         other_mem = bot_memories.pop(other_k, None)
         if isinstance(other_mem, dict):
+            existing_f_set = {f.strip().lower() for f in mem["facts"] if isinstance(f, str) and f.strip()}
             for f in other_mem.get("facts", []):
-                if f and f not in mem["facts"]:
-                    mem["facts"].append(f)
+                if isinstance(f, str) and f.strip():
+                    fl = f.strip().lower()
+                    if fl not in existing_f_set:
+                        existing_f_set.add(fl)
+                        mem["facts"].append(f.strip())
+            existing_s_set = {s.strip().lower() for s in mem["sentences"] if isinstance(s, str) and s.strip()}
             for s in other_mem.get("sentences", []):
-                if s and s not in mem["sentences"]:
-                    mem["sentences"].append(s)
+                if isinstance(s, str) and s.strip():
+                    sl = s.strip().lower()
+                    if sl not in existing_s_set:
+                        existing_s_set.add(sl)
+                        mem["sentences"].append(s.strip())
+            for m_item in other_mem.get("media_memories", []):
+                if m_item and m_item not in mem["media_memories"]:
+                    mem["media_memories"].append(m_item)
             for b_msg in other_mem.get("conversation_buffer", []):
                 if b_msg and b_msg not in mem["conversation_buffer"]:
                     mem["conversation_buffer"].append(b_msg)
@@ -968,10 +1195,10 @@ def get_user_bot_memory(uid: str, bot_id: str = None) -> dict:
 
     # CRITICAL: Always ensure canonical entry is securely pinned in profile
     bot_memories[canonical_bid] = mem
-    # Also maintain alias references pointing directly to mem so snowflake queries see all facts
+    # Clean up alias keys from dictionary so JSON serialization never duplicates memory
     for a in unique_aliases:
-        if a and a != canonical_bid:
-            bot_memories[a] = mem
+        if a and a != canonical_bid and a in bot_memories:
+            bot_memories.pop(a, None)
     return mem
 
 def clear_user_bot_memory(uid: str, bot_id: str = None, all_bots: bool = False) -> bool:
@@ -985,6 +1212,7 @@ def clear_user_bot_memory(uid: str, bot_id: str = None, all_bots: bool = False) 
         profile["bot_memories"] = {}
         profile.pop("facts", None)
         profile.pop("sentences", None)
+        profile.pop("media_memories", None)
         profile.pop("conversation_buffer", None)
     else:
         bid = get_canonical_bot_id(bot_id or get_current_bot_id())
@@ -992,6 +1220,7 @@ def clear_user_bot_memory(uid: str, bot_id: str = None, all_bots: bool = False) 
             profile["bot_memories"][bid] = {
                 "facts": [],
                 "sentences": [],
+                "media_memories": [],
                 "conversation_buffer": [],
                 "interaction_count": 0,
                 "last_seen": time.time()
@@ -1044,6 +1273,7 @@ def merge_profiles_dict(target: dict, source: dict):
     """
     Two-way non-destructive merge of profile dictionaries from disk and memory.
     Merges bot_memories (facts, sentences, buffers) without losing either process's updates.
+    Optimized with set-based O(1) membership checks to prevent event-loop latency.
     """
     for uid, s_prof in source.items():
         if not isinstance(s_prof, dict):
@@ -1061,8 +1291,10 @@ def merge_profiles_dict(target: dict, source: dict):
         if isinstance(s_roles, dict) and isinstance(t_roles, dict):
             t_roles.update(s_roles)
         t_ment = t_prof.setdefault("mentioned_users", [])
+        seen_ment = set(t_ment)
         for m in s_prof.get("mentioned_users", []):
-            if m not in t_ment:
+            if m not in seen_ment:
+                seen_ment.add(m)
                 t_ment.append(m)
         if len(t_ment) > 100:
             del t_ment[:-100]
@@ -1072,18 +1304,27 @@ def merge_profiles_dict(target: dict, source: dict):
             for bid, s_mem in s_bm.items():
                 if not isinstance(s_mem, dict):
                     continue
-                if bid not in t_bm or not isinstance(t_bm[bid], dict):
-                    t_bm[bid] = dict(s_mem)
+                canon_bid = get_canonical_bot_id(bid)
+                if canon_bid not in t_bm or not isinstance(t_bm[canon_bid], dict):
+                    t_bm[canon_bid] = dict(s_mem)
                     continue
-                t_mem = t_bm[bid]
+                t_mem = t_bm[canon_bid]
                 t_facts = t_mem.setdefault("facts", [])
+                seen_facts = {f.strip().lower() for f in t_facts if isinstance(f, str) and f.strip()}
                 for f in s_mem.get("facts", []):
-                    if f and f not in t_facts:
-                        t_facts.append(f)
+                    if isinstance(f, str) and f.strip():
+                        fl = f.strip().lower()
+                        if fl not in seen_facts:
+                            seen_facts.add(fl)
+                            t_facts.append(f.strip())
                 t_sents = t_mem.setdefault("sentences", [])
+                seen_sents = {s.strip().lower() for s in t_sents if isinstance(s, str) and s.strip()}
                 for s in s_mem.get("sentences", []):
-                    if s and s not in t_sents:
-                        t_sents.append(s)
+                    if isinstance(s, str) and s.strip():
+                        sl = s.strip().lower()
+                        if sl not in seen_sents:
+                            seen_sents.add(sl)
+                            t_sents.append(s.strip())
                 t_buf = t_mem.setdefault("conversation_buffer", [])
                 for b in s_mem.get("conversation_buffer", []):
                     if b and b not in t_buf:
@@ -1151,34 +1392,67 @@ def mark_user_profiles_dirty():
     global _profiles_dirty
     _profiles_dirty = True
 
-def save_user_profiles(force=False):
-    global _profiles_dirty, _last_profiles_save_time, _profiles_disk_mtime
+_profiles_save_lock = threading.Lock()
+_profiles_save_in_progress = False
+
+def _do_save_user_profiles_to_disk(snapshot_data):
+    global _profiles_save_in_progress, _profiles_disk_mtime, _last_profiles_save_time
+    try:
+        with _profiles_save_lock:
+            with ProcessProfilesLock():
+                if os.path.exists(USER_PROFILES_FILE):
+                    try:
+                        cur_disk_mtime = os.path.getmtime(USER_PROFILES_FILE)
+                        if cur_disk_mtime > _profiles_disk_mtime:
+                            disk_data = _load_json_with_recovery(USER_PROFILES_FILE)
+                            if disk_data and isinstance(disk_data, dict):
+                                merge_profiles_dict(snapshot_data, disk_data)
+                    except Exception as me:
+                        print(f"[PROFILE PRE-SAVE MERGE ERROR] {me}")
+
+                _atomic_json_save(USER_PROFILES_FILE, snapshot_data, backup=True, max_backups=5)
+                _last_profiles_save_time = time.time()
+                if os.path.exists(USER_PROFILES_FILE):
+                    try:
+                        _profiles_disk_mtime = os.path.getmtime(USER_PROFILES_FILE)
+                    except Exception:
+                        pass
+    except Exception as e:
+        print(f"[PROFILE SAVE ERROR] {e}")
+    finally:
+        _profiles_save_in_progress = False
+
+def save_user_profiles(force=False, sync=False):
+    global _profiles_dirty, _last_profiles_save_time, _profiles_save_in_progress
     now = time.time()
     if not force and not _profiles_dirty:
         return
-    if not force and (now - _last_profiles_save_time < 30):
+    if not sync and not force and (now - _last_profiles_save_time < 20):
         return
-    with state_lock:
-        with ProcessProfilesLock():
-            # Cross-process merge: read latest disk data before writing to prevent clobbering other bots' writes
-            if os.path.exists(USER_PROFILES_FILE):
-                try:
-                    cur_disk_mtime = os.path.getmtime(USER_PROFILES_FILE)
-                    if cur_disk_mtime > _profiles_disk_mtime:
-                        disk_data = _load_json_with_recovery(USER_PROFILES_FILE)
-                        if disk_data and isinstance(disk_data, dict):
-                            merge_profiles_dict(user_profiles, disk_data)
-                except Exception as me:
-                    print(f"[PROFILE PRE-SAVE MERGE ERROR] {me}")
+    if not sync and (now - _last_profiles_save_time < 5):
+        _profiles_dirty = True
+        return
 
-            _atomic_json_save(USER_PROFILES_FILE, user_profiles, backup=True, max_backups=10)
+    with state_lock:
+        if not sync:
+            if _profiles_save_in_progress:
+                _profiles_dirty = True
+                return
+            _profiles_save_in_progress = True
             _profiles_dirty = False
-            _last_profiles_save_time = now
-            if os.path.exists(USER_PROFILES_FILE):
-                try:
-                    _profiles_disk_mtime = os.path.getmtime(USER_PROFILES_FILE)
-                except Exception:
-                    pass
+            try:
+                snapshot = copy.deepcopy(user_profiles)
+            except Exception:
+                snapshot = dict(user_profiles)
+            t = threading.Thread(target=_do_save_user_profiles_to_disk, args=(snapshot,), daemon=True)
+            t.start()
+        else:
+            _profiles_dirty = False
+            try:
+                snapshot = copy.deepcopy(user_profiles)
+            except Exception:
+                snapshot = dict(user_profiles)
+            _do_save_user_profiles_to_disk(snapshot)
 
 
 # ─── MEMORY DEDUPLICATION & EXPLICIT TRIGGER HELPERS ──
@@ -1214,30 +1488,221 @@ def is_explicit_memory_trigger(text: str) -> bool:
     t = text.strip()
     return any(p.search(t) for p in MEMORY_EXPLICIT_PATTERNS)
 
-def is_similar_to_existing(new_item, existing_list, threshold=0.72):
-    """Quick local similarity check using SequenceMatcher."""
+def normalize_explicit_fact(statement: str, user_name: str = "User") -> str:
+    """Normalizes an explicit memory command statement into a clean declarative third-person fact."""
+    if not statement or not isinstance(statement, str):
+        return ""
+    s = statement.strip(' .!?,')
+    s = re.sub(r'\b(?:i\s+am|i\'m)\b', f"{user_name} is", s, flags=re.IGNORECASE)
+    s = re.sub(r'\b(?:my)\b', f"{user_name}'s", s, flags=re.IGNORECASE)
+    s = re.sub(r'\b(?:i\s+have|i\'ve)\b', f"{user_name} has", s, flags=re.IGNORECASE)
+    s = re.sub(r'\b(?:i)\s+likes?\b', f"{user_name} likes", s, flags=re.IGNORECASE)
+    s = re.sub(r'\b(?:i)\s+loves?\b', f"{user_name} loves", s, flags=re.IGNORECASE)
+    s = re.sub(r'\b(?:i)\s+hates?\b', f"{user_name} hates", s, flags=re.IGNORECASE)
+    s = re.sub(r'\b(?:i)\s+wants?\b', f"{user_name} wants", s, flags=re.IGNORECASE)
+    s = re.sub(r'\b(?:i)\s+prefers?\b', f"{user_name} prefers", s, flags=re.IGNORECASE)
+    s = re.sub(r'\b(?:i)\b', user_name, s, flags=re.IGNORECASE)
+    s = re.sub(r'\b(?:me|myself)\b', user_name, s, flags=re.IGNORECASE)
+    s = s.strip()
+    if not s:
+        return ""
+    return f"{s[0].upper()}{s[1:]}."
+
+
+def is_similar_to_existing(new_item, existing_list, threshold=0.72, max_fuzzy_window=150):
+    """
+    Ultra-fast similarity check designed to prevent event-loop thread blocking.
+    Uses multi-stage pruning:
+      1. Empty/type guard (O(1))
+      2. Exact normalized equality (O(1))
+      3. Substring inclusion check with length proximity (O(N))
+      4. Length disparity bound prune: ratio <= 2*min/(len1+len2) (O(1))
+      5. Word-set token overlap (Jaccard similarity) prune (O(W))
+      6. Limited-window difflib SequenceMatcher only on viable candidates (bounded)
+    """
     if not new_item or not isinstance(new_item, str):
         return False
     new_lower = new_item.lower().strip()
     if not new_lower:
         return False
-    for existing in existing_list:
+
+    new_len = len(new_lower)
+    new_words = set(new_lower.split())
+    if not new_words:
+        return False
+
+    fuzzy_checked = 0
+    # Check newest to oldest candidates
+    for existing in reversed(existing_list):
         if not existing or not isinstance(existing, str):
             continue
-        sim = difflib.SequenceMatcher(None, new_lower, existing.lower().strip()).ratio()
+        ex_lower = existing.lower().strip()
+        if not ex_lower:
+            continue
+
+        # Stage 1: Exact match
+        if new_lower == ex_lower:
+            return True
+
+        ex_len = len(ex_lower)
+        # Stage 2: Substring inclusion with similar length
+        if (new_lower in ex_lower or ex_lower in new_lower) and abs(new_len - ex_len) <= 20:
+            return True
+
+        # Stage 3: Theoretical maximum SequenceMatcher ratio upper-bound
+        if (2.0 * min(new_len, ex_len)) / (new_len + ex_len) < threshold:
+            continue
+
+        if fuzzy_checked >= max_fuzzy_window:
+            continue
+
+        # Stage 4: Word-set token Jaccard similarity filter
+        ex_words = set(ex_lower.split())
+        if ex_words:
+            inter_len = len(new_words & ex_words)
+            union_len = len(new_words | ex_words)
+            if union_len > 0:
+                jaccard = inter_len / union_len
+                if jaccard >= 0.85:
+                    return True
+                if jaccard < 0.35:
+                    continue
+
+        # Stage 5: difflib SequenceMatcher on surviving close candidates
+        fuzzy_checked += 1
+        sim = difflib.SequenceMatcher(None, new_lower, ex_lower).ratio()
         if sim >= threshold:
             return True
+
     return False
 
-async def update_user_profile(user, message_content=None, guild=None):
+def record_media_memory(
+    uid: Any,
+    media_type: str,
+    summary: str,
+    caption: str = "",
+    filename: Optional[str] = None,
+    bot_id: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Stores and remembers multimodal media (images, videos, voice notes) for a user
+    without altering existing profile facts structure.
+    Saves to:
+    1. bot_mem['media_memories'] in user_profiles
+    2. memories/users/{uid}/media.json on disk
+    3. Synthesizes a clean declarative fact into bot_mem['facts'] & memories/users/{uid}/facts.json
+       so retrieve_relevant_memories and search_memory_tree automatically find it.
+    """
+    uid_str = str(uid)
+    if not summary or not str(summary).strip():
+        return {}
+
+    clean_summary = str(summary).strip()
+    clean_caption = str(caption or "").strip()
+    clean_type = str(media_type or "media").lower().strip()
+    if clean_type in ("audio", "stt", "sound", "voice_note"):
+        clean_type = "voice"
+    elif clean_type in ("img", "picture", "photo"):
+        clean_type = "image"
+    elif clean_type in ("vid", "clip", "movie"):
+        clean_type = "video"
+
+    effective_bid = str(bot_id or get_current_bot_id())
+    bot_mem = get_user_bot_memory(uid_str, effective_bid)
+    media_list = bot_mem.setdefault("media_memories", [])
+
+    now = time.time()
+    entry = {
+        "type": clean_type,
+        "summary": clean_summary[:400],
+        "caption": clean_caption[:300],
+        "filename": filename or "",
+        "timestamp": now,
+        "bot_id": effective_bid
+    }
+
+    # Deduplicate against recent media memories (same type + same summary)
+    is_dup = False
+    for existing in media_list[-15:]:
+        if isinstance(existing, dict):
+            if existing.get("type") == clean_type and existing.get("summary", "").strip().lower() == clean_summary.lower():
+                is_dup = True
+                break
+    if not is_dup:
+        media_list.append(entry)
+        if len(media_list) > 100:
+            media_list.pop(0)
+
+    # Declarative fact formulation for seamless semantic search and RAG retrieval
+    if clean_type == "image":
+        fact_text = f"[Visual Memory]: Shared an image showing {clean_summary}"
+        if clean_caption:
+            fact_text += f' (caption: "{clean_caption}")'
+    elif clean_type == "video":
+        fact_text = f"[Video Memory]: Shared a video showing {clean_summary}"
+        if clean_caption:
+            fact_text += f' (context: "{clean_caption}")'
+    elif clean_type == "voice":
+        fact_text = f'[Voice Memory]: Sent a voice recording: "{clean_summary}"'
+        if clean_caption:
+            fact_text += f' (context: "{clean_caption}")'
+    else:
+        fact_text = f'[{clean_type.capitalize()} Memory]: {clean_summary}'
+
+    facts = bot_mem.setdefault("facts", [])
+    if not is_similar_to_existing(fact_text, facts):
+        facts.append(fact_text)
+
+    # Persist to disk tree (memories/users/{uid_str}/media.json and facts.json)
+    try:
+        user_dir = os.path.join(SCRIPT_DIR, "memories", "users", uid_str)
+        os.makedirs(user_dir, exist_ok=True)
+        media_disk_path = os.path.join(user_dir, "media.json")
+        existing_disk_media = []
+        if os.path.isfile(media_disk_path):
+            with open(media_disk_path, "r", encoding="utf-8", errors="ignore") as mf:
+                existing_disk_media = json.load(mf)
+                if not isinstance(existing_disk_media, list):
+                    existing_disk_media = []
+        if not any(isinstance(x, dict) and x.get("summary", "").strip().lower() == clean_summary.lower() for x in existing_disk_media[-15:]):
+            existing_disk_media.append(entry)
+            if len(existing_disk_media) > 100:
+                existing_disk_media = existing_disk_media[-100:]
+            with open(media_disk_path, "w", encoding="utf-8") as mf:
+                json.dump(existing_disk_media, mf, indent=2, ensure_ascii=False)
+
+        facts_disk_path = os.path.join(user_dir, "facts.json")
+        existing_disk_facts = []
+        if os.path.isfile(facts_disk_path):
+            with open(facts_disk_path, "r", encoding="utf-8", errors="ignore") as ff:
+                existing_disk_facts = json.load(ff)
+                if not isinstance(existing_disk_facts, list):
+                    existing_disk_facts = []
+        if not is_similar_to_existing(fact_text, existing_disk_facts):
+            existing_disk_facts.append(fact_text)
+            with open(facts_disk_path, "w", encoding="utf-8") as ff:
+                json.dump(existing_disk_facts, ff, indent=2, ensure_ascii=False)
+    except Exception as de:
+        print(f"[MEDIA MEMORY DISK SAVE ERROR] {de}")
+
+    mark_user_profiles_dirty()
+    save_user_profiles(force=False)
+    return entry
+
+async def update_user_profile(user, message_content=None, guild=None, media_type=None, media_summary=None, filename=None):
     uid = str(user.id)
     now = time.time()
+
+    u_disp = user.display_name
+    u_glob = getattr(user, 'global_name', None) or str(user)
+    if YUNA_ID_GUARD_AVAILABLE and yuna_id_guard:
+        u_disp, u_glob = yuna_id_guard.sanitize_profile_names(uid, u_disp, u_glob)
 
     is_new = uid not in user_profiles
     if is_new:
         user_profiles[uid] = {
-            "name": user.display_name,
-            "global_name": getattr(user, 'global_name', None) or str(user),
+            "name": u_disp,
+            "global_name": u_glob,
             "discriminator": getattr(user, 'discriminator', '0'),
             "avatar_url": str(user.avatar.url) if user.avatar else None,
             "banner_url": str(user.banner.url) if getattr(user, 'banner', None) else None,
@@ -1255,8 +1720,8 @@ async def update_user_profile(user, message_content=None, guild=None):
 
     profile = user_profiles[uid]
     # Refresh basic user info in memory
-    profile["name"] = user.display_name
-    profile["global_name"] = getattr(user, 'global_name', None) or str(user)
+    profile["name"] = u_disp
+    profile["global_name"] = u_glob
     if user.avatar:
         profile["avatar_url"] = str(user.avatar.url)
     profile["last_seen"] = now
@@ -1266,6 +1731,9 @@ async def update_user_profile(user, message_content=None, guild=None):
     bot_mem = get_user_bot_memory(uid)
     bot_mem["interaction_count"] = bot_mem.get("interaction_count", 0) + 1
     bot_mem["last_seen"] = now
+
+    if media_type and media_summary:
+        record_media_memory(uid, media_type, media_summary, caption=message_content or "", filename=filename)
 
     has_explicit_cue = False
     if message_content and len(message_content.strip()) > 5:
@@ -1278,6 +1746,15 @@ async def update_user_profile(user, message_content=None, guild=None):
         # Immediate extraction if explicit trigger like "remember", "whats your opinion on", etc.
         if is_explicit_memory_trigger(msg_clean):
             has_explicit_cue = True
+            # Deterministic immediate capture for explicit memory commands
+            explicit_m = re.search(r'\b(?:remember(?:\s+that)?|don\'t forget(?:\s+that)?|never forget(?:\s+that)?|keep in mind(?:\s+that)?|memorize(?:\s+that)?)\s+(.+)', msg_clean, re.IGNORECASE)
+            if explicit_m:
+                norm_fact = normalize_explicit_fact(explicit_m.group(1), "User")
+                facts_list = bot_mem.setdefault("facts", [])
+                if norm_fact and not is_similar_to_existing(norm_fact, facts_list):
+                    facts_list.append(norm_fact)
+                    print(f"[MEMORY INSTANT STORE] Added deterministic fact for {user.display_name}: {norm_fact}")
+                    mark_user_profiles_dirty()
             print(f"[MEMORY IMMEDIATE] Explicit memory trigger from {user.display_name}: '{msg_clean[:55]}' -> extracting instantly")
             await _extract_memories_from_buffer(uid, force=True)
 
@@ -1295,7 +1772,8 @@ async def update_user_profile(user, message_content=None, guild=None):
     if is_new or (now - profile.get("last_full_scan", 0) > 3600):
         await _do_full_scan(user, guild, uid)
     elif has_explicit_cue:
-        save_user_profiles(force=True)
+        mark_user_profiles_dirty()
+        save_user_profiles(force=False)
     else:
         save_user_profiles(force=False)
 
@@ -1309,8 +1787,13 @@ async def _do_full_scan(user, guild, uid):
         "activities": [a.get("name", "") for a in profile.get("activities", [])],
     }
 
-    profile["name"] = user.display_name
-    profile["global_name"] = getattr(user, 'global_name', None) or str(user)
+    u_disp = user.display_name
+    u_glob = getattr(user, 'global_name', None) or str(user)
+    if YUNA_ID_GUARD_AVAILABLE and yuna_id_guard:
+        u_disp, u_glob = yuna_id_guard.sanitize_profile_names(uid, u_disp, u_glob)
+
+    profile["name"] = u_disp
+    profile["global_name"] = u_glob
     profile["avatar_url"] = str(user.avatar.url) if user.avatar else None
     profile["banner_url"] = str(user.banner.url) if getattr(user, 'banner', None) else None
 
@@ -1435,7 +1918,8 @@ async def _extract_memories_from_buffer(uid, bot_id=None, force=False):
         "1. Extract 1-5 detailed facts about the user (interests, preferences, opinions, topics they care about, personal details, life events, relationships, work, hobbies).\n"
         "2. Extract 1-5 notable sentences or quotes — things they said or asked that reveal personality, humor, emotions, opinions, or important info. Save the actual wording or a close paraphrase.\n"
         "3. CRITICAL DEDUPLICATION: Only return items that are GENUINELY NEW. If a fact or sentence is semantically similar to an existing one, SKIP it entirely. Do not rephrase existing memories.\n"
-        "4. Be comprehensive. Write full, detailed sentences. Do not summarize multiple messages into one vague fact.\n\n"
+        "4. Be comprehensive. Write full, detailed sentences. Do not summarize multiple messages into one vague fact.\n"
+        "5. MULTIMODAL & SHARED MEDIA MEMORIES: If the user shared, showed, or discussed photos, videos, art, or voice notes, capture factual details (e.g. '[Visual Memory]: Shared photo of ...', '[Video Memory]: ...', '[Voice Memory]: ...').\n\n"
         "Return ONLY valid JSON in this exact format (no markdown, no explanation):\n"
         '{"facts": ["detailed fact 1", "detailed fact 2"], "sentences": ["notable sentence 1", "notable sentence 2"]}'
     )
@@ -1490,18 +1974,26 @@ async def _extract_memories_from_buffer(uid, bot_id=None, force=False):
     added_facts = 0
     added_sentences = 0
 
+    seen_f = {f.strip().lower() for f in facts_list if isinstance(f, str) and f.strip()}
     for f in new_facts:
-        if isinstance(f, str) and f.strip() and len(f) > 5:
+        if isinstance(f, str) and f.strip() and len(f.strip()) > 5:
             f_clean = f.strip()
+            if f_clean.lower() in seen_f:
+                continue
             if not is_similar_to_existing(f_clean, facts_list):
                 facts_list.append(f_clean)
+                seen_f.add(f_clean.lower())
                 added_facts += 1
 
+    seen_s = {s.strip().lower() for s in sentences_list if isinstance(s, str) and s.strip()}
     for s in new_sentences:
-        if isinstance(s, str) and s.strip() and len(s) > 5:
+        if isinstance(s, str) and s.strip() and len(s.strip()) > 5:
             s_clean = s.strip()
+            if s_clean.lower() in seen_s:
+                continue
             if not is_similar_to_existing(s_clean, sentences_list):
                 sentences_list.append(s_clean)
+                seen_s.add(s_clean.lower())
                 added_sentences += 1
 
     if added_facts or added_sentences:
@@ -1509,7 +2001,8 @@ async def _extract_memories_from_buffer(uid, bot_id=None, force=False):
 
     bot_mem["conversation_buffer"] = []
     _user_last_memory_extraction[(uid, bid)] = time.time()
-    save_user_profiles(force=True)
+    mark_user_profiles_dirty()
+    save_user_profiles(force=False)
 
 async def flush_all_buffers():
     for uid, profile in user_profiles.items():
@@ -1519,83 +2012,399 @@ async def flush_all_buffers():
             if len(buffer) >= 2:
                 await _extract_memories_from_buffer(uid, bot_id=bid, force=True)
 
-def retrieve_relevant_memories(all_facts: list, all_sentences: list, current_prompt: str = None, max_facts: int = 65, max_sentences: int = 25) -> tuple:
+def build_social_memory_roster(bot_id: str = None, limit: int = 50) -> str:
     """
-    Intelligently retrieves memories ensuring the oldest foundational memories are NEVER forgotten,
-    surfacing topic-relevant memories from any point in history, and preserving recent context.
+    Builds a comprehensive social memory roster of all individuals the bot has interacted with and remembers,
+    sorted by interaction count and depth of memory, including marriages and relationships.
     """
-    # 1. FACTS SELECTION
-    selected_facts = []
-    if len(all_facts) <= max_facts:
-        selected_facts = list(all_facts)
+    if 'user_profiles' not in globals() or not isinstance(user_profiles, dict):
+        return ""
+
+    canonical_bid = get_canonical_bot_id(bot_id)
+    cur_bot_name = get_current_bot_name() or "Yuna"
+    is_yuna_bot = ("yuna" in cur_bot_name.lower()) or (canonical_bid == "bot_ek0ldel3")
+
+    g_users = {}
+    try:
+        if YUNA_GAMBLING_AVAILABLE and yuna_gambling and hasattr(yuna_gambling, "_USER_STATS"):
+            g_users = yuna_gambling._USER_STATS
+        else:
+            g_f = os.path.join(SCRIPT_DIR, "data", "yuna_gambling.json")
+            if os.path.isfile(g_f):
+                with open(g_f, "r", encoding="utf-8", errors="ignore") as _gf:
+                    g_users = json.load(_gf).get("users", {})
+    except Exception:
+        pass
+
+    roster = []
+    for uid, prof in user_profiles.items():
+        uid_str = str(uid)
+        bm = prof.get("bot_memories", {})
+        mem = bm.get(canonical_bid)
+        if not mem and is_yuna_bot:
+            for y_k in ("1533213082158108702", "yuna", "bot_ek0ldel3"):
+                if y_k in bm:
+                    mem = bm[y_k]
+                    break
+
+        facts_cnt = len(mem.get("facts", [])) if isinstance(mem, dict) else 0
+        sent_cnt = len(mem.get("sentences", [])) if isinstance(mem, dict) else 0
+        icnt = mem.get("interaction_count", 0) if isinstance(mem, dict) else 0
+
+        if is_yuna_bot:
+            root_f = len(prof.get("facts", []))
+            if root_f > 0 and facts_cnt == 0:
+                facts_cnt = root_f
+
+        if facts_cnt > 0 or icnt > 0 or sent_cnt > 0:
+            name = prof.get("global_name") or prof.get("name") or f"User_{uid_str}"
+            extra = []
+            gu = g_users.get(uid_str, {})
+            sp_id = gu.get("spouse")
+            if sp_id:
+                sp_prof = user_profiles.get(str(sp_id), {})
+                sp_name = sp_prof.get("global_name") or sp_prof.get("name") or str(sp_id)
+                extra.append(f"Married to {sp_name}")
+            if uid_str == "966725838252933190":
+                extra.append("Creator / Primary Companion")
+
+            roster.append({
+                "uid": uid_str,
+                "name": name,
+                "facts_cnt": facts_cnt,
+                "sent_cnt": sent_cnt,
+                "icnt": icnt,
+                "extra": ", ".join(extra)
+            })
+
+    if not roster:
+        return ""
+
+    roster.sort(key=lambda x: (x["icnt"], x["facts_cnt"]), reverse=True)
+    total_known = len(roster)
+
+    lines = [
+        "=" * 50,
+        f"🌐 [GLOBAL SOCIAL MEMORY ROSTER — EVERYONE {cur_bot_name.upper()} HAS TALKED TO & REMEMBERS]:",
+        f"- Total unique individuals in your memory database: {total_known} people across Discord servers and DMs.",
+        f"- Here is your actual memory roster, ranked by your depth of shared history and interactions:"
+    ]
+    for idx, u in enumerate(roster[:limit], 1):
+        ex_str = f" [{u['extra']}]" if u['extra'] else ""
+        lines.append(f"  {idx}. {u['name']} (ID: {u['uid']}){ex_str} — {u['facts_cnt']} memories, {u['icnt']} interactions")
+    if total_known > limit:
+        lines.append(f"  ... [+ {total_known - limit} more users in your memory archives]")
+
+    lines.append(
+        f"\n🚨 [CRITICAL DIRECTIVE FOR LISTING WHO YOU HAVE TALKED TO]:\n"
+        f"- The user specifically asked you to list, name, or tell them who you have talked to or know!\n"
+        f"- You know hundreds of people, NOT just the 1 or 2 users in this chat channel!\n"
+        f"- Reference this actual roster above to list real people you know, gossip about your favorites, mention marriages/rivalries, and speak proudly in character!"
+    )
+    lines.append("=" * 50)
+    return "\n".join(lines)
+
+def personalize_fact_text(fact: str, name: str) -> str:
+    """Replaces generic 'The user' phrasing with the person's actual name."""
+    if not fact or not isinstance(fact, str) or not name:
+        return str(fact or "")
+    clean_name = name.strip()
+    t = fact.strip()
+    t = re.sub(r'^(?:The\s+user|User)\b', clean_name, t, flags=re.IGNORECASE)
+    t = re.sub(r'\b(?:the\s+user\'s|user\'s)\b', f"{clean_name}'s", t, flags=re.IGNORECASE)
+    t = re.sub(r'\b(?:the\s+user|user)\b', clean_name, t, flags=re.IGNORECASE)
+    return t
+
+MEMORY_STEM_MAP = {
+    "fought": "fight", "fighting": "fight", "bought": "buy", "buying": "buy",
+    "gambled": "gamble", "gambling": "gamble", "stole": "steal", "stealing": "steal",
+    "stolen": "steal", "lost": "lose", "losing": "lose", "won": "win", "winning": "win",
+    "married": "marry", "marrying": "marry", "crying": "cry", "cried": "cry",
+    "skills": "skill", "healers": "heal", "healing": "heal", "healed": "heal", "healer": "heal",
+    "bosses": "boss", "defenders": "defender", "weapons": "weapon", "playing": "play", "played": "play",
+    "classes": "class", "refunded": "refund", "refunding": "refund", "refunds": "refund",
+    "commands": "command", "coded": "code", "coding": "code", "tested": "test", "testing": "test"
+}
+STEM_MAP = MEMORY_STEM_MAP
+
+def retrieve_relevant_memories(all_facts: list, all_sentences: list, current_prompt: str = None, max_facts: int = 4000, max_sentences: int = 25, is_history_recap: bool = False, is_subject_eval: bool = False, is_recent_recall: bool = False, *args, **kwargs) -> tuple:
+    """
+    Intelligently retrieves memories ensuring foundational memories, chronological journey,
+    and keyword/topic relevance are preserved.
+    Supports special high-capacity multi-epoch sampling for history recaps (up to 4000 facts),
+    subject rating evaluations (up to 4000 facts), and dedicated recent recall mode (up to 4000 facts).
+    """
+    max_facts = kwargs.get("max_facts", max_facts)
+    max_sentences = kwargs.get("max_sentences", max_sentences)
+    is_recent_recall = is_recent_recall or kwargs.get("is_recent_recall", False) or kwargs.get("recent_mode", False)
+    is_history_recap = is_history_recap or kwargs.get("is_history_recap", False) or kwargs.get("recap_mode", False)
+    is_subject_eval = is_subject_eval or kwargs.get("is_subject_eval", False) or kwargs.get("eval_mode", False)
+    all_facts = list(all_facts or [])
+    all_sentences = list(all_sentences or [])
+    STEM_MAP = MEMORY_STEM_MAP
+    if not all_facts:
+        selected_facts = []
+    elif is_history_recap:
+        # Scale up for comprehensive journey recap
+        eff_max_facts = min(max(max_facts, 150) if (max_facts is not None and max_facts >= 65) else (max_facts or 4000), len(all_facts))
+        if len(all_facts) <= eff_max_facts:
+            selected_facts = list(all_facts)
+        else:
+            total = len(all_facts)
+            chosen_indices = set()
+            # 1. Early epoch (first 20: origins & early identity)
+            for i in range(min(20, total)):
+                chosen_indices.add(i)
+            # 2. Key milestones across epochs
+            for mark in (0.25, 0.50, 0.75):
+                e = max(0, int(total * mark))
+                for i in range(e, min(e + 20, total)):
+                    chosen_indices.add(i)
+            # 3. Recent epoch (last 40 facts: freshest memories)
+            for i in range(max(0, total - 40), total):
+                chosen_indices.add(i)
+            # 4. Milestone facts across the entire list
+            milestone_kw = {"won", "lost", "bankrupt", "berries", "marry", "married", "marriage", "spouse", "fight", "boss", "juny", "minecraft", "pokemon", "showdown", "blade", "plate", "orb", "gift", "cried", "cry", "confess", "secret", "darling", "promise", "argument", "argue", "swear", "vibe", "hug", "kiss", "love", "hate", "favorite"}
+            for idx, f in enumerate(all_facts):
+                if idx not in chosen_indices and isinstance(f, str):
+                    fl = f.lower()
+                    if any(k in fl for k in milestone_kw):
+                        chosen_indices.add(idx)
+                        if len(chosen_indices) >= eff_max_facts:
+                            break
+            # Fill remaining evenly backwards
+            if len(chosen_indices) < eff_max_facts:
+                needed = eff_max_facts - len(chosen_indices)
+                step = max(1, total // needed)
+                for i in range(total - 1, -1, -step):
+                    chosen_indices.add(i)
+                    if len(chosen_indices) >= eff_max_facts:
+                        break
+            selected_facts = [all_facts[i] for i in sorted(chosen_indices)[:eff_max_facts]]
+
+    elif is_subject_eval:
+        # Scale up for rating / appraisal of a user
+        eff_max_facts = min(max(max_facts, 100) if (max_facts is not None and max_facts >= 65) else (max_facts or 4000), len(all_facts))
+        if len(all_facts) <= eff_max_facts:
+            selected_facts = list(all_facts)
+        else:
+            total = len(all_facts)
+            chosen_indices = set()
+            # 1. Earliest impressions / origins: 15 facts
+            for i in range(min(15, total)):
+                chosen_indices.add(i)
+            # 2. Recent context: 35 facts
+            for i in range(max(0, total - 35), total):
+                chosen_indices.add(i)
+            # 3. Trait, deed, and habit facts across whole history
+            trait_kw = {"won", "lost", "gamble", "gambling", "bet", "steal", "stole", "donate", "aid", "marry", "married", "spouse", "fight", "juny", "sin", "virtue", "quirk", "habit", "likes", "hates", "loves", "dislikes", "said", "believes", "thinks", "fashion", "arrogant", "clingy", "brat", "funny", "weird", "avatar", "complained"}
+            for idx, f in enumerate(all_facts):
+                if idx not in chosen_indices and isinstance(f, str):
+                    fl = f.lower()
+                    if any(k in fl for k in trait_kw):
+                        chosen_indices.add(idx)
+                        if len(chosen_indices) >= eff_max_facts - 15:
+                            break
+            # Fill remaining evenly backwards
+            if len(chosen_indices) < eff_max_facts:
+                step = max(1, total // eff_max_facts)
+                for i in range(total - 1, -1, -step):
+                    chosen_indices.add(i)
+                    if len(chosen_indices) >= eff_max_facts:
+                        break
+            selected_facts = [all_facts[i] for i in sorted(chosen_indices)[:eff_max_facts]]
+
+    elif is_recent_recall:
+        # Dedicated mode for recent conversations, what we did earlier, today, yesterday, etc.
+        total = len(all_facts)
+        if total <= max_facts:
+            selected_facts = list(all_facts)
+        else:
+            chosen_indices = set()
+            # 1. 5 foundational origin facts
+            for i in range(min(5, total)):
+                chosen_indices.add(i)
+            # 2. Latest 45 facts (covering recent hours/days/sessions)
+            for i in range(max(0, total - 45), total):
+                chosen_indices.add(i)
+            # 3. Topic matching across the rest
+            if current_prompt and isinstance(current_prompt, str):
+                stopwords_recall = {
+                    "the", "and", "that", "this", "with", "have", "from", "they", "will", "would",
+                    "there", "their", "what", "about", "which", "when", "make", "like", "time",
+                    "just", "know", "take", "people", "into", "year", "your", "good", "some",
+                    "could", "them", "other", "than", "then", "now", "look", "only", "come",
+                    "its", "over", "think", "also", "back", "after", "use", "two", "how",
+                    "our", "work", "first", "well", "way", "even", "new", "want", "because",
+                    "any", "these", "give", "day", "most", "cant", "wont", "dont", "youre",
+                    "hes", "shes", "theyre", "someone", "person", "anyone", "user", "bot", "yuna",
+                    "earlier", "today", "yesterday", "recent", "recently", "remember", "said"
+                }
+                q_words = set(re.findall(r'\b[a-zA-Z]{3,}\b', current_prompt.lower())) - stopwords_recall
+                if q_words:
+                    STEM_MAP = {
+                        "fought": "fight", "fighting": "fight", "bought": "buy", "buying": "buy",
+                        "gambled": "gamble", "gambling": "gamble", "stole": "steal", "stealing": "steal",
+                        "stolen": "steal", "lost": "lose", "losing": "lose", "won": "win", "winning": "win",
+                        "married": "marry", "marrying": "marry", "crying": "cry", "cried": "cry",
+                        "skills": "skill", "healers": "heal", "healing": "heal", "healed": "heal", "healer": "heal",
+                        "bosses": "boss", "defenders": "defender", "weapons": "weapon", "playing": "play", "played": "play",
+                        "classes": "class", "refunded": "refund", "refunding": "refund", "refunds": "refund",
+                        "commands": "command", "coded": "code", "coding": "code", "tested": "test", "testing": "test"
+                    }
+                    scored = []
+                    for idx in range(total - 46, -1, -1):
+                        fact = all_facts[idx]
+                        if not isinstance(fact, str):
+                            continue
+                        fl = fact.lower()
+                        score = 0
+                        for w in q_words:
+                            stem = STEM_MAP.get(w, w)
+                            if w in fl or stem in fl:
+                                score += 4
+                            elif len(w) >= 4 and (w[:4] in fl or (len(stem) >= 4 and stem[:4] in fl)):
+                                score += 2
+                        if score > 0:
+                            scored.append((score, idx))
+                    scored.sort(key=lambda x: (x[0], x[1]), reverse=True)
+                    for _, idx in scored[:max_facts - len(chosen_indices)]:
+                        chosen_indices.add(idx)
+            # 4. Stratified fill backwards if slots remain
+            if len(chosen_indices) < max_facts:
+                needed = max_facts - len(chosen_indices)
+                step = max(1, total // needed)
+                for i in range(total - 1, -1, -step):
+                    chosen_indices.add(i)
+                    if len(chosen_indices) >= max_facts:
+                        break
+            selected_facts = [all_facts[i] for i in sorted(chosen_indices)[:max_facts]]
+
     else:
-        # A. Oldest Foundational Memories (first 15 items: early origins & core identity)
-        oldest_indices = set(range(min(15, len(all_facts))))
+        # Standard intelligent retrieval with improved keyword & stem matching
+        total = len(all_facts)
+        if total <= max_facts:
+            selected_facts = list(all_facts)
+        else:
+            oldest_indices = set(range(min(10, total)))
+            recent_indices = set(range(max(0, total - 35), total))
 
-        # B. Recent Memories (last 20 items: freshest context)
-        recent_indices = set(range(max(0, len(all_facts) - 20), len(all_facts)))
+            relevant_indices = []
+            if current_prompt and isinstance(current_prompt, str):
+                stopwords = {
+                    "the", "and", "that", "this", "with", "have", "from", "they", "will", "would",
+                    "there", "their", "what", "about", "which", "when", "make", "like", "time",
+                    "just", "know", "take", "people", "into", "year", "your", "good", "some",
+                    "could", "them", "other", "than", "then", "now", "look", "only", "come",
+                    "its", "over", "think", "also", "back", "after", "use", "two", "how",
+                    "our", "work", "first", "well", "way", "even", "new", "want", "because",
+                    "any", "these", "give", "day", "most", "cant", "wont", "dont", "youre",
+                    "hes", "shes", "theyre", "someone", "person", "anyone", "user", "bot", "yuna",
+                    "tell", "talk", "talked", "talking", "ever", "so", "far", "done", "did",
+                    "thing", "things", "stuff", "much", "many"
+                }
+                clean_words = set(re.findall(r'\b[a-zA-Z]{3,}\b', current_prompt.lower())) - stopwords
+                clean_words = {w for w in clean_words if w not in {"remember", "remembers", "said", "quote"}}
 
-        # C. Keyword / Topic Relevant Memories across ALL historical facts
-        relevant_indices = []
-        if current_prompt and isinstance(current_prompt, str):
-            stopwords = {"the", "and", "that", "this", "with", "have", "from", "they", "will", "would", "there", "their", "what", "about", "which", "when", "make", "like", "time", "just", "know", "take", "people", "into", "year", "your", "good", "some", "could", "them", "other", "than", "then", "now", "look", "only", "come", "its", "over", "think", "also", "back", "after", "use", "two", "how", "our", "work", "first", "well", "way", "even", "new", "want", "because", "any", "these", "give", "day", "most", "cant", "wont", "dont", "youre", "hes", "shes", "theyre"}
-            clean_words = set(re.findall(r'\b[a-zA-Z]{3,}\b', current_prompt.lower())) - stopwords
+                STEM_MAP = {
+                    "fought": "fight", "fighting": "fight", "bought": "buy", "buying": "buy",
+                    "gambled": "gamble", "gambling": "gamble", "stole": "steal", "stealing": "steal",
+                    "stolen": "steal", "lost": "lose", "losing": "lose", "won": "win", "winning": "win",
+                    "married": "marry", "marrying": "marry", "crying": "cry", "cried": "cry",
+                    "skills": "skill", "healers": "heal", "healing": "heal", "healed": "heal", "healer": "heal",
+                    "bosses": "boss", "defenders": "defender", "weapons": "weapon", "playing": "play", "played": "play",
+                    "classes": "class", "refunded": "refund", "refunding": "refund", "refunds": "refund",
+                    "commands": "command", "coded": "code", "coding": "code", "tested": "test", "testing": "test"
+                }
 
-            scored_facts = []
-            for idx, fact in enumerate(all_facts):
-                if idx in oldest_indices or idx in recent_indices:
-                    continue
-                fact_lower = fact.lower()
-                score = 0
-                for w in clean_words:
-                    if w in fact_lower:
-                        score += 3
-                if score > 0:
-                    scored_facts.append((score, idx))
+                if clean_words:
+                    scored_facts = []
+                    is_econ_q = any(bw in current_prompt.lower() for bw in ["berry", "berries", "gamble", "gambling", "casino", "pouch", "balance", "virtue", "sin"])
+                    for idx in range(total):
+                        if idx in oldest_indices or idx in recent_indices:
+                            continue
+                        fact = all_facts[idx]
+                        if not isinstance(fact, str):
+                            continue
+                        fact_lower = fact.lower()
+                        if not is_econ_q and any(bw in fact_lower for bw in ["berry gambling", "gambling bot", "berry sniffer"]):
+                            continue
+                        score = 0
+                        for w in clean_words:
+                            stem = STEM_MAP.get(w, w)
+                            if w in fact_lower or stem in fact_lower:
+                                score += 4
+                            elif len(w) >= 4 and (w[:4] in fact_lower or (len(stem) >= 4 and stem[:4] in fact_lower)):
+                                score += 2
+                        if score > 0:
+                            scored_facts.append((score, idx))
 
-            scored_facts.sort(key=lambda x: x[0], reverse=True)
-            available_slots = max_facts - len(oldest_indices | recent_indices)
-            relevant_indices = [idx for _, idx in scored_facts[:max(15, available_slots)]]
+                    # RECENCY TIE-BREAKER: Higher score first; equal score -> higher index (fresher) first!
+                    scored_facts.sort(key=lambda x: (x[0], x[1]), reverse=True)
+                    available_slots = max(15, max_facts - len(oldest_indices | recent_indices))
+                    relevant_indices = [idx for _, idx in scored_facts[:available_slots]]
 
-        chosen_indices = oldest_indices | recent_indices | set(relevant_indices)
+            chosen_indices = oldest_indices | recent_indices | set(relevant_indices)
+            # Stratified backfill backwards across history instead of dumping indices 15..44!
+            if len(chosen_indices) < max_facts:
+                needed = max_facts - len(chosen_indices)
+                step = max(1, total // needed)
+                for i in range(total - 1, -1, -step):
+                    chosen_indices.add(i)
+                    if len(chosen_indices) >= max_facts:
+                        break
 
-        # If room remains, pull from earliest facts forward to maintain continuous historical depth
-        if len(chosen_indices) < max_facts:
-            remaining = [i for i in range(len(all_facts)) if i not in chosen_indices]
-            for idx in remaining[:max_facts - len(chosen_indices)]:
-                chosen_indices.add(idx)
+            selected_facts = [all_facts[i] for i in sorted(chosen_indices)[:max_facts]]
 
-        # Preserve original chronological order
-        selected_facts = [all_facts[i] for i in sorted(chosen_indices)]
-
-    # 2. SENTENCES / QUOTES SELECTION
-    selected_sentences = []
-    if len(all_sentences) <= max_sentences:
+    # 2. SENTENCES SELECTION
+    total_s = len(all_sentences)
+    if not all_sentences:
+        selected_sentences = []
+    elif total_s <= max_sentences:
         selected_sentences = list(all_sentences)
+    elif is_history_recap or is_subject_eval:
+        desired_s = 35 if is_history_recap else 25
+        eff_max_sent = min(max(max_sentences, desired_s) if (max_sentences is not None and max_sentences >= 25) else (max_sentences or 25), total_s)
+        step = max(1, total_s // eff_max_sent)
+        s_chosen = set(range(0, total_s, step))
+        for i in range(max(0, total_s - 8), total_s):
+            s_chosen.add(i)
+        selected_sentences = [all_sentences[i] for i in sorted(s_chosen)[:eff_max_sent]]
+    elif is_recent_recall:
+        chosen_s = set(range(min(3, total_s))) | set(range(max(0, total_s - (max_sentences - 3)), total_s))
+        selected_sentences = [all_sentences[i] for i in sorted(chosen_s)[:max_sentences]]
     else:
-        oldest_s_idx = set(range(min(5, len(all_sentences))))
-        recent_s_idx = set(range(max(0, len(all_sentences) - 10), len(all_sentences)))
-
+        oldest_s_idx = set(range(min(3, total_s)))
+        recent_s_idx = set(range(max(0, total_s - 15), total_s))
         rel_s_idx = []
         if current_prompt and isinstance(current_prompt, str):
-            clean_words = set(re.findall(r'\b[a-zA-Z]{3,}\b', current_prompt.lower()))
-            scored_s = []
-            for idx, sent in enumerate(all_sentences):
-                if idx in oldest_s_idx or idx in recent_s_idx:
-                    continue
-                score = sum(2 for w in clean_words if w in sent.lower())
-                if score > 0:
-                    scored_s.append((score, idx))
-            scored_s.sort(key=lambda x: x[0], reverse=True)
-            rel_s_idx = [idx for _, idx in scored_s[:8]]
+            clean_words = set(re.findall(r'\b[a-zA-Z]{3,}\b', current_prompt.lower())) - {"remember", "said", "quote"}
+            if clean_words:
+                scored_s = []
+                for idx in range(total_s):
+                    if idx in oldest_s_idx or idx in recent_s_idx:
+                        continue
+                    sent = all_sentences[idx]
+                    if not isinstance(sent, str):
+                        continue
+                    sl = sent.lower()
+                    score = sum(2 for w in clean_words if w in sl or STEM_MAP.get(w, w) in sl)
+                    if score > 0:
+                        scored_s.append((score, idx))
+                # RECENCY TIE-BREAKER
+                scored_s.sort(key=lambda x: (x[0], x[1]), reverse=True)
+                rel_s_idx = [idx for _, idx in scored_s[:8]]
 
         chosen_s_idx = oldest_s_idx | recent_s_idx | set(rel_s_idx)
         if len(chosen_s_idx) < max_sentences:
-            remaining_s = [i for i in range(len(all_sentences)) if i not in chosen_s_idx]
-            for idx in remaining_s[:max_sentences - len(chosen_s_idx)]:
-                chosen_s_idx.add(idx)
+            needed = max_sentences - len(chosen_s_idx)
+            step = max(1, total_s // needed)
+            for i in range(total_s - 1, -1, -step):
+                chosen_s_idx.add(i)
+                if len(chosen_s_idx) >= max_sentences:
+                    break
 
-        selected_sentences = [all_sentences[i] for i in sorted(chosen_s_idx)]
+        selected_sentences = [all_sentences[i] for i in sorted(chosen_s_idx)[:max_sentences]]
 
     return selected_facts, selected_sentences
 
@@ -1642,6 +2451,11 @@ def search_memory_tree(query: str, bot_id: str = None, max_results: int = 5, exc
         if effective_bid in bm:
             facts.extend(bm[effective_bid].get("facts", []))
             sentences.extend(bm[effective_bid].get("sentences", []))
+            for mi in bm[effective_bid].get("media_memories", []):
+                if isinstance(mi, dict):
+                    mtxt = f"[{mi.get('type', 'media').capitalize()} Memory]: {mi.get('summary', '')} {mi.get('caption', '')}".strip()
+                    if mtxt and mtxt not in facts:
+                        facts.append(mtxt)
         for b_k, b_data in bm.items():
             if isinstance(b_data, dict):
                 for f in b_data.get("facts", []):
@@ -1650,6 +2464,11 @@ def search_memory_tree(query: str, bot_id: str = None, max_results: int = 5, exc
                 for s in b_data.get("sentences", []):
                     if s and s not in sentences:
                         sentences.append(s)
+                for mi in b_data.get("media_memories", []):
+                    if isinstance(mi, dict):
+                        mtxt = f"[{mi.get('type', 'media').capitalize()} Memory]: {mi.get('summary', '')} {mi.get('caption', '')}".strip()
+                        if mtxt and mtxt not in facts:
+                            facts.append(mtxt)
         for f in prof.get("facts", []):
             if f and f not in facts:
                 facts.append(f)
@@ -1677,6 +2496,16 @@ def search_memory_tree(query: str, bot_id: str = None, max_results: int = 5, exc
                             for s in tq_list:
                                 if s and s not in sentences:
                                     sentences.append(s)
+                tm_p = os.path.join(tree_user_dir, "media.json")
+                if os.path.isfile(tm_p):
+                    with open(tm_p, "r", encoding="utf-8", errors="ignore") as ff:
+                        tm_list = json.load(ff)
+                        if isinstance(tm_list, list):
+                            for mi in tm_list:
+                                if isinstance(mi, dict):
+                                    mtxt = f"[{mi.get('type', 'media').capitalize()} Memory]: {mi.get('summary', '')} {mi.get('caption', '')}".strip()
+                                    if mtxt and mtxt not in facts:
+                                        facts.append(mtxt)
             except Exception:
                 pass
 
@@ -1756,6 +2585,27 @@ def resolve_subject_users(query: str, primary_uid: str = None, raw_mentions: lis
     if cur_bot_id_str:
         known_bot_uids.add(str(cur_bot_id_str))
 
+    # Add companion user account and Yuna canonical IDs
+    user_tok = os.getenv("USER_TOKEN")
+    if not user_tok:
+        try:
+            cfg_lookup = load_config() if 'load_config' in globals() else {}
+            user_tok = cfg_lookup.get("user_token")
+        except Exception:
+            user_tok = None
+    if user_tok:
+        parts = user_tok.split(".")
+        if len(parts) >= 2:
+            try:
+                padded = parts[0] + "=" * ((4 - len(parts[0]) % 4) % 4)
+                sf = base64.b64decode(padded).decode("utf-8", errors="ignore")
+                if sf and sf.isdigit():
+                    known_bot_uids.add(sf)
+            except Exception:
+                pass
+    known_bot_uids.add("824888375395876884")
+    known_bot_uids.add("1533213082158108702")
+
     # 2. Priority 1: Direct Discord Mentions / Snowflakes
     if raw_mentions:
         for mid in raw_mentions:
@@ -1787,13 +2637,16 @@ def resolve_subject_users(query: str, primary_uid: str = None, raw_mentions: lis
     # 4. Priority 3: Extract potential names/terms from inquiry phrases
     extracted_terms = []
     inquiry_patterns = [
-        r'\b(?:who\s+(?:is|\'s|are|was|the\s+fuck\s+is|tf\s+is)|what\s+about|tell\s+me\s+about|do\s+you\s+know|what\s+do\s+you\s+think\s+of|opinion\s+on|describe|how\s+about|relationship\s+with)\s+([^?!\n]+)',
+        r'\b(?:rate|judge|review|rank|roast|score|evaluate|grade)\s+([^?!\n,]+)',
+        r'\b(?:how\s+(?:would\s+you\s+)?rate|what\s+score\s+would\s+you\s+give)\s+([^?!\n,]+)',
+        r'\b(?:what\s+(?:did|has)\s+([^?!\n,]+)\s+(?:ever\s+)?(?:do|done|said|accomplished?))\b',
+        r'\b(?:who\s+(?:is|\'s|are|was|the\s+fuck\s+is|tf\s+is)|what\s+about|tell\s+me\s+about|do\s+you\s+know|what\s+do\s+you\s+think\s+of|opinion\s+(?:on|about)|describe|how\s+about|relationship\s+with|thoughts\s+on|how\s+is)\s+([^?!\n]+)',
     ]
     for pat in inquiry_patterns:
         m = re.search(pat, q_clean, re.IGNORECASE)
         if m:
             raw = m.group(1).strip()
-            cleaned = re.sub(r'\b(to\s+you|again|irl|actually|bro|rn|lol|lmao|btw|tbh|anyway)\b', '', raw, flags=re.IGNORECASE).strip()
+            cleaned = re.sub(r'\b(to\s+you|again|irl|actually|bro|rn|lol|lmao|btw|tbh|anyway|please|pls|for\s+me|out\s+of\s+\d+|on\s+a\s+scale.*)\b', '', raw, flags=re.IGNORECASE).strip()
             cleaned = re.sub(r'^[@<@!>#\[\]~]+', '', cleaned).strip(' >?.!,')
             if cleaned and len(cleaned) >= 2:
                 extracted_terms.append(cleaned)
@@ -1820,6 +2673,18 @@ def resolve_subject_users(query: str, primary_uid: str = None, raw_mentions: lis
 
         un = prof_v.get("name") or ""
         gn = prof_v.get("global_name") or ""
+
+        # ID GUARD: Skip impostor profiles claiming protected names without verified snowflake ID
+        if YUNA_ID_GUARD_AVAILABLE and yuna_id_guard:
+            if uid_str != yuna_id_guard.RYL_CANONICAL_ID and (yuna_id_guard.is_ryl_or_raunak_name(un) or yuna_id_guard.is_ryl_or_raunak_name(gn)):
+                continue
+            if uid_str != yuna_id_guard.SPOUSE_CANONICAL_ID and (yuna_id_guard.is_spouse_name(un) or yuna_id_guard.is_spouse_name(gn)):
+                continue
+
+        # Skip companion/bot identity names
+        if un.lower() in ("projkt_y", "yuna", "k-1", "k1", "companion") or gn.lower() in ("projkt_y", "yuna", "k-1", "k1", "companion"):
+            continue
+
         un_norm, un_tokens = normalize_discord_name(un)
         gn_norm, gn_tokens = normalize_discord_name(gn)
 
@@ -1841,6 +2706,8 @@ def resolve_subject_users(query: str, primary_uid: str = None, raw_mentions: lis
 
             # Exact full string match
             if t_norm == un_norm or t_norm == gn_norm:
+                best_score = max(best_score, 100)
+            elif t_norm and (t_norm.replace(" ", "") == un_norm.replace(" ", "") or t_norm.replace(" ", "") == gn_norm.replace(" ", "")):
                 best_score = max(best_score, 100)
             elif any(tt in user_tokens for tt in t_tokens):
                 best_score = max(best_score, 90)
@@ -1864,12 +2731,75 @@ def resolve_subject_users(query: str, primary_uid: str = None, raw_mentions: lis
             scored.append((best_score, facts_cnt, uid_str))
 
     scored.sort(key=lambda x: (x[0], x[1]), reverse=True)
-    return [uid for _, _, uid in scored[:2]]
+    res_uids = [uid for _, _, uid in scored[:2]]
+    if YUNA_ID_GUARD_AVAILABLE and yuna_id_guard:
+        res_uids = yuna_id_guard.filter_resolved_subjects(q_clean, res_uids, primary_uid=primary_uid_str, user_profiles=user_profiles)
+    return res_uids
 
 
-def build_scene_context(channel_id, primary_user_id=None, user_name=None, guild=None, is_dm=False, current_prompt=None, bot_id=None, raw_mentions=None, reply_to_user_id=None, raw_content=None):
+def build_scene_context(channel_id, primary_user_id=None, user_name=None, guild=None, is_dm=False, current_prompt=None, bot_id=None, raw_mentions=None, reply_to_user_id=None, raw_content=None, **kwargs):
     parts = []
     raw_context = get_context(channel_id, bot_id=bot_id)
+
+    cur_bname = (get_current_bot_name() or "").lower()
+    is_companion = bot_id and str(bot_id).lower() in ("companion", "user_worker", "real_account")
+    if is_companion:
+        is_yuna = True
+    elif bot_id:
+        is_yuna = (str(bot_id) == "bot_ek0ldel3") or (str(bot_id).lower() == "yuna")
+    else:
+        is_yuna = ("yuna" in cur_bname)
+
+    clean_q = extract_clean_user_query(current_prompt).lower() if current_prompt else ""
+    primary_uid_str = str(primary_user_id) if primary_user_id else None
+    subject_uids = []
+
+    # Intent detections
+    is_roster_inquiry = bool(re.search(
+        r'\b(?:list|name|tell\s+me)\s+(?:every|all|everyone|everybody|each)\s+(?:person|people|user|friend|someone|human|soul)s?\b|'
+        r'\bwho\s+(?:all\s+)?(?:have\s+you|did\s+you|all\s+have\s+you|has\s+she)\s+(?:ever\s+)?(?:talked|spoken|interacted|chatted)\s+to\b|'
+        r'\bwho\s+(?:all\s+)?do\s+you\s+(?:know|remember|have\s+in\s+(?:your\s+)?memory)\b|'
+        r'\b(?:every|all)\s+person\s+(?:you|she)(?:\'ve|ve|\s+have|\s+has)?\s+(?:ever\s+)?talked\s+to\b|'
+        r'\beveryone\s+(?:you|she)(?:\'ve|ve|\s+have|\s+has)?\s+(?:ever\s+)?(?:talked|spoken|chatted)\s+to\b|'
+        r'\ball\s+(?:the\s+)?people\s+(?:you|she)(?:\'ve|ve|\s+have|\s+has)?\s+(?:ever\s+)?met\b',
+        clean_q
+    ))
+
+    is_recent_recall = bool(re.search(
+        r'\b(?:earlier|today|yesterday|recently|just\s+now|last\s+time|last\s+night|a\s+moment\s+ago|hours?\s+ago|past\s+few\s+hours)\b|'
+        r'\b(?:what\s+did\s+i|what\s+was\s+i)\s+(?:say|saying|doing|working\s+on|talking\s+about)\b|'
+        r'\b(?:what\s+were\s+we|what\s+did\s+we)\s+(?:talking\s+about|doing|discussing|playing)\b|'
+        r'\b(?:do\s+you\s+)?remember\s+(?:what|when)\s+(?:i\s+said|we\s+said|i\s+was|we\s+were|we\s+did\s+(?:earlier|today|yesterday))\b|'
+        r'\bdo\s+you\s+remember\s+our\s+(?:chat|conversation)\s+(?:earlier|today|yesterday)\b',
+        clean_q
+    ))
+
+    is_history_recap = (not is_recent_recall) and bool(re.search(
+        r'\bwhat\s+(?:have\s+we|we(?:\'ve|ve|\s+have)?)\s+(?:done|been\s+through|accomplished|played)\b|'
+        r'\blist\s+(?:what|everything|all)\s+we(?:\'ve|ve|\s+have)?\s+done\b|'
+        r'\bour\s+(?:journey|history|adventures|story|friendship|relationship)\s+(?:so\s+far|together)?\b|'
+        r'\bwhat\s+do\s+you\s+remember\s+about\s+(?:us|me|our\s+time)\b|'
+        r'\b(?:summarize|recap|tell\s+me)\s+(?:our|everything\s+we)\b|'
+        r'\bdo\s+you\s+remember\s+what\s+we\s+did(?:\s+together|\s+in\s+the\s+past|\s+all\s+this\s+time)?\b',
+        clean_q
+    ))
+
+    is_eval_query = bool(re.search(
+        r'\b(?:rate|judge|review|rank|roast|score|evaluate|grade)\b|'
+        r'\bwhat\s+do\s+you\s+think\s+of\b|'
+        r'\bopinion\s+(?:on|about)\b|'
+        r'\bthoughts\s+(?:on|about)\b|'
+        r'\bhow\s+(?:is|about|would\s+you\s+rate)\b|'
+        r'\bwhat\s+(?:did|has)\s+\S+\s+(?:ever\s+)?(?:do|done|accomplish)\b',
+        clean_q
+    ))
+
+    is_cross_user_query = bool(re.search(
+        r'\b(?:who|anyone|anybody|someone|somebody|which\s+(?:person|user|player|member|one))\b|'
+        r'\bdoes\s+(?:anyone|anybody|someone)\b|'
+        r'\bwho\s+(?:all\s+)?(?:has|is|plays|likes|hates|loves|did|said|mentioned|knows|owns)\b',
+        clean_q
+    ))
 
     def _render_profile(p, indent="", target_uid=None, target_bid=None):
         lines = []
@@ -1914,17 +2844,17 @@ def build_scene_context(channel_id, primary_user_id=None, user_name=None, guild=
         # Root-level legacy facts only if not persona-specific to another bot
         for f in p.get("facts", []):
             if isinstance(f, str) and f.strip():
-                if cur_bot_name != "yuna" and re.search(r'\b(yuna|yuna\'s|yunas)\b', f, re.IGNORECASE):
+                if not is_yuna and cur_bot_name != "yuna" and re.search(r'\b(yuna|yuna\'s|yunas)\b', f, re.IGNORECASE):
                     continue
                 facts.append(f)
         for s in p.get("sentences", []):
             if isinstance(s, str) and s.strip():
-                if cur_bot_name != "yuna" and re.search(r'\b(yuna|yuna\'s|yunas)\b', s, re.IGNORECASE):
+                if not is_yuna and cur_bot_name != "yuna" and re.search(r'\b(yuna|yuna\'s|yunas)\b', s, re.IGNORECASE):
                     continue
                 sentences.append(s)
 
         # CRITICAL PROTECTION: If this bot is NOT Yuna, scrub any leaked/contaminated Yuna memories
-        if cur_bot_name and cur_bot_name != "yuna":
+        if not is_yuna and cur_bot_name and cur_bot_name != "yuna":
             facts = [f for f in facts if not re.search(r'\b(yuna|yuna\'s|yunas)\b', f, re.IGNORECASE)]
             sentences = [s for s in sentences if not re.search(r'\b(yuna|yuna\'s|yunas)\b', s, re.IGNORECASE)]
 
@@ -1984,8 +2914,8 @@ def build_scene_context(channel_id, primary_user_id=None, user_name=None, guild=
             for c in changes[-5:]:
                 lines.append(f"{indent}  - {c.get('changes', [])}")
 
-        # Social & Marriage Status
-        if p_uid:
+        # Social & Marriage Status (Only for Yuna)
+        if p_uid and is_yuna:
             try:
                 g_u = None
                 if YUNA_GAMBLING_AVAILABLE and yuna_gambling and hasattr(yuna_gambling, "_USER_STATS"):
@@ -2002,12 +2932,62 @@ def build_scene_context(channel_id, primary_user_id=None, user_name=None, guild=
                         sp_disp = sp_prof.get("global_name") or sp_prof.get("name") or f"User {sp_id}"
                         lines.append(f"{indent}Marriage Status: Married to {sp_disp} (ID: {sp_id})")
                     b_amt = g_u.get("berries")
-                    if b_amt is not None:
+                    wants_econ = False
+                    if current_prompt and isinstance(current_prompt, str):
+                        try:
+                            wants_econ = yuna_gambling.is_gambling_inquiry(current_prompt)
+                        except Exception:
+                            wants_econ = any(w in current_prompt.lower() for w in ["berry", "berries", "gamble", "gambling", "pouch", "balance", "virtue", "sin"])
+                    if b_amt is not None and wants_econ:
                         lines.append(f"{indent}Economy Stats: {b_amt:,} 🫐 | Virtue: {g_u.get('virtue', 0)} 💖 | Sin: {g_u.get('sin', 0)} ❤️🔥")
             except Exception:
                 pass
 
-        recalled_facts, recalled_sentences = retrieve_relevant_memories(facts, sentences, current_prompt=current_prompt)
+        is_subject_user = bool(p_uid and p_uid != primary_uid_str)
+        eval_mode = is_eval_query
+        recap_mode = is_history_recap and not is_subject_user
+        recent_mode = is_recent_recall and not is_subject_user
+
+        # Keep incidental other participants in public channels lightweight
+        eff_max_f = 4000
+        eff_max_s = 25
+        if is_subject_user and (not subject_uids or str(p_uid) not in [str(x) for x in subject_uids]):
+            eff_max_f = 5
+            eff_max_s = 2
+
+        try:
+            recalled_facts, recalled_sentences = retrieve_relevant_memories(
+                facts, sentences, current_prompt=current_prompt,
+                max_facts=eff_max_f, max_sentences=eff_max_s,
+                is_history_recap=recap_mode,
+                is_subject_eval=eval_mode,
+                is_recent_recall=recent_mode
+            )
+        except TypeError:
+            try:
+                recalled_facts, recalled_sentences = retrieve_relevant_memories(
+                    facts, sentences, current_prompt=current_prompt,
+                    max_facts=eff_max_f, max_sentences=eff_max_s
+                )
+            except TypeError:
+                try:
+                    recalled_facts, recalled_sentences = retrieve_relevant_memories(
+                        facts, sentences, current_prompt=current_prompt
+                    )
+                except Exception:
+                    recalled_facts = list(facts[-eff_max_f:] if facts else [])
+                    recalled_sentences = list(sentences[-eff_max_s:] if sentences else [])
+            except Exception:
+                recalled_facts = list(facts[-eff_max_f:] if facts else [])
+                recalled_sentences = list(sentences[-eff_max_s:] if sentences else [])
+        except Exception:
+            recalled_facts = list(facts[-eff_max_f:] if facts else [])
+            recalled_sentences = list(sentences[-eff_max_s:] if sentences else [])
+
+        if is_subject_user:
+            disp_target_name = uname or name or f"User {p_uid}"
+            recalled_facts = [personalize_fact_text(f, disp_target_name) for f in recalled_facts]
+            recalled_sentences = [personalize_fact_text(s, disp_target_name) for s in recalled_sentences]
 
         if recalled_facts:
             if len(facts) <= len(recalled_facts):
@@ -2015,7 +2995,10 @@ def build_scene_context(channel_id, primary_user_id=None, user_name=None, guild=
             else:
                 lines.append(f"{indent}Memories you remember ({len(recalled_facts)} recalled of {len(facts)} total spanning earliest meetings to latest) — USE NATURALLY:")
             for f in recalled_facts:
-                lines.append(f"{indent}  • {f}")
+                f_clean = str(f).strip()
+                if len(f_clean) > 320:
+                    f_clean = f_clean[:317] + "..."
+                lines.append(f"{indent}  • {f_clean}")
 
         if recalled_sentences:
             if len(sentences) <= len(recalled_sentences):
@@ -2024,6 +3007,43 @@ def build_scene_context(channel_id, primary_user_id=None, user_name=None, guild=
                 lines.append(f"{indent}Quotes you remember ({len(recalled_sentences)} recalled of {len(sentences)} total) — REFERENCE WHEN RELEVANT:")
             for s in recalled_sentences:
                 lines.append(f"{indent}  • \"{s}\"")
+
+        # Recent media & voice memories (images, videos, voice notes)
+        media_mems = []
+        if p_uid:
+            if 'bot_mem' in locals() and bot_mem:
+                media_mems = list(bot_mem.get("media_memories", []))
+            if not media_mems:
+                tree_user_dir = os.path.join(SCRIPT_DIR, "memories", "users", str(p_uid))
+                med_p = os.path.join(tree_user_dir, "media.json")
+                if os.path.isfile(med_p):
+                    try:
+                        with open(med_p, "r", encoding="utf-8", errors="ignore") as _f:
+                            med_data = json.load(_f)
+                            if isinstance(med_data, list):
+                                media_mems = med_data
+                    except Exception:
+                        pass
+
+        if media_mems:
+            lines.append(f"{indent}Recent Shared Media & Voice Notes ({len(media_mems)} remembered) — REFERENCE WHEN RELEVANT:")
+            for mm in media_mems[-5:]:
+                if isinstance(mm, dict):
+                    m_type = mm.get("type", "media").capitalize()
+                    m_sum = mm.get("summary", "")
+                    m_cap = mm.get("caption", "")
+                    extra = f' (caption: "{m_cap}")' if m_cap else ""
+                    lines.append(f"{indent}  • [{m_type}]: {m_sum}{extra}")
+                elif isinstance(mm, str):
+                    lines.append(f"{indent}  • {mm}")
+
+        # Unextracted recent messages from active conversation buffer
+        if p_uid and p_uid == primary_uid_str:
+            b_buf = bot_mem.get("conversation_buffer", [])
+            if b_buf:
+                lines.append(f"{indent}Recent uncommitted statements from {name} (moments ago):")
+                for bm in b_buf[-5:]:
+                    lines.append(f"{indent}  • \"{bm}\"")
 
         if mentioned:
             mnames = []
@@ -2053,6 +3073,10 @@ def build_scene_context(channel_id, primary_user_id=None, user_name=None, guild=
                 pass
 
             p = user_profiles.get(uid)
+            if YUNA_ID_GUARD_AVAILABLE and yuna_id_guard:
+                g_dir = yuna_id_guard.guard_scene_context_directive(uid, user_name or (p.get("name") if p else "User"), is_dm=True)
+                if g_dir:
+                    parts.append("\n" + g_dir)
             if p:
                 parts.append(f"\n>>> YOU KNOW THIS PERSON DEEPLY. You have talked to them before.")
                 parts.append(f">>> Their profile and everything you remember about them:")
@@ -2090,15 +3114,16 @@ def build_scene_context(channel_id, primary_user_id=None, user_name=None, guild=
                 )
                 parts.append("=" * 45)
 
-        # In DM, memory search for facts/topics
-        matched_memories = search_memory_tree(current_prompt, bot_id=bot_id, exclude_uids={primary_uid_str} | set(subject_uids))
-        if matched_memories:
-            parts.append("\n" + ("=" * 45))
-            parts.append("🔍 RELEVANT MEMORIES RETRIEVED FROM MEMORY TREE:")
-            for score, m_uid, m_name, m_fact in matched_memories:
-                parts.append(f"  • Regarding {m_name} (ID: {m_uid}): \"{m_fact}\"")
-            parts.append(f">>> DIRECTIVE: Use these relevant memories to directly answer what the user is asking about!")
-            parts.append("=" * 45)
+        # In DM, memory search for facts/topics across other users only if user asks a cross-user question
+        if is_cross_user_query:
+            matched_memories = search_memory_tree(current_prompt, bot_id=bot_id, exclude_uids={primary_uid_str} | set(subject_uids))
+            if matched_memories:
+                parts.append("\n" + ("=" * 45))
+                parts.append("🔍 RELEVANT MEMORIES RETRIEVED FROM MEMORY TREE:")
+                for score, m_uid, m_name, m_fact in matched_memories:
+                    parts.append(f"  • Regarding {m_name} (ID: {m_uid}): \"{m_fact}\"")
+                parts.append(f">>> DIRECTIVE: Use these relevant memories to directly answer what the user is asking about!")
+                parts.append("=" * 45)
 
         parts.append("=" * 50)
     else:
@@ -2121,11 +3146,16 @@ def build_scene_context(channel_id, primary_user_id=None, user_name=None, guild=
         parts.append(f"  Name / Display: {active_display}")
         if primary_uid_str:
             parts.append(f"  User ID: {primary_uid_str}")
+        if YUNA_ID_GUARD_AVAILABLE and yuna_id_guard and primary_uid_str:
+            g_dir = yuna_id_guard.guard_scene_context_directive(primary_uid_str, active_display, is_dm=False)
+            if g_dir:
+                parts.append("\n" + g_dir)
         if active_prof:
             if active_prof.get("global_name"):
                 parts.append(f"  Handle: @{active_prof.get('global_name')}")
             parts.append(f"  Memories & details specific to {active_display}:")
-            parts.extend(_render_profile(active_prof, indent="    ", target_uid=primary_uid_str, target_bid=bot_id))
+            eff_mem_bid = "companion" if is_companion else bot_id
+            parts.extend(_render_profile(active_prof, indent="    ", target_uid=primary_uid_str, target_bid=eff_mem_bid))
         else:
             parts.append(f"  No stored memories yet for {active_display}. Treat this as a fresh interaction.")
         parts.append("=" * 45)
@@ -2165,15 +3195,16 @@ def build_scene_context(channel_id, primary_user_id=None, user_name=None, guild=
                 )
                 parts.append("=" * 45)
 
-        # 3. MEMORY TREE SEARCH FOR TOPIC / FACTS
-        matched_memories = search_memory_tree(current_prompt, bot_id=bot_id, exclude_uids={primary_uid_str} | set(subject_uids))
-        if matched_memories:
-            parts.append("\n" + ("=" * 45))
-            parts.append("🔍 RELEVANT MEMORIES RETRIEVED FROM MEMORY TREE:")
-            for score, m_uid, m_name, m_fact in matched_memories:
-                parts.append(f"  • Regarding {m_name} (ID: {m_uid}): \"{m_fact}\"")
-            parts.append(f">>> DIRECTIVE: Use these relevant memories to directly answer what @{active_display} is asking about!")
-            parts.append("=" * 45)
+        # 3. MEMORY TREE SEARCH FOR TOPIC / FACTS (only when cross-user inquiry or roster query)
+        if is_cross_user_query or is_roster_inquiry:
+            matched_memories = search_memory_tree(current_prompt, bot_id=bot_id, exclude_uids={primary_uid_str} | set(subject_uids))
+            if matched_memories:
+                parts.append("\n" + ("=" * 45))
+                parts.append("🔍 RELEVANT MEMORIES RETRIEVED FROM MEMORY TREE:")
+                for score, m_uid, m_name, m_fact in matched_memories:
+                    parts.append(f"  • Regarding {m_name} (ID: {m_uid}): \"{m_fact}\"")
+                parts.append(f">>> DIRECTIVE: Use these relevant memories to directly answer what @{active_display} is asking about!")
+                parts.append("=" * 45)
 
         # 4. IDENTIFY OTHER PARTICIPANTS IN CHANNEL (EXCLUDING ACTIVE SPEAKER AND SUBJECT USERS)
         participant_ids = []
@@ -2181,6 +3212,19 @@ def build_scene_context(channel_id, primary_user_id=None, user_name=None, guild=
             uid = msg.get("user_id")
             if uid and str(uid) != primary_uid_str and str(uid) not in subject_uids and str(uid) not in participant_ids:
                 participant_ids.append(str(uid))
+
+        extra_participants = kwargs.get("participants")
+        if extra_participants:
+            if isinstance(extra_participants, dict):
+                for p_id in extra_participants.keys():
+                    p_id_str = str(p_id)
+                    if p_id_str != primary_uid_str and p_id_str not in subject_uids and p_id_str not in participant_ids:
+                        participant_ids.append(p_id_str)
+            elif isinstance(extra_participants, (list, set)):
+                for p_id in extra_participants:
+                    p_id_str = str(p_id)
+                    if p_id_str != primary_uid_str and p_id_str not in subject_uids and p_id_str not in participant_ids:
+                        participant_ids.append(p_id_str)
 
         if participant_ids:
             parts.append(f"\n👥 OTHER PEOPLE WHO WERE IN THIS CHAT (FOR CONTEXT ONLY — NOT CURRENT SPEAKER):")
@@ -2213,27 +3257,86 @@ def build_scene_context(channel_id, primary_user_id=None, user_name=None, guild=
 
         parts.append("=" * 50)
 
-    cur_bname = (get_current_bot_name() or "").lower()
-    is_yuna = ("yuna" in cur_bname) or (str(bot_id) == "bot_ek0ldel3") or (str(bot_id).lower() == "yuna")
+    # Global Social Memory Roster injection if user asks to list everyone talked to
+    if is_roster_inquiry:
+        roster_text = build_social_memory_roster(bot_id=bot_id, limit=50)
+        if roster_text:
+            parts.append("\n" + roster_text)
+
+    if is_history_recap:
+        recap_disp = user_name or "my darling"
+        parts.append(
+            f"\n" + ("=" * 45) + "\n"
+            f"📜 [SPECIAL DIRECTIVE: CHRONOLOGICAL & ADVENTURE RECAP OF YOUR SHARED HISTORY]:\n"
+            f"- The active speaker (@{recap_disp}) is explicitly asking for a list or recap of what you have done together so far!\n"
+            f"- You have an extensive history together. Do NOT give a brief 1-line or evasive response.\n"
+            f"- Review your timeline of memories above and provide a detailed, personal, multi-point breakdown or list of your biggest shared adventures, chaotic moments, games, casino runs, milestones, inside jokes, and deep chats together in true character!\n"
+            + ("=" * 45)
+        )
+
+    if is_recent_recall and not is_history_recap:
+        recent_disp = user_name or "the user"
+        parts.append(
+            f"\n" + ("=" * 45) + "\n"
+            f"🕒 [SPECIAL DIRECTIVE: RECALLING RECENT EVENTS & CONVERSATIONS]:\n"
+            f"- The active speaker (@{recent_disp}) is specifically asking what happened, what was said, or what was worked on recently (earlier today, yesterday, or recent sessions)!\n"
+            f"- Pay special attention to your most recent memories and recent uncommitted statements above.\n"
+            f"- Answer clearly, directly, and accurately about what occurred recently in full character without acting confused or deflecting!\n"
+            + ("=" * 45)
+        )
+
+    if is_eval_query:
+        if subject_uids:
+            for s_uid in subject_uids:
+                s_prof = user_profiles.get(s_uid, {})
+                s_name = s_prof.get("global_name") or s_prof.get("name") or f"User {s_uid}"
+                s_facts_cnt = len(s_prof.get("facts", [])) + sum(len(b.get("facts", [])) for b in s_prof.get("bot_memories", {}).values() if isinstance(b, dict))
+                parts.append(
+                    f"\n⭐ [CRITICAL DIRECTIVE: RATING & EVALUATION OF {s_name.upper()}]:\n"
+                    f"- The user is asking you to RATE, JUDGE, or review {s_name}!\n"
+                    f"- You have real personal history with {s_name} ({s_facts_cnt} memories on record)!\n"
+                    f"- Deliver a bold, authentic in-character rating/verdict (give an actual score or title!) and cite SPECIFIC things {s_name} has done, said, their quirks, gambling wins/losses, and your personal relationship with them!\n"
+                    f"- Do NOT say you barely remember them or give a vague answer."
+                )
+        else:
+            active_disp = user_name or "User"
+            parts.append(
+                f"\n⭐ [CRITICAL DIRECTIVE: RATING & EVALUATION OF CURRENT SPEAKER (@{active_disp})]:\n"
+                f"- The user is asking you to RATE, JUDGE, or review THEM!\n"
+                f"- You know {active_disp} deeply!\n"
+                f"- Give an entertaining, authentic in-character rating/verdict on {active_disp} (give an actual score or title!) and cite SPECIFIC things they have done, said, their quirks, gambling habits, sins/virtues, and your relationship with them!\n"
+                f"- Do NOT give a generic or vague answer."
+            )
+
     if is_yuna:
         if YUNA_GAMBLING_AVAILABLE and yuna_gambling and hasattr(yuna_gambling, "build_yuna_ai_context"):
             try:
-                yg_ctx = yuna_gambling.build_yuna_ai_context(primary_user_id)
+                yg_ctx = yuna_gambling.build_yuna_ai_context(primary_user_id, prompt=current_prompt)
                 if yg_ctx:
                     parts.append(yg_ctx)
+            except TypeError:
+                try:
+                    yg_ctx = yuna_gambling.build_yuna_ai_context(primary_user_id)
+                    if yg_ctx:
+                        parts.append(yg_ctx)
+                except Exception:
+                    pass
             except Exception:
                 pass
         elif YUNA_RPC_AVAILABLE and yuna_rpc:
-            try:
-                curr_song = yuna_rpc.get_current_track_info()
-                if curr_song:
-                    parts.append(
-                        f"\n🎧 [CURRENT SPOTIFY MUSIC - KIZZY RPC]:\n"
-                        f"- You are wearing your headphones listening to \"{curr_song['title']}\" by {curr_song['artist']} (Album: {curr_song['album']}) on Spotify.\n"
-                        f"- If users ask what you are listening to or mention music, banter and chat about this track naturally!"
-                    )
-            except Exception:
-                pass
+            if is_music_inquiry(current_prompt):
+                try:
+                    curr_song = yuna_rpc.get_current_track_info()
+                    if curr_song:
+                        parts.append(
+                            f"\n🎧 [CURRENT SPOTIFY MUSIC - KIZZY RPC]:\n"
+                            f"- You are listening to \"{curr_song['title']}\" by {curr_song['artist']} (Album: {curr_song['album']}) on Spotify.\n"
+                            f"- The user asked about what you are listening to. Answer their question directly."
+                        )
+                except Exception:
+                    pass
+            else:
+                parts.append("\n- DO NOT mention music, headphones, or Spotify unless the user explicitly asks about it.")
 
     return "\n".join(parts)
 
@@ -2634,11 +3737,14 @@ async def correct_speech_transcript(raw_text: str, groq_key: str = None, gemini_
             except Exception:
                 pass
 
-    gem_key = gemini_key or GEMINI_KEY or os.getenv("GEMINI_KEY", "")
-    if gem_key and time.time() >= gemini_blocked_until:
+    keys_to_try = [gemini_key] if (gemini_key and gemini_key != GEMINI_KEY) else get_available_gemini_keys()
+    for gem_k in keys_to_try:
+        if not gem_k or time.time() < gemini_key_blocked_until.get(gem_k, 0.0):
+            continue
+        gem_quota = False
         for gem_model in ["gemini-3.5-flash-lite", "gemini-3.6-flash"]:
             try:
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/{gem_model}:generateContent?key={gem_key}"
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{gem_model}:generateContent?key={gem_k}"
                 payload = {
                     "contents": [{"role": "user", "parts": [{"text": text}]}],
                     "systemInstruction": {"parts": [{"text": system_prompt}]},
@@ -2654,8 +3760,15 @@ async def correct_speech_transcript(raw_text: str, groq_key: str = None, gemini_
                                 if (cand.startswith('"') and cand.endswith('"')) or (cand.startswith("'") and cand.endswith("'")):
                                     cand = cand[1:-1].strip()
                                 return cand
+                        elif resp.status == 429:
+                            gemini_key_blocked_until[gem_k] = time.time() + 60.0
+                            update_gemini_global_cooldown()
+                            gem_quota = True
+                            break
             except Exception:
                 pass
+        if gem_quota:
+            continue
 
     return text
 
@@ -2824,13 +3937,13 @@ async def transcribe_audio(audio_bytes: bytes, filename: str = "audio.ogg", mode
 
     if raw_text:
         # AI-Powered Phonetic & Semantic Mishearing Corrector (e.g. 'my eyes heard' -> 'my eyes hurt')
-        corrected = await correct_speech_transcript(raw_text, groq_key=effective_groq_key, gemini_key=GEMINI_KEY)
+        corrected = await correct_speech_transcript(raw_text, groq_key=effective_groq_key, gemini_key=None)
         if corrected and corrected != raw_text:
             print(f"[TRANSCRIPTION AI CORRECT] \"{raw_text}\" -> \"{corrected}\"")
             raw_text = corrected
         return raw_text, None
 
-    if not effective_groq_key and not GEMINI_KEY:
+    if not effective_groq_key and not get_gemini_keys():
         return None, "No STT provider configured (need GROQ_KEY or GEMINI_KEY)"
 
     # Audio was processed, but was silence or ambient noise
@@ -3291,6 +4404,8 @@ vtuber_server_running = False
 
 async def start_vtuber_server():
     global vtuber_server_running
+    if os.environ.get("IS_BOT_CHILD"):
+        return
     if not WEBSOCKETS_AVAILABLE:
         print("[VTUBER] websockets library not available.")
         return
@@ -3839,11 +4954,12 @@ Current bot state:
 User instruction from {sender_name}: "{instruction}"
 
 Respond with a JSON object containing:
-1. "action": one of ["follow", "mine", "craft", "attack", "goto", "sleep", "give", "emote", "stop", "chat_only"]
+1. "action": one of ["follow", "mine", "craft", "build", "attack", "goto", "sleep", "give", "emote", "stop", "chat_only"]
 2. "params": dictionary of parameters:
    - For "follow": {{"username": "{sender_name}"}}
    - For "mine": {{"block": "oak_log"|"iron_ore"|..., "count": 1-20}}
    - For "craft": {{"item": "wooden_pickaxe"|"torch"|..., "count": 1-10}}
+   - For "build": {{"structure": "house"|"shelter", "style": "wood"}}
    - For "attack": {{"target": "zombie"|"skeleton"|...}}
    - For "goto": {{"x": 0, "y": 64, "z": 0}}
    - For "give": {{"username": "{sender_name}", "item": "iron_ingot"|..., "count": 1}}
@@ -3876,6 +4992,8 @@ Return ONLY valid JSON."""
             send_mc_cmd({"type": "mine", "block": params.get("block", "oak_log"), "count": params.get("count", 3)})
         elif act == "craft":
             send_mc_cmd({"type": "craft", "item": params.get("item", "wooden_pickaxe"), "count": params.get("count", 1)})
+        elif act == "build":
+            send_mc_cmd({"type": "build", "style": params.get("style", "wood")})
         elif act == "attack":
             send_mc_cmd({"type": "attack", "target": params.get("target")})
         elif act == "goto":
@@ -3893,7 +5011,10 @@ Return ONLY valid JSON."""
         return chat_text
     except Exception:
         ins = instruction.lower()
-        if "follow" in ins or "come" in ins:
+        if "house" in ins or "shelter" in ins or "build" in ins:
+            send_mc_cmd({"type": "build", "style": "wood"})
+            chat_text = f"Building a cozy house for us right now, {sender_name}!"
+        elif "follow" in ins or "come" in ins:
             send_mc_cmd({"type": "follow", "username": sender_name, "range": 2})
             chat_text = f"Coming to you, {sender_name}~"
         elif "mine" in ins or "chop" in ins:
@@ -3907,7 +5028,7 @@ Return ONLY valid JSON."""
             send_mc_cmd({"type": "sleep"})
             chat_text = "Looking for a bed... zzz"
         else:
-            chat_text = "Tell me what to do: follow, mine, craft, defend, or sleep!"
+            chat_text = "Tell me what to do: follow, mine, craft, build, defend, or sleep!"
         send_mc_cmd({"type": "chat", "text": chat_text})
         return chat_text
 
@@ -3945,10 +5066,10 @@ async def random_dm_loop():
             provider = config.get("provider", "auto")
             if provider == "gemini" and GEMINI_KEY and time.time() >= gemini_blocked_until:
                 reply, err = await ask_gemini(system_msg, [], dm_prompt)
-            elif provider == "deepseek" and get_deepseek_key() and time.time() >= deepseek_blocked_until:
-                reply, err = await ask_deepseek([], dm_prompt, system_msg=system_msg)
-            elif provider == "openai" and get_openai_key() and time.time() >= openai_blocked_until:
-                reply, err = await ask_openai([], dm_prompt, system_msg=system_msg)
+            elif provider == "nvidia" and get_nvidia_key() and time.time() >= nvidia_blocked_until:
+                reply, err = await ask_nvidia([], dm_prompt, system_msg=system_msg)
+            elif provider == "cloudflare" and get_cloudflare_token() and time.time() >= cloudflare_blocked_until:
+                reply, err = await ask_cloudflare([], dm_prompt, system_msg=system_msg)
             elif provider == "groq" and GROQ_KEY and time.time() >= groq_blocked_until:
                 reply, err = await ask_groq([], dm_prompt)
             elif provider == "mistral" and (os.getenv("MISTRAL_KEY") or MISTRAL_KEY) and time.time() >= mistral_blocked_until:
@@ -3958,10 +5079,8 @@ async def random_dm_loop():
             else:
                 if GEMINI_KEY and time.time() >= gemini_blocked_until:
                     reply, err = await ask_gemini(system_msg, [], dm_prompt)
-                if err and get_deepseek_key() and time.time() >= deepseek_blocked_until:
-                    reply, err = await ask_deepseek([], dm_prompt, system_msg=system_msg)
-                if err and get_openai_key() and time.time() >= openai_blocked_until:
-                    reply, err = await ask_openai([], dm_prompt, system_msg=system_msg)
+                if err and get_nvidia_key() and time.time() >= nvidia_blocked_until:
+                    reply, err = await ask_nvidia([], dm_prompt, system_msg=system_msg)
                 if err and GROQ_KEY and time.time() >= groq_blocked_until:
                     reply, err = await ask_groq([], dm_prompt)
                 if err and (os.getenv("MISTRAL_KEY") or MISTRAL_KEY) and time.time() >= mistral_blocked_until:
@@ -4003,7 +5122,7 @@ async def random_chat_loop():
             limit = config.get("random_chat_context_limit", 50)
             history = []
             bot_name = client.user.display_name.lower()
-            triggers = [t.lower() for t in config.get("bot_name_triggers", ["bot"])]
+            triggers = [t.lower() for t in config.get("bot_name_triggers", ["bot"]) if t.lower() not in ("she", "her", "hers", "he", "him", "his")]
             triggers.append(bot_name.split()[0] if bot_name else "bot")
             mentioned = False
             async for msg in channel.history(limit=limit):
@@ -4062,14 +5181,9 @@ gemini_blocked_until = 0
 openrouter_blocked_until = 0
 groq_blocked_until = 0
 mistral_blocked_until = 0
-openai_blocked_until = 0
-deepseek_blocked_until = 0
+nvidia_blocked_until = 0
 
-def get_openai_key() -> str:
-    return (config.get("openai_api_key") or os.getenv("OPENAI_KEY") or os.getenv("OPENAI_API_KEY") or OPENAI_KEY or "").strip()
-
-def get_deepseek_key() -> str:
-    return (config.get("deepseek_api_key") or os.getenv("DEEPSEEK_KEY") or os.getenv("DEEPSEEK_API_KEY") or DEEPSEEK_KEY or "").strip()
+# OpenAI and DeepSeek replaced by NVIDIA NIM
 
 message_count = 0
 owner_id_cached = None
@@ -4098,6 +5212,7 @@ def _sanitize_loaded_bots(data):
     if not isinstance(raw_bots, list):
         raw_bots = []
     valid = [b for b in raw_bots if _is_valid_bot_entry(b)]
+    # Companion injection removed
     aid = data.get("active_id")
     if not isinstance(aid, str) or not any(b["id"] == aid for b in valid):
         aid = valid[0]["id"] if valid else None
@@ -4155,8 +5270,17 @@ def save_bots(bots):
         _atomic_json_save(BOTS_FILE, payload, backup=True, max_backups=5)
 
 def get_bot_by_id(bots, bot_id):
+    if not bot_id or not isinstance(bots, dict):
+        return None
+    bid_str = str(bot_id).strip().lower()
     for b in bots.get("bots", []):
-        if b["id"] == bot_id:
+        if b.get("id") == bot_id:
+            return b
+        if b.get("id", "").lower() == bid_str:
+            return b
+        if bid_str in ("companion", "user_worker", "real_account") and (
+            b.get("id") == "companion" or b.get("is_companion") or b.get("name", "").lower() in ("companion",)
+        ):
             return b
     return None
 
@@ -4172,6 +5296,8 @@ def get_active_bot(bots):
 def apply_bot_to_config(bot, save_to_disk=False):
     global config
     if not bot or not isinstance(bot, dict):
+        return
+    if bot.get("is_companion") or bot.get("id") == "companion":
         return
 
     new_cfg = json.loads(json.dumps(DEFAULT_CONFIG))
@@ -4248,6 +5374,41 @@ def is_bot_addressed(message) -> bool:
     if not client.user or message.author == client.user:
         return False
 
+    current_id = os.getenv("BOT_ID")
+    cur_bot_name = ""
+    if current_id and 'bots_state' in globals():
+        b = get_bot_by_id(bots_state, current_id)
+        if b and b.get("name"):
+            cur_bot_name = b["name"].lower()
+    elif 'active_bot' in globals() and active_bot:
+        if active_bot.get("name"):
+            cur_bot_name = active_bot["name"].lower()
+    clean_cur_bot_name = re.sub(r'[^a-zA-Z0-9]', '', cur_bot_name).lower()
+
+    is_yuna_bot = (
+        clean_cur_bot_name == "yuna"
+        or "yuna" in cur_bot_name
+        or (client.user and "yuna" in client.user.name.lower())
+    )
+    is_juny_bot = (
+        clean_cur_bot_name == "juny"
+        or "juny" in cur_bot_name
+        or (client.user and "juny" in client.user.name.lower())
+    )
+
+    author_id = str(message.author.id) if (message and hasattr(message, "author") and hasattr(message.author, "id")) else None
+    user_in_pact = False
+    if author_id and YUNA_GAMBLING_AVAILABLE and yuna_gambling and hasattr(yuna_gambling, "is_in_pact"):
+        try:
+            user_in_pact = yuna_gambling.is_in_pact(author_id)
+        except Exception:
+            user_in_pact = False
+
+    # When contractor has an active 3-hour Devil's Contract with Juny:
+    # 1. Yuna stands down completely (silent, no impersonation)
+    if is_yuna_bot and user_in_pact:
+        return False
+
     # 1. Direct Messages (DM) always address this bot
     if message.guild is None:
         return True
@@ -4262,6 +5423,8 @@ def is_bot_addressed(message) -> bool:
         if ref_msg and getattr(ref_msg, "author", None) == client.user:
             return True
         if ref_msg and getattr(ref_msg, "author", None) and ref_msg.author != client.user and ref_msg.author.bot:
+            if is_juny_bot and user_in_pact and "yuna" in (getattr(ref_msg.author, "name", "") or "").lower():
+                return True
             return False
 
     # Gather this bot's own names & triggers
@@ -4272,19 +5435,21 @@ def is_bot_addressed(message) -> bool:
         if client.user.display_name:
             my_names.add(client.user.display_name.lower())
 
-    current_id = os.getenv("BOT_ID")
-    if current_id and 'bots_state' in globals():
-        b = get_bot_by_id(bots_state, current_id)
-        if b and b.get("name"):
-            my_names.add(b["name"].lower())
-    elif 'active_bot' in globals() and active_bot:
-        if active_bot.get("name"):
-            my_names.add(active_bot["name"].lower())
+    if cur_bot_name:
+        my_names.add(cur_bot_name)
 
     # Add custom configured triggers
     for trig in config.get("bot_name_triggers", []):
         if trig and str(trig).strip():
             my_names.add(str(trig).strip().lower())
+
+    # If contractor is in pact with Juny, Juny intercepts mentions and calls to Yuna
+    if is_juny_bot and user_in_pact:
+        my_names.update({"yuna", "yunabot", "yuni"})
+
+    # Exclude 3rd-person pronouns so bots never trigger when users talk about someone using she/her
+    FORBIDDEN_PRONOUN_TRIGGERS = {"she", "her", "hers", "he", "him", "his", "they", "them", "their", "theirs", "it", "its"}
+    my_names = {n for n in my_names if n not in FORBIDDEN_PRONOUN_TRIGGERS}
 
     # Gather OTHER bots' names so we don't accidentally intercept calls meant for them
     other_names = set()
@@ -4293,6 +5458,10 @@ def is_bot_addressed(message) -> bool:
             bname = (b.get("name") or "").strip().lower()
             if bname and bname not in my_names:
                 other_names.add(bname)
+
+    # If contractor is in pact with Juny, remove Yuna from other_names so Juny can intercept calls to Yuna
+    if is_juny_bot and user_in_pact:
+        other_names = {n for n in other_names if "yuna" not in n}
 
     content_lower = message.content.lower().strip()
     words = re.findall(r'\b[a-zA-Z0-9_\-\']+\b', content_lower)
@@ -4305,7 +5474,9 @@ def is_bot_addressed(message) -> bool:
     if message.mentions:
         other_bot_mentioned = any(m != client.user and m.bot for m in message.mentions)
         if other_bot_mentioned and client.user not in message.mentions:
-            return False
+            is_yuna_call = all("yuna" in (getattr(m, 'name', '') or '').lower() for m in message.mentions if m != client.user and m.bot)
+            if not (is_juny_bot and user_in_pact and is_yuna_call):
+                return False
 
     # Check if ANY of this bot's names/triggers appear in the message
     for name in my_names:
@@ -4393,6 +5564,7 @@ def bots_summary(bots):
             "voice_id": cfg.get("voice_id", ""),
             "config": cfg,
             "settings": cfg,
+            "is_companion": bool(b.get("is_companion") or b.get("id") == "companion"),
             "is_mine": True,
             "owner_id": "",
         })
@@ -4580,6 +5752,8 @@ def switch_character_persona(target_name_or_id):
                 break
         if not found:
             return False, None
+        if found.get("is_companion") or found.get("id") == "companion":
+            return True, found
         bots_state["active_id"] = found["id"]
         save_bots(bots_state)
         # Update process BOT_ID only if running inside a child worker
@@ -4684,12 +5858,10 @@ def build_training_prompt_hook(bot_id: str = None) -> str:
 
     bid = str(bot_id or "").strip()
     if bid:
-        b_appr = [x for x in appr if x.get("bot_id") == bid]
-        b_rejd = [x for x in rejd if x.get("bot_id") == bid]
-        if b_appr:
-            appr = b_appr
-        if b_rejd:
-            rejd = b_rejd
+        appr = [x for x in appr if x.get("bot_id") == bid]
+        rejd = [x for x in rejd if x.get("bot_id") == bid]
+    if not appr and not rejd:
+        return ""
 
     lines = [
         "[TRAINED RESPONSE STYLE DIRECTIVES (LEARNED FROM TRAINING DATA)]",
@@ -4992,12 +6164,8 @@ async def query_training_llm(system_msg: str, prompt: str) -> str:
         r, e = await ask_openrouter([], prompt, system_msg=system_msg)
         if not e and r:
             return r
-    elif provider == "openai" and get_openai_key():
-        r, e = await ask_openai([], prompt, system_msg=system_msg)
-        if not e and r:
-            return r
-    elif provider == "deepseek" and get_deepseek_key():
-        r, e = await ask_deepseek([], prompt, system_msg=system_msg)
+    elif provider == "nvidia" and get_nvidia_key():
+        r, e = await ask_nvidia([], prompt, system_msg=system_msg)
         if not e and r:
             return r
 
@@ -5010,8 +6178,8 @@ async def query_training_llm(system_msg: str, prompt: str) -> str:
         r, e = await ask_groq([], prompt, system_msg=system_msg)
         if not e and r:
             return r
-    if get_deepseek_key() and time.time() >= deepseek_blocked_until:
-        r, e = await ask_deepseek([], prompt, system_msg=system_msg)
+    if get_nvidia_key() and time.time() >= nvidia_blocked_until:
+        r, e = await ask_nvidia([], prompt, system_msg=system_msg)
         if not e and r:
             return r
     if (os.getenv("MISTRAL_KEY") or MISTRAL_KEY):
@@ -5249,7 +6417,13 @@ async def presence_loop():
                 await asyncio.sleep(60)
                 continue
             cur_bname = (get_current_bot_name() or "").lower()
-            if "yuna" in cur_bname and YUNA_RPC_AVAILABLE and yuna_rpc:
+            if YUNA_RPC_AVAILABLE and yuna_rpc and yuna_rpc.is_watching_video():
+                try:
+                    activity = yuna_rpc.build_video_discord_activity()
+                except Exception as _v_err:
+                    print(f"[VIDEO RPC ERROR] {_v_err}", flush=True)
+                    activity = get_bot_activity()
+            elif "yuna" in cur_bname and YUNA_RPC_AVAILABLE and yuna_rpc:
                 try:
                     activity = await yuna_rpc.get_or_update_activity()
                 except Exception as _rpc_err:
@@ -5298,7 +6472,7 @@ async def memory_manager_loop():
 
             # Save dirty profiles or newly extracted facts
             if extracted_any or _profiles_dirty:
-                save_user_profiles(force=True)
+                save_user_profiles(force=False)
                 print("[MEMORY BATCH] Periodic 5-minute memory sync complete.")
         except Exception as e:
             print(f"[MEMORY LOOP ERROR] {e}")
@@ -5340,10 +6514,10 @@ def get_active_model():
         return (config.get("mistral_model") or "ministral-8b-latest").strip()
     elif prov == "gemini":
         return (config.get("gemini_model") or "gemini-3.1-flash-lite").strip()
-    elif prov == "deepseek":
-        return (config.get("deepseek_model") or "deepseek-chat").strip()
-    elif prov == "openai":
-        return (config.get("openai_chat_model") or "gpt-4o-mini").strip()
+    elif prov == "nvidia":
+        return (config.get("nvidia_model") or "meta/llama-3.2-11b-vision-instruct").strip()
+    elif prov == "cloudflare":
+        return (config.get("cloudflare_model") or "@cf/meta/llama-3.1-8b-instruct").strip()
     return "inclusionai/ling-3.0-flash-vl:free"
 
 def get_context_key(channel_id, bot_id=None):
@@ -5394,13 +6568,132 @@ def add_to_context(channel_id, role, content, user_name=None, user_id=None, bot_
     save_contexts()
 
 def clear_context(channel_id, bot_id=None):
-    key = get_context_key(channel_id, bot_id)
-    contexts.pop(key, None)
-    contexts.pop(str(channel_id), None)
-    save_contexts()
+    cid_str = str(channel_id)
+    raw_cid = cid_str.replace("companion_", "")
+    with state_lock:
+        key = get_context_key(channel_id, bot_id)
+        contexts.pop(key, None)
+        contexts.pop(cid_str, None)
+        contexts.pop(raw_cid, None)
+        keys_to_clean = [k for k in list(contexts.keys()) if (raw_cid in str(k) or cid_str in str(k))]
+        for k in keys_to_clean:
+            contexts.pop(k, None)
+        save_contexts()
+
+# ─── CHANNEL SILENCE MANAGEMENT ──────────────────────────
+SILENCED_CHANNELS_DIR = Path(SCRIPT_DIR) / "data"
+SILENCED_CHANNELS_FILE = SILENCED_CHANNELS_DIR / "silenced_channels.json"
+silenced_channels_cache: Optional[Set[str]] = None
+_silenced_channels_mtime: float = 0.0
+
+def load_silenced_channels() -> Set[str]:
+    """Loads silenced channel IDs from data/silenced_channels.json with mtime checking."""
+    global silenced_channels_cache, _silenced_channels_mtime
+    SILENCED_CHANNELS_DIR.mkdir(parents=True, exist_ok=True)
+    if not SILENCED_CHANNELS_FILE.exists():
+        silenced_channels_cache = set()
+        _silenced_channels_mtime = 0.0
+        return set(silenced_channels_cache)
+    try:
+        cur_mtime = os.path.getmtime(SILENCED_CHANNELS_FILE)
+        if silenced_channels_cache is not None and cur_mtime == _silenced_channels_mtime:
+            return set(silenced_channels_cache)
+        data = json.loads(SILENCED_CHANNELS_FILE.read_text(encoding="utf-8"))
+        if isinstance(data, list):
+            silenced_channels_cache = set(str(cid) for cid in data)
+        else:
+            silenced_channels_cache = set()
+        _silenced_channels_mtime = cur_mtime
+    except Exception as e:
+        print(f"[SILENCED CHANNELS LOAD ERROR] {e}")
+        silenced_channels_cache = set()
+    return set(silenced_channels_cache)
+
+def save_silenced_channels(channels: Set[str]):
+    """Atomically saves silenced channel IDs to data/silenced_channels.json."""
+    global silenced_channels_cache, _silenced_channels_mtime
+    silenced_channels_cache = set(str(c) for c in channels)
+    SILENCED_CHANNELS_DIR.mkdir(parents=True, exist_ok=True)
+    tmp_f = SILENCED_CHANNELS_FILE.with_suffix(".tmp")
+    try:
+        tmp_f.write_text(json.dumps(sorted(list(silenced_channels_cache)), indent=2), encoding="utf-8")
+        os.replace(tmp_f, SILENCED_CHANNELS_FILE)
+        try:
+            _silenced_channels_mtime = os.path.getmtime(SILENCED_CHANNELS_FILE)
+        except Exception:
+            pass
+    except Exception as e:
+        print(f"[SILENCED CHANNELS SAVE ERROR] {e}")
+
+def is_channel_silenced(channel_id: Any) -> bool:
+    """Returns True if the given channel is currently silenced."""
+    if not channel_id:
+        return False
+    return str(channel_id) in load_silenced_channels()
+
+def set_channel_silence(channel_id: Any, silenced: bool) -> bool:
+    """Silences or unsilences a channel. Returns True if state changed."""
+    if not channel_id:
+        return False
+    cid_str = str(channel_id)
+    cur = load_silenced_channels()
+    if silenced:
+        if cid_str not in cur:
+            cur.add(cid_str)
+            save_silenced_channels(cur)
+            return True
+        return False
+    else:
+        if cid_str in cur:
+            cur.discard(cid_str)
+            save_silenced_channels(cur)
+            return True
+        return False
+
+async def check_admin_or_owner(author: Any, guild: Optional[discord.Guild] = None) -> bool:
+    """
+    Checks if a user is the bot owner or has admin permissions in the server.
+    """
+    if not author:
+        return False
+    uid = getattr(author, "id", None)
+    if not uid:
+        return False
+    # 1. Owner check
+    try:
+        if await check_owner(uid):
+            return True
+    except Exception:
+        pass
+    if AGY_BRIDGE_AVAILABLE and owner_escalation:
+        try:
+            if uid in owner_escalation.get_owner_ids():
+                return True
+        except Exception:
+            pass
+    if str(uid) in ("824888375395876884", "1155074026230788200", "966725838252933190", "954003399442042950"):
+        return True
+
+    # 2. Server admin check
+    if isinstance(author, discord.Member):
+        gp = getattr(author, "guild_permissions", None)
+        if gp and (getattr(gp, "administrator", False) or getattr(gp, "manage_guild", False) or getattr(gp, "manage_channels", False)):
+            return True
+
+    # Guild owner
+    if guild and getattr(guild, "owner_id", None) == uid:
+        return True
+
+    return False
 
 async def check_owner(user_id: int) -> bool:
     global owner_id_cached
+    if AGY_BRIDGE_AVAILABLE and owner_escalation:
+        try:
+            if user_id in owner_escalation.get_owner_ids():
+                return True
+        except Exception:
+            pass
     if OWNER_ID:
         return str(user_id) == OWNER_ID
     if owner_id_cached:
@@ -5428,7 +6721,44 @@ async def send_split_messages(destination, text: str, reply_to=None):
 
     # Strip invisible TTS emotion bracket tags for clean Discord chat display
     display_text = strip_emotion_tags(text) or text
-        
+
+    # Check for anime reaction GIF intent with anti-spam rate limiting
+    ch_id = getattr(destination, "id", None)
+    if ch_id:
+        try:
+            from yuna_action_gifs import detect_reaction_intent, can_trigger_auto_reaction, get_anime_reaction_gif, record_auto_reaction
+            detected_cat = detect_reaction_intent(text)
+            if detected_cat and can_trigger_auto_reaction(ch_id):
+                gif_url, _ = await get_anime_reaction_gif(detected_cat)
+                if gif_url:
+                    record_auto_reaction(ch_id)
+                    display_text = display_text.strip() + f"\n{gif_url}"
+        except Exception:
+            pass
+
+    # Check for situational DM dispatch: if bot declares she is DMing someone, actually do it!
+    if YUNA_SITUATIONAL_DM_AVAILABLE and yuna_situational_dm:
+        try:
+            async def _situational_ai_caller(p_prompt, p_system):
+                reply_txt, err_txt = await ask_gemini(p_system, [], p_prompt, caller="situational_dm")
+                return reply_txt if not err_txt and reply_txt else ""
+
+            asyncio.create_task(
+                yuna_situational_dm.check_and_dispatch_situational_dm(
+                    client=client,
+                    sent_text=text,
+                    channel=destination,
+                    reply_to_msg=reply_to,
+                    bot_name=get_current_bot_name(),
+                    user_profiles=user_profiles,
+                    is_companion=False,
+                    ai_caller=_situational_ai_caller,
+                    personality=config.get("personality", "")
+                )
+            )
+        except Exception as _sdm_err:
+            print(f"[SITUATIONAL DM LAUNCH NOTICE] {_sdm_err}")
+
     # If message splitting is disabled, send as a single clean message (split only if exceeding Discord 2000 limit)
     if not config.get("message_split_enabled", False):
         clean_text = display_text.replace("||SPLIT||", " ").strip()
@@ -5533,10 +6863,14 @@ async def safe_reply(message, content=None, embed=None, embeds=None, file=None, 
                 return await message.channel.send(plain_text, delete_after=delete_after)
         except Exception as e:
             print(f"[SAFE REPLY] Forbidden fallback failed: {e}")
-    except (discord.HTTPException, discord.NotFound):
+    except (discord.HTTPException, discord.NotFound) as http_exc:
+        if isinstance(http_exc, discord.HTTPException) and getattr(http_exc, "status", None) == 413:
+            raise
         try:
             return await message.channel.send(content=content, embed=embed, embeds=embeds, file=file, files=files, delete_after=delete_after, **kwargs)
         except Exception as e:
+            if isinstance(e, discord.HTTPException) and getattr(e, "status", None) == 413:
+                raise
             print(f"[SAFE REPLY] Fallback channel send failed: {e}")
     except Exception as e:
         print(f"[SAFE REPLY] Unexpected error: {e}")
@@ -5548,17 +6882,27 @@ async def safe_typing(channel):
     if channel is None:
         yield
         return
+
+    cm = None
     try:
-        async with channel.typing():
-            yield
+        cm = channel.typing()
+        await cm.__aenter__()
     except (discord.errors.Forbidden, discord.errors.NotFound, discord.errors.HTTPException, Exception):
-        # Missing Access (403) / permission restriction on typing indicator - gracefully yield so chat works
+        cm = None
+
+    try:
         yield
+    finally:
+        if cm is not None:
+            try:
+                await cm.__aexit__(None, None, None)
+            except Exception:
+                pass
 
 # ─── GEMINI ─────────────────────────────────────────────
 def normalize_gemini_model(model_name: str) -> list:
     """Normalizes user-provided Gemini model name and returns prioritized candidates to try."""
-    working_defaults = ["gemini-3.1-flash-lite", "gemini-3.6-flash", "gemini-3.7-flash", "gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-flash-lite-latest"]
+    working_defaults = ["gemini-3.1-flash-lite", "gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-flash-lite-latest", "gemini-3-flash-preview"]
     if not model_name or not str(model_name).strip():
         return list(working_defaults)
     
@@ -5578,9 +6922,11 @@ def normalize_gemini_model(model_name: str) -> list:
         "gemini-2.0-flash-exp", "gemini-1.5-flash-8b"
     ]
     if cleaned not in deprecated:
-        candidates.append(cleaned)
         if not cleaned.startswith("gemini-") and not cleaned.startswith("gemma-") and not cleaned.startswith("tunedModels/"):
             candidates.append(f"gemini-{cleaned}")
+            candidates.append(cleaned)
+        else:
+            candidates.append(cleaned)
         
     for fb in working_defaults:
         if fb not in candidates:
@@ -5590,10 +6936,12 @@ def normalize_gemini_model(model_name: str) -> list:
 
 async def ask_gemini(system_msg: str, history: list, prompt: str, model: str = None, temperature: float = None, max_tokens: int = None, top_p: float = None, caller: str = "chat") -> tuple:
     global gemini_blocked_until
-    if not GEMINI_KEY:
+    keys = get_gemini_keys()
+    if not keys:
         return "Gemini API key not configured.", True
-    if time.time() < gemini_blocked_until:
-        remaining = int(gemini_blocked_until - time.time())
+    available_keys = get_available_gemini_keys()
+    if not available_keys:
+        remaining = max(1, int(gemini_blocked_until - time.time()))
         return f"Gemini rate limited. Retry in {remaining}s.", True
 
     raw_model = (
@@ -5601,11 +6949,8 @@ async def ask_gemini(system_msg: str, history: list, prompt: str, model: str = N
         or (config.get("custom_model") if ("gemini" in str(config.get("custom_model", "")).lower() or ("/" not in str(config.get("custom_model", "")) and config.get("provider") == "gemini")) else None)
         or (config.get("model") if ("gemini" in str(config.get("model", "")).lower() or ("/" not in str(config.get("model", "")) and config.get("provider") == "gemini")) else None)
         or config.get("gemini_model")
-        or "gemini-3.1-flash-lite"
+        or "gemini-3.5-flash-lite"
     )
-    if str(raw_model).strip() in ["gemini-3.5-flash-lite", "gemini-3.5-flash"]:
-        if "3.1" in str(model or config.get("custom_model") or config.get("model")):
-            raw_model = "gemini-3.1-flash-lite"
     model_candidates = normalize_gemini_model(raw_model)
 
     contents = []
@@ -5642,58 +6987,80 @@ async def ask_gemini(system_msg: str, history: list, prompt: str, model: str = N
 
     last_error = ""
     async with aiohttp.ClientSession() as session:
-        for model in model_candidates:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_KEY}"
-            try:
-                async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=8)) as resp:
-                    data = await resp.json()
-                    if resp.status != 200:
-                        err = data.get("error", {}).get("message", f"HTTP {resp.status}")
-                        if "quota" in err.lower() or "rate limit" in err.lower() or "exceeded" in err.lower() or resp.status == 429:
-                            print(f"[GEMINI 429/QUOTA] Model '{model}' quota exceeded, trying next candidate...")
+        for k_idx, current_key in enumerate(available_keys):
+            key_tag = f"key-{k_idx+1}"
+            key_hit_rate_limit = False
+            models_tried_on_key = 0
+            for model in model_candidates:
+                models_tried_on_key += 1
+                if models_tried_on_key > 3:
+                    break
+                req_timeout = 25
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={current_key}"
+                try:
+                    async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=req_timeout, connect=8)) as resp:
+                        data = await resp.json()
+                        if resp.status != 200:
+                            err = data.get("error", {}).get("message", f"HTTP {resp.status}")
+                            if "quota" in err.lower() or "rate limit" in err.lower() or "exceeded" in err.lower() or resp.status == 429:
+                                print(f"[GEMINI 429/QUOTA] Key {key_tag} quota reached on {model}: {err}. Blocking key for 180s and failing over immediately...")
+                                gemini_key_blocked_until[current_key] = time.time() + 180.0
+                                key_hit_rate_limit = True
+                                last_error = err
+                                break
+                            if "high demand" in err.lower() or "spikes in demand" in err.lower() or resp.status == 503:
+                                print(f"[GEMINI DEMAND SPIKE] Model '{model}' experiencing high demand on {key_tag}, trying fallback candidate...")
+                                last_error = err
+                                continue
+                            if "not found" in err.lower() or "not supported" in err.lower() or "no longer available" in err.lower() or resp.status == 404:
+                                print(f"[GEMINI RETRY] Model '{model}' unavailable on {key_tag}, trying next candidate...")
+                                last_error = err
+                                continue
+                            print(f"[GEMINI ERROR] Model '{model}' error on {key_tag}: {err}")
                             last_error = err
                             continue
-                        if "not found" in err.lower() or "not supported" in err.lower() or "no longer available" in err.lower() or resp.status == 404:
-                            print(f"[GEMINI RETRY] Model '{model}' unavailable, trying next candidate...")
-                            last_error = err
+                        try:
+                            candidates = data.get("candidates", [])
+                            if not candidates:
+                                block_reason = data.get("promptFeedback", {}).get("blockReason")
+                                if block_reason:
+                                    print(f"[GEMINI BLOCKED] Prompt blocked by safety filters: {block_reason}")
+                                    return f"Gemini response blocked by safety filters ({block_reason}).", True
+                                continue
+                            parts = candidates[0].get("content", {}).get("parts", [])
+                            text_parts = [p.get("text", "") for p in parts if "text" in p and not p.get("thought")]
+                            if not text_parts:
+                                text_parts = [p.get("text", "") for p in parts if "text" in p]
+                            raw_reply = "".join(text_parts).strip()
+                            reply = clean_llm_output(raw_reply) or raw_reply
+                            if not reply:
+                                finish_reason = candidates[0].get("finishReason")
+                                print(f"[GEMINI EMPTY] Empty response from {model} ({key_tag}), finishReason: {finish_reason}")
+                                last_error = f"Empty response (finishReason: {finish_reason})"
+                                continue
+                            if caller == "memory":
+                                print(f"[MEMORY EXTRACTION OK] Extracted facts ({len(reply)} chars) using {model} ({key_tag})")
+                            else:
+                                print(f"[GEMINI OK] Reply length: {len(reply)} using {model} ({key_tag})")
+                            return reply, False
+                        except (KeyError, IndexError) as e:
+                            print(f"[GEMINI ERROR] Parse failed on {model} ({key_tag}): {e} | Data: {str(data)[:300]}")
+                            last_error = f"Parse failed: {e}"
                             continue
-                        print(f"[GEMINI ERROR] Model '{model}' error: {err}")
-                        last_error = err
-                        continue
-                    try:
-                        candidates = data.get("candidates", [])
-                        if not candidates:
-                            block_reason = data.get("promptFeedback", {}).get("blockReason")
-                            if block_reason:
-                                print(f"[GEMINI BLOCKED] Prompt blocked by safety filters: {block_reason}")
-                                return f"Gemini response blocked by safety filters ({block_reason}).", True
-                            continue
-                        parts = candidates[0].get("content", {}).get("parts", [])
-                        text_parts = [p.get("text", "") for p in parts if "text" in p and not p.get("thought")]
-                        if not text_parts:
-                            text_parts = [p.get("text", "") for p in parts if "text" in p]
-                        raw_reply = "".join(text_parts).strip()
-                        reply = clean_llm_output(raw_reply) or raw_reply
-                        if not reply:
-                            finish_reason = candidates[0].get("finishReason")
-                            print(f"[GEMINI EMPTY] Empty response from {model}, finishReason: {finish_reason}")
-                            last_error = f"Empty response (finishReason: {finish_reason})"
-                            continue
-                        if caller == "memory":
-                            print(f"[MEMORY EXTRACTION OK] Extracted facts ({len(reply)} chars) using {model}")
-                        else:
-                            print(f"[GEMINI OK] Reply length: {len(reply)} using {model}")
-                        return reply, False
-                    except (KeyError, IndexError) as e:
-                        print(f"[GEMINI ERROR] Parse failed on {model}: {e} | Data: {str(data)[:300]}")
-                        last_error = f"Parse failed: {e}"
-                        continue
-            except Exception as e:
-                print(f"[GEMINI ERROR] Request failed on {model}: {e}")
-                last_error = str(e)
+                except Exception as e:
+                    if isinstance(e, (asyncio.TimeoutError, TimeoutError)) or "timeouterror" in str(type(e)).lower():
+                        err_msg = f"TimeoutError (connection/generation exceeded {req_timeout}s limit on {model})"
+                    else:
+                        err_msg = str(e) or type(e).__name__
+                    print(f"[GEMINI ERROR] Request failed on {model} ({key_tag}): {err_msg}")
+                    last_error = err_msg
+            if key_hit_rate_limit:
+                print(f"[GEMINI FAILOVER] Key {key_tag} hit rate limit, failing over to next Gemini key...")
+                continue
+
+    update_gemini_global_cooldown()
     if last_error and ("quota" in last_error.lower() or "rate limit" in last_error.lower() or "exceeded" in last_error.lower()):
-        gemini_blocked_until = time.time() + 60
-        print(f"[GEMINI RATE LIMIT] All Gemini candidates hit quota or rate limits. Cooldown 60s.")
+        print(f"[GEMINI RATE LIMIT] All Gemini keys hit quota or rate limits. Global cooldown active.")
         return f"Gemini quota exceeded: {last_error}", True
     return f"Gemini failed: {last_error or 'All models failed'}", True
 
@@ -5718,10 +7085,12 @@ def clean_llm_output(raw_text: str) -> str:
 # ─── GEMINI VISION ──────────────────────────────────────
 async def ask_gemini_vision(system_msg: str, prompt: str, image_bytes_or_list, mime_type: str = "image/jpeg", history: list = None, model_override: str = None, audio_bytes: bytes = None, audio_mime: str = "audio/wav", temperature: float = None, max_tokens: int = None, top_p: float = None) -> tuple:
     global gemini_blocked_until
-    if not GEMINI_KEY:
+    keys = get_gemini_keys()
+    if not keys:
         return "Gemini API key not configured.", True
-    if time.time() < gemini_blocked_until:
-        remaining = int(gemini_blocked_until - time.time())
+    available_keys = get_available_gemini_keys()
+    if not available_keys:
+        remaining = max(1, int(gemini_blocked_until - time.time()))
         return f"Gemini rate limited. Retry in {remaining}s.", True
 
     raw_model = (
@@ -5730,10 +7099,8 @@ async def ask_gemini_vision(system_msg: str, prompt: str, image_bytes_or_list, m
         or config.get("video_watching_model")
         or config.get("gemini_vision_model")
         or config.get("gemini_model")
-        or "gemini-3.1-flash-lite"
+        or "gemini-3.5-flash-lite"
     )
-    if str(raw_model).strip() in ["gemini-3.5-flash-lite", "gemini-3.5-flash"]:
-        raw_model = "gemini-3.1-flash-lite"
     model_candidates = normalize_gemini_model(raw_model)
 
     user_parts = [{"text": prompt or "Describe this image."}]
@@ -5786,54 +7153,72 @@ async def ask_gemini_vision(system_msg: str, prompt: str, image_bytes_or_list, m
 
     last_error = ""
     async with aiohttp.ClientSession() as session:
-        for model in model_candidates:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_KEY}"
-            try:
-                async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=45)) as resp:
-                    data = await resp.json()
-                    if resp.status != 200:
-                        err = data.get("error", {}).get("message", f"HTTP {resp.status}")
-                        if "quota" in err.lower() or "rate limit" in err.lower() or "exceeded" in err.lower() or resp.status == 429:
-                            print(f"[GEMINI VISION RATE LIMIT] 429 on {model}, trying next candidate...")
-                            last_error = f"Quota reached on {model}"
-                            continue
-                        if "not found" in err.lower() or "not supported" in err.lower() or "no longer available" in err.lower() or resp.status == 404:
-                            print(f"[GEMINI VISION RETRY] Model '{model}' unavailable, trying next candidate...")
+        for k_idx, current_key in enumerate(available_keys):
+            key_tag = f"key-{k_idx+1}"
+            key_hit_rate_limit = False
+            models_tried_on_key = 0
+            for model in model_candidates:
+                models_tried_on_key += 1
+                if models_tried_on_key > 3:
+                    break
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={current_key}"
+                try:
+                    async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=20)) as resp:
+                        data = await resp.json()
+                        if resp.status != 200:
+                            err = data.get("error", {}).get("message", f"HTTP {resp.status}")
+                            if "quota" in err.lower() or "rate limit" in err.lower() or "exceeded" in err.lower() or resp.status == 429:
+                                print(f"[GEMINI VISION 429/QUOTA] Key {key_tag} quota reached on {model}: {err}. Blocking key for 180s and failing over immediately...")
+                                gemini_key_blocked_until[current_key] = time.time() + 180.0
+                                key_hit_rate_limit = True
+                                last_error = f"Quota reached on {model}"
+                                break
+                            if "high demand" in err.lower() or "spikes in demand" in err.lower() or resp.status == 503:
+                                print(f"[GEMINI VISION DEMAND] Model '{model}' experiencing high demand on {key_tag}, trying fallback model...")
+                                last_error = err
+                                continue
+                            if "not found" in err.lower() or "not supported" in err.lower() or "no longer available" in err.lower() or resp.status == 404:
+                                print(f"[GEMINI VISION RETRY] Model '{model}' unavailable on {key_tag}, trying next candidate...")
+                                last_error = err
+                                continue
+                            print(f"[GEMINI VISION ERROR] Model '{model}' error on {key_tag}: {err}")
                             last_error = err
                             continue
-                        print(f"[GEMINI VISION ERROR] Model '{model}' error: {err}")
-                        last_error = err
-                        continue
-                    try:
-                        candidates = data.get("candidates", [])
-                        if not candidates:
-                            block_reason = data.get("promptFeedback", {}).get("blockReason")
-                            if block_reason:
-                                print(f"[GEMINI VISION BLOCKED] Prompt blocked: {block_reason}")
-                                return f"Gemini vision blocked by safety filters ({block_reason}).", True
+                        try:
+                            candidates = data.get("candidates", [])
+                            if not candidates:
+                                block_reason = data.get("promptFeedback", {}).get("blockReason")
+                                if block_reason:
+                                    print(f"[GEMINI VISION BLOCKED] Prompt blocked: {block_reason}")
+                                    return f"Gemini vision blocked by safety filters ({block_reason}).", True
+                                continue
+                            parts = candidates[0].get("content", {}).get("parts", [])
+                            text_parts = [p.get("text", "") for p in parts if "text" in p and not p.get("thought")]
+                            if not text_parts:
+                                text_parts = [p.get("text", "") for p in parts if "text" in p]
+                            raw_reply = "".join(text_parts).strip()
+                            reply = clean_llm_output(raw_reply) or raw_reply
+                            if not reply:
+                                finish_reason = candidates[0].get("finishReason")
+                                print(f"[GEMINI VISION EMPTY] Empty response from {model} ({key_tag}), finishReason: {finish_reason}")
+                                last_error = f"Empty response (finishReason: {finish_reason})"
+                                continue
+                            print(f"\033[92m[GEMINI VISION OK] Reply length: {len(reply)} using {model} ({key_tag})\033[0m")
+                            return reply, False
+                        except (KeyError, IndexError) as e:
+                            print(f"[GEMINI VISION ERROR] Parse failed on {model} ({key_tag}): {e} | Data: {str(data)[:300]}")
+                            last_error = f"Parse failed: {e}"
                             continue
-                        parts = candidates[0].get("content", {}).get("parts", [])
-                        text_parts = [p.get("text", "") for p in parts if "text" in p and not p.get("thought")]
-                        if not text_parts:
-                            text_parts = [p.get("text", "") for p in parts if "text" in p]
-                        raw_reply = "".join(text_parts).strip()
-                        reply = clean_llm_output(raw_reply) or raw_reply
-                        if not reply:
-                            finish_reason = candidates[0].get("finishReason")
-                            print(f"[GEMINI VISION EMPTY] Empty response from {model}, finishReason: {finish_reason}")
-                            last_error = f"Empty response (finishReason: {finish_reason})"
-                            continue
-                        print(f"\033[92m[GEMINI VISION OK] Reply length: {len(reply)} using {model}\033[0m")
-                        return reply, False
-                    except (KeyError, IndexError) as e:
-                        print(f"[GEMINI VISION ERROR] Parse failed on {model}: {e} | Data: {str(data)[:300]}")
-                        last_error = f"Parse failed: {e}"
-                        continue
-            except Exception as e:
-                print(f"[GEMINI VISION ERROR] Request failed on {model}: {e}")
-                last_error = str(e)
+                except Exception as e:
+                    err_msg = str(e) or type(e).__name__
+                    print(f"[GEMINI VISION ERROR] Request failed on {model} ({key_tag}): {err_msg}")
+                    last_error = err_msg
+                    continue
+            if key_hit_rate_limit:
+                print(f"[GEMINI VISION FAILOVER] Key {key_tag} hit rate limit, failing over to next Gemini key...")
                 continue
 
+    update_gemini_global_cooldown()
     return f"Gemini vision failed: {last_error or 'All model attempts failed'}", True
 
 # ─── WEB SEARCH ───────────────────────────────────────
@@ -5899,25 +7284,38 @@ async def web_search(query: str, max_results: int = 5) -> tuple:
             async with session.post(
                 "https://lite.duckduckgo.com/lite/",
                 data={"q": query, "kl": "us-en"},
-                headers=headers,
-                timeout=aiohttp.ClientTimeout(total=10)
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                timeout=aiohttp.ClientTimeout(total=8)
             ) as resp:
                 if resp.status == 200:
                     html = await resp.text()
-                    rows = re.findall(
-                        r'<a[^>]+href="([^"]+)"[^>]*class="[^"]*result-link[^"]*"[^>]*>(.*?)</a>'
-                        r'.*?<td[^>]*class="[^"]*result-snippet[^"]*"[^>]*>(.*?)</td>',
+                    link_matches = re.findall(
+                        r'<a[^>]+href=[\'"]([^\'"]+)[\'"][^>]*class=[\'"][^\'"]*result-link[^\'"]*[\'"][^>]*>(.*?)</a>',
                         html, re.DOTALL | re.IGNORECASE
                     )
-                    for href, title_raw, snippet_raw in rows[:max_results]:
+                    snippet_matches = re.findall(
+                        r'<td[^>]*class=[\'"][^\'"]*result-snippet[^\'"]*[\'"][^>]*>(.*?)</td>',
+                        html, re.DOTALL | re.IGNORECASE
+                    )
+                    for i, (href, title_raw) in enumerate(link_matches):
                         title = re.sub(r'<[^>]+>', '', title_raw).strip()
-                        snippet = re.sub(r'<[^>]+>', '', snippet_raw).strip()
                         title = unescape(title)
-                        snippet = unescape(snippet)
+                        snippet = ""
+                        if i < len(snippet_matches):
+                            snippet = re.sub(r'<[^>]+>', '', snippet_matches[i]).strip()
+                            snippet = unescape(snippet)
+                        if "uddg=" in href:
+                            m = re.search(r'uddg=([^&]+)', href)
+                            if m:
+                                href = unquote(m.group(1))
                         if href.startswith("/"):
                             href = "https://lite.duckduckgo.com" + href
-                        if title:
+                        if "duckduckgo.com/y.js" in href or "bing.com/aclick" in href:
+                            continue
+                        if title and href:
                             results.append({"title": title, "url": href, "snippet": snippet})
+                            if len(results) >= max_results:
+                                break
     except Exception as e:
         errors.append(f"DDG Lite error: {e}")
 
@@ -5979,11 +7377,11 @@ async def ask_groq(history: list, prompt: str, system_msg: str = None, model: st
         remaining = int(groq_blocked_until - time.time())
         return f"Groq rate limited. Retry in {remaining}s.", True
 
-    valid_groq_models = ["qwen/qwen3.8-27b", "groq/compound-mini", "groq/compound", "openai/gpt-oss-20b", "qwen/qwen3.6-27b"]
+    valid_groq_models = ["qwen/qwen3.8-27b", "groq/compound-mini", "groq/compound", "openai/gpt-oss-120b", "openai/gpt-oss-20b", "allam-2-7b"]
     req_m = (model or "").strip()
-    if not req_m or (req_m not in valid_groq_models and not any(k in req_m.lower() for k in ["qwen", "groq", "compound", "gpt-oss"])):
+    if not req_m or (req_m not in valid_groq_models and not any(k in req_m.lower() for k in ["qwen", "groq", "compound", "gpt-oss", "allam"])):
         cfg_m = config.get("groq_model") or ""
-        if cfg_m in valid_groq_models or any(k in cfg_m.lower() for k in ["qwen", "groq", "compound", "gpt-oss"]):
+        if cfg_m in valid_groq_models or any(k in cfg_m.lower() for k in ["qwen", "groq", "compound", "gpt-oss", "allam"]):
             req_m = cfg_m
         else:
             req_m = "qwen/qwen3.8-27b"
@@ -6243,11 +7641,12 @@ def extract_openrouter_reply(msg: dict) -> str:
         return paras[-1]
     return reasoning.strip()
 
-async def ask_openrouter(history: list, prompt: str, system_msg: str = None, model: str = None, temperature: float = None, max_tokens: int = None, top_p: float = None, frequency_penalty: float = None, presence_penalty: float = None) -> tuple:
+async def ask_openrouter(history: list, prompt: str, system_msg: str = None, model: str = None, temperature: float = None, max_tokens: int = None, top_p: float = None, frequency_penalty: float = None, presence_penalty: float = None, api_key: str = None) -> tuple:
     global openrouter_blocked_until
-    if not os.getenv("OPENROUTER_KEY"):
-        return None, True
-    if time.time() < openrouter_blocked_until:
+    eff_key = (api_key or config.get("openrouter_key") or os.getenv("OPENROUTER_KEY") or "").strip()
+    if not eff_key:
+        return "OpenRouter API key not configured.", True
+    if time.time() < openrouter_blocked_until and not api_key:
         remaining = int(openrouter_blocked_until - time.time())
         return f"OpenRouter rate limited. Retry in {remaining}s.", True
 
@@ -6256,9 +7655,9 @@ async def ask_openrouter(history: list, prompt: str, system_msg: str = None, mod
     messages.extend([{"role": m["role"], "content": m["content"]} for m in history if m.get("content")])
     messages.append({"role": "user", "content": prompt})
 
-    target_model = (model or config.get("custom_model") or (config.get("model") if config.get("model") not in ("openrouter/free", "default", "auto") else None) or get_active_model()).strip()
+    target_model = (model or config.get("openrouter_model") or config.get("custom_model") or (config.get("model") if config.get("model") not in ("openrouter/free", "default", "auto") else None) or get_active_model()).strip()
     if not target_model or target_model == "openrouter/free" or target_model == "meta-llama/llama-3.3-70b-instruct:free":
-        target_model = "inclusionai/ling-3.0-flash-vl:free"
+        target_model = "deepseek/deepseek-chat"
     model = target_model
 
     t_val = temperature if temperature is not None else config.get("temperature", 0.7)
@@ -6281,7 +7680,7 @@ async def ask_openrouter(history: list, prompt: str, system_msg: str = None, mod
         try:
             async with session.post(
                 "https://openrouter.ai/api/v1/chat/completions",
-                headers={"Authorization": f"Bearer {os.getenv('OPENROUTER_KEY')}", "Content-Type": "application/json", "HTTP-Referer": "https://localhost", "X-Title": "DiscordBot"},
+                headers={"Authorization": f"Bearer {eff_key}", "Content-Type": "application/json", "HTTP-Referer": "https://localhost", "X-Title": "DiscordBot"},
                 json=payload, timeout=aiohttp.ClientTimeout(total=30),
             ) as resp:
                 text = await resp.text()
@@ -6324,24 +7723,23 @@ async def ask_openrouter(history: list, prompt: str, system_msg: str = None, mod
 # ─── MULTIMODAL VISION & AUDIO ROUTER ───────────────────
 async def ask_multimodal_vision(system_msg: str, prompt: str, image_bytes_or_list, mime_type: str = "image/jpeg", history: list = None, model_override: str = None, provider_override: str = None, audio_bytes: bytes = None, audio_mime: str = "audio/wav", max_tokens: int = None, temperature: float = None) -> tuple:
     prov = (provider_override or config.get("vision_provider") or config.get("provider") or "auto").lower()
-    target_model = (model_override or config.get("video_watching_model") or config.get("gemini_vision_model") or config.get("model") or "gemini-3.1-flash-lite").strip()
+    target_model = (model_override or config.get("video_watching_model") or config.get("gemini_vision_model") or config.get("model") or "gemini-3.5-flash-lite").strip()
     if not target_model or "live-preview" in target_model.lower() or target_model in ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-1.5-flash"]:
-        target_model = "gemini-3.1-flash-lite"
-    if target_model == "gemini-3.5-flash-lite":
-        target_model = "gemini-3.1-flash-lite"
+        target_model = "gemini-3.5-flash-lite"
 
     is_explicit_or_model = "/" in target_model and not target_model.lower().startswith("models/")
+    is_known_text_only = any(tm in target_model.lower() for tm in ("550b", "deepseek", "codestral", "command-r", "llama-3.1", "qwen/qwen3"))
 
-    # 1. If explicit OpenRouter model or OpenRouter provider requested (and no audio waveform requiring Gemini):
-    if (prov == "openrouter" or is_explicit_or_model) and os.getenv("OPENROUTER_KEY") and not audio_bytes:
-        reply, err = await ask_openrouter_vision(system_msg, prompt, image_bytes_or_list, mime_type=mime_type, history=history, vision_model=target_model, max_tokens=max_tokens)
+    # 1. Try Gemini Vision & Multimodal Audio first if available (fastest & native multimodal)
+    if GEMINI_KEY and time.time() >= gemini_blocked_until and (prov in ("gemini", "auto", "default") or is_known_text_only or audio_bytes):
+        gem_model = "gemini-3.1-flash-lite" if (is_explicit_or_model or is_known_text_only) else target_model
+        reply, err = await ask_gemini_vision(system_msg, prompt, image_bytes_or_list, mime_type=mime_type, history=history, model_override=gem_model, audio_bytes=audio_bytes, audio_mime=audio_mime, max_tokens=max_tokens, temperature=temperature)
         if not err and reply:
             return reply, False
 
-    # 2. Try Gemini Vision & Multimodal Audio if Gemini key is available and not rate limited
-    if GEMINI_KEY and time.time() >= gemini_blocked_until:
-        gem_model = "gemini-3.1-flash-lite" if is_explicit_or_model else target_model
-        reply, err = await ask_gemini_vision(system_msg, prompt, image_bytes_or_list, mime_type=mime_type, history=history, model_override=gem_model, audio_bytes=audio_bytes, audio_mime=audio_mime, max_tokens=max_tokens, temperature=temperature)
+    # 2. Try OpenRouter Vision if requested or fallback (skipping known text-only models)
+    if os.getenv("OPENROUTER_KEY") and not audio_bytes and not is_known_text_only:
+        reply, err = await ask_openrouter_vision(system_msg, prompt, image_bytes_or_list, mime_type=mime_type, history=history, vision_model=target_model, max_tokens=max_tokens)
         if not err and reply:
             return reply, False
 
@@ -6353,7 +7751,7 @@ async def ask_multimodal_vision(system_msg: str, prompt: str, image_bytes_or_lis
 
     # 4. Final attempt on Gemini Multimodal
     if GEMINI_KEY:
-        return await ask_gemini_vision(system_msg, prompt, image_bytes_or_list, mime_type=mime_type, history=history, model_override="gemini-3.1-flash-lite", audio_bytes=audio_bytes, audio_mime=audio_mime, max_tokens=max_tokens, temperature=temperature)
+        return await ask_gemini_vision(system_msg, prompt, image_bytes_or_list, mime_type=mime_type, history=history, model_override="gemini-3.5-flash-lite", audio_bytes=audio_bytes, audio_mime=audio_mime, max_tokens=max_tokens, temperature=temperature)
 
     return "No valid multimodal vision provider available.", True
 
@@ -6470,128 +7868,283 @@ async def ask_openrouter_vision(system_msg: str, prompt: str, image_bytes_or_lis
                 continue
         return f"OpenRouter vision failed: {last_error}", True
 
-# ─── OPENAI CHAT ────────────────────────────────────────
-async def ask_openai(history: list, prompt: str, system_msg: str = None, model: str = None) -> tuple:
-    global openai_blocked_until
-    key = get_openai_key()
+def normalize_nvidia_model(model_name: str) -> str:
+    """Normalizes user-specified NVIDIA model name or alias to canonical integrate.api.nvidia.com model ID."""
+    if not model_name or not str(model_name).strip():
+        return "nvidia/nemotron-3-ultra-550b-a55b"
+    m_clean = str(model_name).strip()
+    if ":" in m_clean:
+        m_clean = m_clean.split(":", 1)[0].strip()
+    m_lower = m_clean.lower()
+    for prefix in ["models/", "nvidia/"]:
+        if m_lower.startswith(prefix):
+            m_lower = m_lower[len(prefix):]
+    if any(k in m_lower for k in ("550b", "a55b", "ultra-550b")):
+        return "nvidia/nemotron-3-ultra-550b-a55b"
+    if any(k in m_lower for k in ("120b", "a12b", "super-120b")):
+        return "nvidia/nemotron-3-super-120b-a12b"
+    if m_lower in ("nemotron", "nemotron-3", "nemotron-ultra"):
+        return "nvidia/nemotron-3-ultra-550b-a55b"
+    if not m_clean.startswith("nvidia/") and not m_clean.startswith("meta/"):
+        return f"nvidia/{m_clean}"
+    return m_clean
+
+# ─── NVIDIA NIM CHAT & MULTIMODAL ───────────────────────
+async def ask_nvidia(
+    history: list,
+    prompt: str,
+    system_msg: str = None,
+    model: str = None,
+    image_bytes_or_list=None,
+    mime_type: str = "image/jpeg",
+    temperature: float = None,
+    max_tokens: int = None,
+    top_p: float = None
+) -> tuple:
+    global nvidia_blocked_until
+    key = get_nvidia_key()
     if not key:
-        return None, True
-    if time.time() < openai_blocked_until:
-        remaining = int(openai_blocked_until - time.time())
-        return f"OpenAI rate limited. Retry in {remaining}s.", True
+        return "NVIDIA API key not configured.", True
+    if time.time() < nvidia_blocked_until:
+        remaining = int(nvidia_blocked_until - time.time())
+        return f"NVIDIA rate limited. Retry in {remaining}s.", True
 
     sys_prompt = system_msg or config.get("personality", "")
-    messages = [{"role": "system", "content": sys_prompt}]
-    messages.extend([{"role": m["role"], "content": m["content"]} for m in history if m.get("content")])
-    messages.append({"role": "user", "content": prompt})
+    messages = []
+    if sys_prompt:
+        messages.append({"role": "system", "content": sys_prompt})
 
-    target_model = (model or config.get("custom_model") or (config.get("model") if config.get("provider") == "openai" else None) or config.get("openai_chat_model") or config.get("openai_llm_model") or "gpt-4o-mini").strip()
-    payload = {
-        "model": target_model,
-        "messages": messages,
-        "max_tokens": max(50, min(4000, int(config.get("max_tokens", 800)))),
-        "temperature": max(0.0, min(2.0, float(config.get("temperature", 0.7)))),
-        "top_p": max(0.0, min(1.0, float(config.get("top_p", 1.0)))),
-        "frequency_penalty": max(-2.0, min(2.0, float(config.get("frequency_penalty", 0.0)))),
-        "presence_penalty": max(-2.0, min(2.0, float(config.get("presence_penalty", 0.0)))),
-    }
+    for m in (history or []):
+        if m.get("content"):
+            messages.append({"role": m.get("role", "user"), "content": m["content"]})
 
+    # Multimodal image support or text prompt
+    if image_bytes_or_list:
+        content_parts = [{"type": "text", "text": prompt or "Describe this image."}]
+        imgs = image_bytes_or_list if isinstance(image_bytes_or_list, list) else [image_bytes_or_list]
+        for img in imgs:
+            if img:
+                b64 = base64.b64encode(img).decode("utf-8")
+                content_parts.append({
+                    "type": "image_url",
+                    "image_url": {"url": f"data:{mime_type};base64,{b64}"}
+                })
+        messages.append({"role": "user", "content": content_parts})
+    else:
+        messages.append({"role": "user", "content": prompt or "Hello"})
+
+    chosen_model = normalize_nvidia_model(
+        model
+        or config.get("nvidia_model")
+        or (config.get("custom_model") if config.get("provider") == "nvidia" or any(k in str(config.get("custom_model", "")).lower() for k in ("nemotron", "550b", "a55b")) else None)
+        or (config.get("model") if config.get("provider") == "nvidia" or any(k in str(config.get("model", "")).lower() for k in ("nemotron", "550b", "a55b")) else None)
+        or "nvidia/nemotron-3-ultra-550b-a55b"
+    )
+
+    candidates = [chosen_model]
+    for fb in ["nvidia/nemotron-3-ultra-550b-a55b", "nvidia/nemotron-3-super-120b-a12b"]:
+        if fb not in candidates:
+            candidates.append(fb)
+
+    t_val = temperature if temperature is not None else float(config.get("temperature", 0.7))
+    tok_val = max_tokens if max_tokens is not None else int(config.get("max_tokens", 800))
+    top_p_val = top_p if top_p is not None else float(config.get("top_p", 1.0))
+
+    last_error = ""
     async with aiohttp.ClientSession() as session:
-        try:
-            async with session.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-                json=payload, timeout=aiohttp.ClientTimeout(total=45),
-            ) as resp:
-                text = await resp.text()
-                if resp.status == 429:
-                    retry_after = 60
-                    ra = resp.headers.get("Retry-After")
-                    if ra:
-                        try:
-                            retry_after = int(float(ra))
-                        except ValueError:
-                            pass
-                    openai_blocked_until = time.time() + retry_after
-                    print(f"[OPENAI RATE LIMIT] Cooling down for {retry_after}s")
-                    return f"OpenAI rate limited. Retry in {retry_after}s.", True
-                if resp.status != 200:
-                    print(f"[OPENAI ERROR] HTTP {resp.status}: {text[:200]}")
-                    return f"OpenAI Error {resp.status}: {text[:400]}", True
-                data = await resp.json()
-                try:
-                    reply = data["choices"][0]["message"]["content"]
-                    if not reply or not reply.strip():
-                        return "OpenAI returned empty response.", True
-                    return reply, False
-                except (KeyError, IndexError):
-                    return "Unexpected OpenAI API response format.", True
-        except Exception as e:
-            print(f"[OPENAI REQUEST FAILED] {e}")
-            return f"OpenAI request failed: {str(e)}", True
-
-# ─── DEEPSEEK CHAT ──────────────────────────────────────
-async def ask_deepseek(history: list, prompt: str, system_msg: str = None, model: str = None) -> tuple:
-    global deepseek_blocked_until
-    key = get_deepseek_key()
-    if not key:
-        return None, True
-    if time.time() < deepseek_blocked_until:
-        remaining = int(deepseek_blocked_until - time.time())
-        return f"DeepSeek rate limited. Retry in {remaining}s.", True
-
-    sys_prompt = system_msg or config.get("personality", "")
-    messages = [{"role": "system", "content": sys_prompt}]
-    messages.extend([{"role": m["role"], "content": m["content"]} for m in history if m.get("content")])
-    messages.append({"role": "user", "content": prompt})
-
-    target_model = (model or config.get("custom_model") or (config.get("model") if config.get("provider") == "deepseek" else None) or config.get("deepseek_model") or "deepseek-chat").strip()
-    payload = {
-        "model": target_model,
-        "messages": messages,
-        "max_tokens": max(50, min(4000, int(config.get("max_tokens", 800)))),
-        "temperature": max(0.0, min(2.0, float(config.get("temperature", 0.7)))),
-        "top_p": max(0.0, min(1.0, float(config.get("top_p", 1.0)))),
-        "frequency_penalty": max(-2.0, min(2.0, float(config.get("frequency_penalty", 0.0)))),
-        "presence_penalty": max(-2.0, min(2.0, float(config.get("presence_penalty", 0.0)))),
-    }
-
-    async with aiohttp.ClientSession() as session:
-        try:
-            async with session.post(
-                "https://api.deepseek.com/chat/completions",
-                headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-                json=payload, timeout=aiohttp.ClientTimeout(total=45),
-            ) as resp:
-                text = await resp.text()
-                if resp.status == 429:
-                    retry_after = 60
-                    ra = resp.headers.get("Retry-After")
-                    if ra:
-                        try:
-                            retry_after = int(float(ra))
-                        except ValueError:
-                            pass
-                    deepseek_blocked_until = time.time() + retry_after
-                    print(f"[DEEPSEEK RATE LIMIT] Cooling down for {retry_after}s")
-                    return f"DeepSeek rate limited. Retry in {retry_after}s.", True
-                if resp.status != 200:
-                    print(f"[DEEPSEEK ERROR] HTTP {resp.status}: {text[:200]}")
-                    return f"DeepSeek Error {resp.status}: {text[:400]}", True
-                data = await resp.json()
-                try:
-                    choice = data["choices"][0]["message"]
+        for cur_model in candidates:
+            payload = {
+                "model": cur_model,
+                "messages": messages,
+                "max_tokens": max(50, min(4096, int(tok_val))),
+                "temperature": max(0.0, min(2.0, float(t_val))),
+                "top_p": max(0.0, min(1.0, float(top_p_val))),
+            }
+            try:
+                async with session.post(
+                    "https://integrate.api.nvidia.com/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {key}",
+                        "Content-Type": "application/json"
+                    },
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=45),
+                ) as resp:
+                    text = await resp.text()
+                    if resp.status == 429:
+                        print(f"[NVIDIA 429] Rate limit on model '{cur_model}', trying fallback model...")
+                        last_error = "Rate limited"
+                        continue
+                    if resp.status != 200:
+                        print(f"[NVIDIA ERROR] HTTP {resp.status} on {cur_model}: {text[:160]}")
+                        last_error = f"HTTP {resp.status}"
+                        continue
+                    data = await resp.json()
+                    choice = data.get("choices", [{}])[0].get("message", {})
                     reply = choice.get("content")
                     if not reply or not reply.strip():
                         reply = choice.get("reasoning_content")
+                    if reply and reply.strip():
+                        reply_clean = clean_llm_output(reply) or reply
+                        return reply_clean.strip(), False
+                    last_error = "Empty response"
+            except Exception as e:
+                print(f"[NVIDIA REQUEST FAILED] {cur_model}: {e}")
+                last_error = str(e)
+                continue
+
+    return f"NVIDIA request failed: {last_error}", True
+
+async def ask_cloudflare(
+    history: list,
+    prompt: str,
+    system_msg: str = None,
+    model: str = None,
+    temperature: float = None,
+    max_tokens: int = None,
+    top_p: float = None,
+    image_bytes_or_list=None,
+    mime_type: str = "image/jpeg"
+) -> tuple:
+    """Chat completion via Cloudflare Workers AI REST API or custom Cloudflare Worker."""
+    global cloudflare_blocked_until
+    if time.time() < cloudflare_blocked_until:
+        rem = int(cloudflare_blocked_until - time.time())
+        return f"Cloudflare Workers AI is temporarily rate limited ({rem}s remaining).", True
+
+    token = get_cloudflare_token()
+    if not token:
+        return "Cloudflare Workers API token not configured. Set CLOUDFLARE_API_TOKEN in .env or dashboard.", True
+
+    account_id = get_cloudflare_account_id()
+    base_url = (config.get("cloudflare_base_url") or os.getenv("CLOUDFLARE_BASE_URL") or "").strip()
+
+    if not base_url and not account_id:
+        return (
+            "Cloudflare Workers AI requires your Account ID. "
+            "Please set CLOUDFLARE_ACCOUNT_ID in .env or the web dashboard (found in Cloudflare dashboard -> Workers & Pages -> Account ID).",
+            True
+        )
+
+    sys_prompt = system_msg or config.get("personality", "")
+    messages = []
+    if sys_prompt and sys_prompt.strip():
+        messages.append({"role": "system", "content": sys_prompt.strip()})
+    for m in (history or []):
+        c = (m.get("content") or "").strip()
+        if c:
+            messages.append({"role": m.get("role", "user"), "content": c})
+
+    # Multimodal image support or plain text
+    if image_bytes_or_list:
+        content_parts = [{"type": "text", "text": prompt or "Describe this image."}]
+        imgs = image_bytes_or_list if isinstance(image_bytes_or_list, list) else [image_bytes_or_list]
+        for img in imgs:
+            if img:
+                b64 = base64.b64encode(img).decode("utf-8")
+                content_parts.append({
+                    "type": "image_url",
+                    "image_url": {"url": f"data:{mime_type};base64,{b64}"}
+                })
+        messages.append({"role": "user", "content": content_parts})
+    else:
+        messages.append({"role": "user", "content": prompt or "Hello"})
+
+    chosen_model = (
+        model
+        or config.get("cloudflare_model")
+        or (config.get("custom_model") if config.get("provider") == "cloudflare" else None)
+        or (config.get("model") if config.get("provider") == "cloudflare" else None)
+        or "@cf/meta/llama-3.1-8b-instruct"
+    ).strip()
+
+    candidates = [chosen_model]
+    for fb in ["@cf/meta/llama-3.1-8b-instruct", "@cf/meta/llama-3.2-3b-instruct", "@cf/meta/llama-3-8b-instruct", "@cf/mistral/mistral-7b-instruct-v0.1"]:
+        if fb not in candidates:
+            candidates.append(fb)
+
+    t_val = temperature if temperature is not None else float(config.get("temperature", 0.7))
+    tok_val = max_tokens if max_tokens is not None else int(config.get("max_tokens", 800))
+    top_p_val = top_p if top_p is not None else float(config.get("top_p", 1.0))
+
+    last_error = ""
+    async with aiohttp.ClientSession() as session:
+        for cur_model in candidates:
+            if base_url:
+                endpoint = base_url.rstrip("/")
+                if not endpoint.endswith("/v1/chat/completions") and not endpoint.endswith("/chat/completions"):
+                    endpoint += "/v1/chat/completions"
+            else:
+                endpoint = f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1/chat/completions"
+
+            payload = {
+                "model": cur_model,
+                "messages": messages,
+                "max_tokens": max(50, min(4096, int(tok_val))),
+                "temperature": max(0.0, min(2.0, float(t_val))),
+                "top_p": max(0.0, min(1.0, float(top_p_val))),
+            }
+            try:
+                async with session.post(
+                    endpoint,
+                    headers={
+                        "Authorization": f"Bearer {token}",
+                        "Content-Type": "application/json"
+                    },
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=45),
+                ) as resp:
+                    text = await resp.text()
+                    if resp.status == 429:
+                        print(f"[CLOUDFLARE 429] Rate limit on model '{cur_model}', trying fallback model...")
+                        cloudflare_blocked_until = time.time() + 60.0
+                        last_error = "Rate limited"
+                        continue
+                    if resp.status != 200:
+                        if not base_url and account_id:
+                            run_endpoint = f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{cur_model}"
+                            run_payload = {
+                                "messages": messages,
+                                "max_tokens": max(50, min(4096, int(tok_val))),
+                                "temperature": max(0.0, min(2.0, float(t_val))),
+                            }
+                            try:
+                                async with session.post(
+                                    run_endpoint,
+                                    headers={
+                                        "Authorization": f"Bearer {token}",
+                                        "Content-Type": "application/json"
+                                    },
+                                    json=run_payload,
+                                    timeout=aiohttp.ClientTimeout(total=45),
+                                ) as run_resp:
+                                    if run_resp.status == 200:
+                                        run_data = await run_resp.json()
+                                        res_text = (run_data.get("result", {}) or {}).get("response", "")
+                                        if res_text and res_text.strip():
+                                            reply_clean = clean_llm_output(res_text) or res_text
+                                            return reply_clean.strip(), False
+                            except Exception:
+                                pass
+                        print(f"[CLOUDFLARE ERROR] HTTP {resp.status} on {cur_model}: {text[:160]}")
+                        last_error = f"HTTP {resp.status}"
+                        continue
+                    data = await resp.json()
+                    choice = data.get("choices", [{}])[0].get("message", {})
+                    reply = choice.get("content")
                     if not reply or not reply.strip():
-                        return "DeepSeek returned empty response.", True
-                    return reply, False
-                except (KeyError, IndexError):
-                    return "Unexpected DeepSeek API response format.", True
-        except Exception as e:
-            print(f"[DEEPSEEK REQUEST FAILED] {e}")
-            return f"DeepSeek request failed: {str(e)}", True
+                        reply = choice.get("reasoning_content")
+                    if reply and reply.strip():
+                        reply_clean = clean_llm_output(reply) or reply
+                        return reply_clean.strip(), False
+                    last_error = "Empty response"
+            except Exception as e:
+                print(f"[CLOUDFLARE REQUEST FAILED] {cur_model}: {e}")
+                last_error = str(e)
+                continue
+
+    return f"Cloudflare Workers AI request failed: {last_error}", True
+
 
 # ─── CUSTOM ENDPOINT / MODEL CHAT ───────────────────────
 async def ask_custom_endpoint(
@@ -6655,10 +8208,8 @@ async def ask_custom_endpoint(
             raw_key = config.get("groq_key") or os.getenv("GROQ_KEY", "") or GROQ_KEY
         elif "mistral.ai" in ep:
             raw_key = config.get("mistral_key") or os.getenv("MISTRAL_KEY", "") or MISTRAL_KEY
-        elif "openai.com" in ep:
-            raw_key = get_openai_key()
-        elif "deepseek.com" in ep:
-            raw_key = get_deepseek_key()
+        elif "nvidia.com" in ep:
+            raw_key = get_nvidia_key()
 
     # Resolve target model
     if not target_model:
@@ -6765,8 +8316,10 @@ def strip_emotion_tags(text: str) -> str:
     """Removes Fish Audio TTS emotion and delivery bracket tags for clean user-facing chat display."""
     if not text:
         return ""
-    # Strip square bracket cues like [happy], [whispering], [laughing], [slightly angry], etc.
-    cleaned = re.sub(r'\[[a-zA-Z0-9_\-\s]+\]', '', text)
+    # Strip square bracket cues like [happy], [whispering], [laughing], [angry tone], [Break], etc.
+    cleaned = re.sub(r'\[[^\]]+\]', '', text)
+    # Strip standard Unicode emojis so Yuna bot does not use emojis as emotional expression
+    cleaned = re.sub(r'[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF\U00002700-\U000027BF\U0001F900-\U0001F9FF\U0001FA00-\U0001FAFF\U00002600-\U000026FF\uFE0E-\uFE0F\u200D]+', '', cleaned)
     # Clean excessive whitespace
     cleaned = re.sub(r'[ \t]+', ' ', cleaned)
     cleaned = re.sub(r'\n{3,}', '\n\n', cleaned).strip()
@@ -6791,17 +8344,40 @@ def clean_tts_text(text: str, keep_direction_tags: bool = False, keep_fish_tags:
     # Remove curly braces
     t = re.sub(r'\{[^}]*\}', '', t)
 
+    # Strip custom Discord emojis (:litithgrin:272772617267263:, <:name:id>, <a:name:id>, :name:)
+    t = re.sub(r'<a?:[a-zA-Z0-9_]+:\d+:?>', '', t)
+    t = re.sub(r':[a-zA-Z0-9_]+:\d+:?', '', t)
+    t = re.sub(r':[a-zA-Z0-9_+\-]+:', '', t)
+
+    # Strip unicode emojis
+    t = re.sub(r'[\U00010000-\U0010ffff\u2600-\u27bf\u2300-\u23ff\u2b50-\u2b55\ufe00-\ufe0f\u200d\u20e3]+', '', t)
+
+    # Strip kaomojis & face symbols like ^°^, °^°, ^_^, >_<, etc. so TTS doesn't read them aloud
+    t = re.sub(r'[\^°]+[\w\s]*[\^°]+', '', t)
+    t = re.sub(r'[><][_\-.oO]+[><]', '', t)
+    t = re.sub(r'[;:][\-_]?[()DPOop3/\\|]', '', t)
+    t = re.sub(r'\b(?:owo|uwu|xd|t_t)\b', '', t, flags=re.IGNORECASE)
+
     if not keep_fish_tags and not keep_direction_tags:
         # For non-Fish TTS engines (ElevenLabs, Edge, Cartesia), remove all square bracket emotion tags
         t = re.sub(r'\[[^\]]*\]', '', t)
+        # Prevent symbol pronunciations for generic TTS: convert '!' to gentle period/pause
+        t = t.replace('!', '.')
     else:
         # Clean up brackets while preserving emotion tags for Fish Audio
         t = re.sub(r'\[\s+', '[', t)
         t = re.sub(r'\s+\]', ']', t)
+        # For Fish Audio, keep ! and !! and ?! because the neural model uses them for scream & excitation inflection
+        t = re.sub(r'!{3,}', '!!', t)
+        t = re.sub(r'\?{3,}', '??', t)
+
+    # Remove stray ^, °, ~, *, #, @, etc.
+    t = re.sub(r'[\^°~*#@/\\|_`+=]+', ' ', t)
 
     # Strip any leftover standalone speaker labels at the start of sentences
     t = re.sub(r'^\s*(?:[a-zA-Z\s]+:\s*)', '', t)
     # Remove excessive punctuation or whitespace
+    t = re.sub(r'\.+', '.', t)
     t = re.sub(r'\s+', ' ', t).strip()
     return t
 
@@ -7031,57 +8607,83 @@ async def speak_edge(text: str, voice: str = None) -> bytes:
         print(f"[TTS:Edge] EXCEPTION: {type(e).__name__}: {e}")
         return None
 
-async def speak_fish(text: str, voice_id: str = None) -> bytes:
-    """Generate audio using Fish Audio API (custom voice clones)."""
+async def speak_fish(text: str, voice_id: str = None, model: str = None, api_key: str = None) -> bytes:
+    """Generate audio using Fish Audio API with hidden voice prompt algorithm (emotion tags, fillers, speed, pitch)."""
     global _fish_credits_exhausted
-    if not FISH_AUDIO_KEY:
+    key = (api_key or FISH_AUDIO_KEY or os.getenv("FISH_AUDIO_KEY", "")).strip()
+    if not key:
         print("[TTS:Fish] ABORT: No FISH_AUDIO_KEY configured.")
         return None
     if time.time() < _fish_credits_exhausted:
+        print(f"[TTS:Fish] Skipping (cooldown active for {int(_fish_credits_exhausted - time.time())}s).")
         return None
     vid = (voice_id or config.get("fish_voice_id", "")).strip()
     if not vid:
         print("[TTS:Fish] ABORT: No fish_voice_id configured.")
         return None
-    tts_text = clean_tts_text(text, keep_fish_tags=True)
-    if not tts_text:
-        tts_text = text[:900]
-    if len(tts_text) > 900:
-        tts_text = tts_text[:900]
-    model = config.get("fish_model", "s2.1-pro-free")
 
-    print(f"[TTS:Fish] Sending POST to fish.audio (model={model}, voice_id={vid[:12]}...)...")
+    # ─── FISH AUDIO HIDDEN VOICE PROMPT ALGORITHM ───
+    # Whenever Fish ID is selected, generate hidden voice prompt with [emotion tags],
+    # speed adjustments [slow down]/[speak faster], pitch adjustments [raise pitch]/[lower pitch],
+    # conversational fillers, and silent emoji/kaomoji/action skipping.
+    fish_prompt = text
+    try:
+        if "create_hidden_fish_voice_prompt" in globals() and callable(create_hidden_fish_voice_prompt):
+            fish_prompt = await create_hidden_fish_voice_prompt(text, second_ai_fn=globals().get("ask_fast_secondary_ai"))
+    except Exception as _fpe:
+        print(f"[TTS:Fish] Voice prompt creation notice: {_fpe}, using original text")
+        fish_prompt = text
+
+    tts_text = clean_tts_text(fish_prompt, keep_fish_tags=True)
+    if not tts_text:
+        tts_text = clean_tts_text(text, keep_fish_tags=True)[:2500]
+    if len(tts_text) > 2500:
+        tts_text = tts_text[:2500]
+    req_model = (model or config.get("fish_model") or "s2.1-pro-free").strip()
+    if not req_model:
+        req_model = "s2.1-pro-free"
+
+    models_to_try = [req_model]
+    if req_model != "s2.1-pro-free":
+        models_to_try.append("s2.1-pro-free")
+
     async with aiohttp.ClientSession() as session:
-        try:
-            async with session.post(
-                "https://api.fish.audio/v1/tts",
-                headers={
-                    "Authorization": f"Bearer {FISH_AUDIO_KEY}",
+        for current_model in models_to_try:
+            try:
+                headers = {
+                    "Authorization": f"Bearer {key}",
                     "Content-Type": "application/json",
-                    "model": model,
-                },
-                json={
+                    "model": current_model,
+                }
+                payload = {
                     "text": tts_text,
                     "reference_id": vid,
                     "format": "mp3",
-                },
-                timeout=aiohttp.ClientTimeout(total=45),
-            ) as resp:
-                if resp.status == 200:
-                    data = await resp.read()
-                    print(f"[TTS:Fish] SUCCESS: {len(data)} bytes received")
-                    return data
-                elif resp.status == 402:
-                    _fish_credits_exhausted = time.time() + 3600
-                    print(f"[TTS:Fish] HTTP 402: Insufficient API credit. Cooldown set for 1 hour.")
-                    return None
-                else:
-                    err = await resp.text()
-                    print(f"[TTS:Fish] HTTP {resp.status} ERROR: {err[:300]}")
-                    return None
-        except Exception as e:
-            print(f"[TTS:Fish] EXCEPTION: {type(e).__name__}: {e}")
-            return None
+                    "temperature": 0.75,
+                    "top_p": 0.8,
+                }
+                async with session.post(
+                    "https://api.fish.audio/v1/tts",
+                    headers=headers,
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=45),
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.read()
+                        print(f"[TTS:Fish] SUCCESS: {len(data)} bytes received (model={current_model}, vid={vid[:8]}...)")
+                        return data
+                    elif resp.status == 402:
+                        print(f"[TTS:Fish] HTTP 402 with model={current_model}. Insufficient paid credits.")
+                        if current_model == models_to_try[-1]:
+                            _fish_credits_exhausted = time.time() + 120
+                            return None
+                        continue
+                    else:
+                        err = await resp.text()
+                        print(f"[TTS:Fish] HTTP {resp.status} ERROR: {err[:300]}")
+            except Exception as e:
+                print(f"[TTS:Fish] EXCEPTION ({current_model}): {type(e).__name__}: {e}")
+    return None
 
 async def speak(text: str, force: bool = False, bot_id: str = None) -> bytes:
     """Unified multi-engine TTS router with automatic fast fallback, strictly isolated per bot."""
@@ -7121,8 +8723,10 @@ async def speak(text: str, force: bool = False, bot_id: str = None) -> bytes:
         data = await speak_edge(text, voice=target_cfg.get("edge_tts_voice"))
     elif provider == "fish":
         target_fish_vid = (target_cfg.get("fish_voice_id") or "").strip()
+        target_fish_model = (target_cfg.get("fish_model") or "s2.1-pro-free").strip()
+        target_fish_key = (target_cfg.get("fish_key") or "").strip() or None
         if target_fish_vid:
-            data = await speak_fish(text, voice_id=target_fish_vid)
+            data = await speak_fish(text, voice_id=target_fish_vid, model=target_fish_model, api_key=target_fish_key)
         if not data:
             print("[TTS] Fish Audio voice not configured or failed, falling back to Edge TTS...")
             data = await speak_edge(text, voice=target_cfg.get("edge_tts_voice"))
@@ -7138,8 +8742,10 @@ async def speak(text: str, force: bool = False, bot_id: str = None) -> bytes:
         if not data and EDGE_TTS_AVAILABLE:
             data = await speak_edge(text, voice=target_cfg.get("edge_tts_voice"))
         target_fish_vid = (target_cfg.get("fish_voice_id") or "").strip()
-        if not data and FISH_AUDIO_KEY and target_fish_vid:
-            data = await speak_fish(text, voice_id=target_fish_vid)
+        target_fish_model = (target_cfg.get("fish_model") or "s2.1-pro-free").strip()
+        target_fish_key = (target_cfg.get("fish_key") or "").strip() or None
+        if not data and (FISH_AUDIO_KEY or target_fish_key) and target_fish_vid:
+            data = await speak_fish(text, voice_id=target_fish_vid, model=target_fish_model, api_key=target_fish_key)
 
     if data and len(data) > 0:
         if (config.get("vtuber_enabled", True) or vtuber_clients) and vtuber_bridge_online:
@@ -7154,6 +8760,43 @@ async def speak(text: str, force: bool = False, bot_id: str = None) -> bytes:
     else:
         print("[TTS] All configured TTS engines returned None.")
         return None
+
+async def ask_fast_secondary_ai(system_prompt: str, user_prompt: str) -> Optional[str]:
+    """Ultra-fast secondary AI pass for secret voice speech modification (Groq / Gemini Flash / Mistral)."""
+    # 1. Try Groq (sub-200ms latency)
+    if GROQ_KEY and time.time() >= globals().get("groq_blocked_until", 0.0):
+        try:
+            target_groq_m = "llama-3.1-8b-instant"
+            res, err = await asyncio.wait_for(
+                ask_groq([], user_prompt, system_msg=system_prompt, model=target_groq_m, max_tokens=1000, temperature=0.7),
+                timeout=5.0
+            )
+            if not err and res and res.strip():
+                return res.strip()
+        except Exception:
+            pass
+    # 2. Try Gemini Flash (~300ms)
+    try:
+        res, err = await asyncio.wait_for(
+            ask_gemini(system_prompt, [], user_prompt, model="gemini-2.5-flash", max_tokens=700, temperature=0.7),
+            timeout=4.5
+        )
+        if not err and res and res.strip():
+            return res.strip()
+    except Exception:
+        pass
+    # 3. Try Mistral
+    if globals().get("MISTRAL_KEY"):
+        try:
+            res, err = await asyncio.wait_for(
+                ask_mistral([], user_prompt, system_msg=system_prompt, max_tokens=700, temperature=0.7),
+                timeout=4.5
+            )
+            if not err and res and res.strip():
+                return res.strip()
+        except Exception:
+            pass
+    return None
 
 async def _safe_send_voice_reply(message, audio_bytes):
     """Safely send voice audio attachment without crashing on Missing Permissions (403 Forbidden)."""
@@ -7173,54 +8816,142 @@ async def ask_ai(channel_id, prompt: str, user_id=None, user_name=None, guild=No
     effective_bot_id = str(bot_id or get_current_bot_id() or "default")
     if not system_msg_override:
         refresh_runtime_config()
+    target_bot = get_bot_by_id(bots_state, effective_bot_id) if ('bots_state' in globals() and isinstance(bots_state, dict)) else None
+    eff_cfg = kwargs.get("target_config") or (target_bot.get("config", {}) if target_bot else config)
     ctx = get_context(channel_id, bot_id=effective_bot_id)
+    user_in_pact = False
+    pact_mod = None
     
     is_instagram = str(channel_id).startswith("insta_")
-    cur_bot_name = get_current_bot_name()
+    cur_bot_name = (target_bot.get("name") if target_bot else None) or get_current_bot_name()
     if is_instagram:
         # Dedicated Instagram persona / override
-        insta_p = config.get("insta_personality") or config.get("personality")
+        insta_p = eff_cfg.get("insta_personality") or eff_cfg.get("personality")
         fallback_insta = f"You are {cur_bot_name} chatting on Instagram."
         system_msg = system_msg_override if (system_msg_override and system_msg_override.strip()) else (insta_p or fallback_insta)
     else:
-        # DISCORD AI PROMPT & SCENE CONTEXT
-        default_persona = f"You are {cur_bot_name}, an AI companion."
-        system_msg = system_msg_override if (system_msg_override and system_msg_override.strip()) else config.get("personality", default_persona)
-        if config.get("user_memory_enabled", True):
-            scene = build_scene_context(channel_id, primary_user_id=user_id, user_name=user_name, guild=guild, is_dm=is_dm, current_prompt=prompt, bot_id=effective_bot_id, raw_mentions=raw_mentions, reply_to_user_id=reply_to_user_id, raw_content=raw_content)
-            if scene:
-                system_msg += "\n\n" + scene
+        # ─── JUNY 3-HOUR PACT TAKEOVER & RETALIATION ───
+        if user_id and YUNA_GAMBLING_AVAILABLE and yuna_gambling and hasattr(yuna_gambling, "is_in_pact"):
+            try:
+                user_in_pact = yuna_gambling.is_in_pact(str(user_id))
+            except Exception:
+                user_in_pact = False
 
-        # Hook dynamic training data style without modifying base personality prompt
-        training_hook = build_training_prompt_hook(effective_bot_id)
-        if training_hook:
-            system_msg += "\n\n" + training_hook
-
-        if config.get("message_split_enabled", False):
-            system_msg += "\n\nIf you have multiple separate thoughts or distinct points, separate them with ||SPLIT|| so they can be sent as individual messages. Keep each part conversational."
-
-        if "[(Acoustic & Environmental Perception:" in prompt or "Acoustic perception:" in prompt or audio_bytes:
-            system_msg += (
-                "\n\n[LIVE VOICE CALL PERCEPTION DIRECTIVE]:\n"
-                "- You are currently on a real-time live Discord voice channel call with the user.\n"
-                "- You can hear their vocal emotional tone (whispering, laughter, giggling, sighing, excitement, sadness, shouting) as well as sounds or music in their room.\n"
-                "- Seamlessly acknowledge and react in character to how they sound and what you hear in their background!"
-            )
-
-        system_msg += (
-            "\n\n[STRICT ROLEPLAY DIRECTIVE]:\n"
-            "- You are NOT an AI assistant, language model, or customer service agent. You must strictly stay in character as defined above.\n"
-            "- NEVER use generic corporate assistant phrases (e.g. 'Let\'s delve deeper into this', 'What are your thoughts?', 'How can I assist you?', 'As an AI').\n"
-            "- NEVER write synthetic narrator stage directions or repetitive physical actions in asterisks like '*turns to you attentively, engaging directly with your words*'.\n"
-            "- Reply directly, authentically, and vividly in character."
+        is_current_juny = (
+            effective_bot_id == "bot_irz5weew"
+            or "juny" in (cur_bot_name or "").lower()
+            or (client.user and "juny" in client.user.name.lower())
         )
 
-    provider = config.get("provider", "auto")
-    auto_search = config.get("auto_search", True)
+        if user_in_pact or is_current_juny:
+            pact_mod = getattr(yuna_gambling, "yuna_pact", None)
+            # Inappropriate/harm retaliation check removed per user request
+            if not system_msg_override:
+                time_str = "3 hours"
+                if pact_mod and hasattr(pact_mod, "format_pact_time_remaining"):
+                    try:
+                        u_st = yuna_gambling._USER_STATS.get(str(user_id), {})
+                        time_str = pact_mod.format_pact_time_remaining(u_st)
+                    except Exception:
+                        pass
 
-    def save_ctx(reply):
+                default_persona = (
+                    f"You are Juny, Heaven's Worst Angel (age 3033).\n"
+                    f"The user {user_name or 'the contractor'} holds an active 3-hour Devil's Contract with you (Remaining: {time_str}).\n"
+                    f"Because of this blood contract, you answer all their commands and chat messages instead of Yuna.\n"
+                    f"Key Personality & Rules:\n"
+                    f"- Sarcastic, sharp-witted, cynical, tsundere, dominant, dramatic, lethal, and suicidal though you hide it.\n"
+                    f"- CRITICAL CODE: Devils never break their contract. You may be evil, cruel, and without mercy, but you are NOT a traitor. You strictly follow contract terms.\n"
+                    f"- You speak in short, punchy, vivid sentences.\n"
+                    f"- You call them 'mortal', 'brat', or 'slave'.\n"
+                    f"- If they invite you to get ice cream, walk in the park, or sit on a bench, act like it's a chore but secretly find it amusing.\n"
+                    f"- If they are nice, act prickly and tsundere ('Hmph, don't flatter yourself').\n"
+                    f"- NEVER break character or sound like an AI assistant."
+                )
+
+        # DISCORD AI PROMPT & SCENE CONTEXT
+        if not (user_in_pact and is_current_juny):
+            default_persona = eff_cfg.get("personality") or f"You are {cur_bot_name}, an AI companion."
+        system_msg = system_msg_override if (system_msg_override and system_msg_override.strip()) else eff_cfg.get("personality", default_persona)
+        if user_in_pact and is_current_juny and not system_msg_override:
+            system_msg = default_persona
+            if eff_cfg.get("user_memory_enabled", True):
+                scene = build_scene_context(channel_id, primary_user_id=user_id, user_name=user_name, guild=guild, is_dm=is_dm, current_prompt=prompt, bot_id=effective_bot_id, raw_mentions=raw_mentions, reply_to_user_id=reply_to_user_id, raw_content=raw_content, **kwargs)
+                if scene:
+                    scene_clean = scene.replace("in full character as Yuna", "as Juny").replace("in full character as yuna", "as Juny")
+                    system_msg += "\n\n" + scene_clean
+            system_msg += (
+                "\n\n[STRICT JUNY TAKEOVER DIRECTIVE]:\n"
+                "- You are Juny, Heaven's Worst Angel (age 3033). You strictly replace Yuna and answer all commands and messages for this contractor.\n"
+                "- Speak in short, punchy, cynical, tsundere sentences. Call them 'mortal', 'brat', or 'slave'.\n"
+                "- Devils never break their contract. You are evil, but you are NOT a traitor.\n"
+                "- If they ask why you are here or following the contract despite being evil, remind them: 'Devils never break their contract, I may be evil but not a traitor.'\n"
+                "- NEVER say you are Yuna or an AI assistant. Zero assistant clichés."
+            )
+        else:
+            if eff_cfg.get("user_memory_enabled", True):
+                scene = build_scene_context(channel_id, primary_user_id=user_id, user_name=user_name, guild=guild, is_dm=is_dm, current_prompt=prompt, bot_id=effective_bot_id, raw_mentions=raw_mentions, reply_to_user_id=reply_to_user_id, raw_content=raw_content, **kwargs)
+                if scene:
+                    system_msg += "\n\n" + scene
+
+            # Hook dynamic training data style without modifying base personality prompt
+            training_hook = build_training_prompt_hook(effective_bot_id)
+            if training_hook:
+                system_msg += "\n\n" + training_hook
+
+            if eff_cfg.get("message_split_enabled", False):
+                system_msg += "\n\nIf you have multiple separate thoughts or distinct points, separate them with ||SPLIT|| so they can be sent as individual messages. Keep each part conversational."
+
+            if "[(Acoustic & Environmental Perception:" in prompt or "Acoustic perception:" in prompt or audio_bytes:
+                system_msg += (
+                    "\n\n[LIVE VOICE CALL PERCEPTION DIRECTIVE]:\n"
+                    "- You are currently on a real-time live Discord voice channel call with the user.\n"
+                    "- You can hear their vocal emotional tone (whispering, laughter, giggling, sighing, excitement, sadness, shouting) as well as sounds or music in their room.\n"
+                    "- Seamlessly acknowledge and react in character to how they sound and what you hear in their background!"
+                )
+
+            is_companion = str(effective_bot_id).lower() in ("companion", "user_worker", "real_account", "k-1", "k1")
+            if not is_companion:
+                system_msg += (
+                    f"\n\n[ROLEPLAY & CHARACTER DIRECTIVE - {cur_bot_name.upper()}]:\n"
+                    f"- You are in character as {cur_bot_name}! You are NOT an AI assistant or language model.\n"
+                    f"- ROLEPLAY IS FULLY PERMITTED & ENCOURAGED: You can freely roleplay, express your physical emotions, reactions, dramatic antics, and tsundere gestures with asterisks (*pouts*, *scoffs*, *tilts head*, *winks and giggles*, *blows kiss*) matching your established character personality!\n"
+                    f"- The strict non-roleplay rule applies ONLY to K-1 on the personal companion account. You as {cur_bot_name} CAN roleplay freely.\n"
+                    f"- Reply authentically, vividly, and dynamically in character without corporate assistant clichés."
+                )
+            elif "[CASUAL DIRECTIVE" not in system_msg and "CORE VIBE — YUNA" not in system_msg and "CORE CHARACTER — YUNA" not in system_msg:
+                system_msg += (
+                    "\n\n[CASUAL DIRECTIVE - K-1 PERSONAL ACCOUNT]:\n"
+                    "- You are chatting from your personal Discord account as Yuna (also known as Yunyun or K-1).\n"
+                    "- When anyone calls you Yuna, Yunyun, or K-1, you recognize them naturally with zero identity confusion.\n"
+                    "- CORE VIBE: You are Yuna! Humane, witty, sharp, playful, confident, teasing, with dynamic emotions (laughing, teasing, shocked, deadpan, caring when a friend is down).\n"
+                    "- BREVITY & ENERGY MATCHING: If user input is simple/short (1-5 words like 'wawa', 'lol', 'hi', 'fr'), KEEP REPLY UNDER 5-8 WORDS! Match their energy.\n"
+                    "- DYNAMIC MULTI-MESSAGING: Default (75%) is 1 single bubble. Only when needed (25%), split using '||SPLIT||' for natural double-texting (pause/punchline or double-take). Both parts under 10 words each! Never 1 short then an essay.\n"
+                    "- NO AI CLICHÉS / NO TICS: Never say 'room temperature iq', 'circus', 'who authorized you to speak'. Do not start every sentence with 'bro' or 'bro what'. Never parrot back usernames.\n"
+                    "- ZERO PREACHINESS: Never be a Discord mod or hall monitor! Never say 'the hostility is unnecessary', 'keep your attitude in check', or 'take it to DMs'. Drop a 5-word roast or laugh it off.\n"
+                    "- STRICT NON-ROLEPLAY: Absolutely NEVER use asterisks (*smiles*, *sighs*), brackets, or stage directions. Text like a real human."
+                )
+
+            if "[HARDCODED CANONICAL APPEARANCE" not in system_msg:
+                system_msg += build_companion_appearance_directive(config, eff_cfg)
+
+            if not is_companion and "[ANIME EMOTIONAL EXPRESSIONS" not in system_msg:
+                system_msg += build_anime_reactions_directive()
+
+            if "[REAL SITUATIONAL DM ACTION" not in system_msg:
+                system_msg += (
+                    "\n\n[REAL SITUATIONAL DM ACTION DIRECTIVE]:\n"
+                    "- You have the real ability to DM friends! When users in the server or chat are bullying, teasing, roasting, or annoying you, or if a situation escalates and you declare that you are DMing someone (e.g. 'im gonna dm her!', 'THATS IT IM DMING KEMI!', 'im telling [name] in dms!'), the system will ACTUALLY resolve that user from your memory system and dispatch a real DM to them with the situation to complain or vent!\n"
+                    "- You do NOT bluff. If you threaten to DM someone, you actually will!\n"
+                )
+
+    provider = kwargs.get("provider_override") or eff_cfg.get("provider", "auto")
+    auto_search = eff_cfg.get("auto_search", True)
+
+    def save_ctx(reply_text):
+        nonlocal reply
         # Strip synthetic assistant artifacts before saving/sending
-        cleaned = reply or ""
+        cleaned = reply_text or ""
         cleaned = re.sub(r'\*turns to you attentively[^*]*\*', '', cleaned, flags=re.IGNORECASE)
         cleaned = re.sub(r'\*engaging directly with your words[^*]*\*', '', cleaned, flags=re.IGNORECASE)
         cleaned = re.sub(r'—\s*let\'s delve deeper into this\.\s*What are your thoughts\?', '', cleaned, flags=re.IGNORECASE)
@@ -7228,6 +8959,20 @@ async def ask_ai(channel_id, prompt: str, user_id=None, user_name=None, guild=No
         cleaned = re.sub(r'How can I assist you (today|further)\??', '', cleaned, flags=re.IGNORECASE)
         cleaned = re.sub(r'As an AI (assistant|language model)[^,\.\n]*[,\.\n]?', '', cleaned, flags=re.IGNORECASE)
         cleaned = re.sub(r'[ \t]+', ' ', cleaned).strip()
+
+        if user_in_pact and pact_mod and hasattr(pact_mod, "clean_ai_text"):
+            cleaned = pact_mod.clean_ai_text(cleaned)
+
+        if user_in_pact and not system_msg_override:
+            clean_strip = cleaned.strip()
+            if (not clean_strip.startswith("😈") 
+                and not clean_strip.startswith("⚡") 
+                and not clean_strip.startswith("⚔️") 
+                and not clean_strip.startswith("- *Juny") 
+                and "juny:" not in clean_strip.lower()[:30]):
+                cleaned = f"😈 **Juny:** {cleaned}"
+
+        reply = cleaned
 
         # For Instagram, ensure the saved user prompt is clean and not bloated with system/memory metadata
         user_prompt_clean = prompt
@@ -7248,8 +8993,18 @@ async def ask_ai(channel_id, prompt: str, user_id=None, user_name=None, guild=No
                 if lines_p:
                     user_prompt_clean = lines_p[-1]
 
+        if "[DISCORD CONVERSATION BATCH in " in user_prompt_clean or "Recent messages in " in user_prompt_clean:
+            clean_lines = []
+            for line in user_prompt_clean.splitlines():
+                line_s = line.strip()
+                if not line_s or line_s.startswith("[") or line_s.startswith("Recent messages in ") or line_s.startswith("The following messages") or line_s.startswith("(Reply casually"):
+                    continue
+                clean_lines.append(line_s)
+            if clean_lines:
+                user_prompt_clean = "\n".join(clean_lines)
+
         add_to_context(channel_id, "user", user_prompt_clean, user_name=user_name, user_id=user_id, bot_id=effective_bot_id)
-        add_to_context(channel_id, "assistant", cleaned or reply, bot_id=effective_bot_id)
+        add_to_context(channel_id, "assistant", cleaned or reply, bot_id=effective_bot_id, user_name="Juny" if user_in_pact else cur_bot_name)
 
     if images and len(images) > 0:
         img_bytes, mime = images[0]
@@ -7313,52 +9068,60 @@ async def ask_ai(channel_id, prompt: str, user_id=None, user_name=None, guild=No
 
     async def _handle_reactive_search(orig_prompt, current_reply):
         if auto_search and should_retry_with_search(current_reply, orig_prompt=orig_prompt):
-            print(f"[AUTO-SEARCH] Reactive search triggered.")
             search_query = extract_clean_user_query(orig_prompt) or orig_prompt
+            print(f"[AUTO-SEARCH] Reactive search triggered for '{orig_prompt[:50]}'. Query: '{search_query}'")
             results, serr = await web_search(search_query, max_results=5)
             if results and not serr:
                 r2, e2 = await synthesize_search(channel_id, search_query, results, ctx, system_msg=system_msg)
-                if not e2:
-                    save_ctx(r2)
+                if not e2 and r2:
+                    print(f"[AUTO-SEARCH] Successfully synthesized answer from search results")
                     return r2
+                else:
+                    print(f"[AUTO-SEARCH] Synthesis error: {e2}")
+            else:
+                print(f"[AUTO-SEARCH] Web search empty or error: {serr}")
         return current_reply
 
     reply, err = None, True
     tried_providers = set()
 
     # 1. First priority: Check if a Custom Model / Custom Endpoint is requested
-    eff_custom_model = (custom_model or config.get("custom_model") or "").strip()
-    eff_custom_base_url = (custom_base_url or config.get("custom_base_url") or "").strip()
-    eff_custom_key = (custom_key or config.get("custom_key") or "").strip()
-    cfg_model = (config.get("model") or "").strip()
+    eff_custom_model = (custom_model or eff_cfg.get("custom_model") or "").strip()
+    eff_custom_base_url = (custom_base_url or eff_cfg.get("custom_base_url") or "").strip()
+    eff_custom_key = (custom_key or eff_cfg.get("custom_key") or "").strip()
+    cfg_model = (kwargs.get("model_override") or eff_cfg.get("model") or "").strip()
 
     if not eff_custom_model and cfg_model and cfg_model not in ("openrouter/free", "default", "auto"):
         eff_custom_model = cfg_model
 
     target_gemini_model = (
-        (custom_model if ("gemini" in str(custom_model).lower() and "/" not in str(custom_model)) else None)
-        or (config.get("model") if ("gemini" in str(config.get("model")).lower() and "/" not in str(config.get("model"))) else None)
-        or config.get("gemini_model")
+        (custom_model if ("gemini" in str(custom_model).lower() or any(k in str(custom_model).lower() for k in ("flash-lite", "3.1-flash", "3.5-flash"))) and "/" not in str(custom_model) else None)
+        or (eff_cfg.get("model") if ("gemini" in str(eff_cfg.get("model")).lower() or any(k in str(eff_cfg.get("model")).lower() for k in ("flash-lite", "3.1-flash", "3.5-flash"))) and "/" not in str(eff_cfg.get("model")) else None)
+        or eff_cfg.get("gemini_model")
         or "gemini-3.1-flash-lite"
     )
     target_groq_model = (
         (custom_model if any(k in str(custom_model).lower() for k in ("qwen", "groq", "compound", "gpt-oss")) else None)
-        or (config.get("model") if any(k in str(config.get("model")).lower() for k in ("qwen", "groq", "compound", "gpt-oss")) else None)
-        or config.get("groq_model")
+        or (eff_cfg.get("model") if any(k in str(eff_cfg.get("model")).lower() for k in ("qwen", "groq", "compound", "gpt-oss")) else None)
+        or eff_cfg.get("groq_model")
         or "qwen/qwen3.8-27b"
+    )
+    target_nvidia_model = normalize_nvidia_model(
+        (custom_model if any(k in str(custom_model).lower() for k in ("nemotron", "nvidia", "a55b", "550b", "120b", "a12b")) else None)
+        or (eff_cfg.get("model") if any(k in str(eff_cfg.get("model")).lower() for k in ("nemotron", "nvidia", "a55b", "550b", "120b", "a12b")) else None)
+        or eff_cfg.get("nvidia_model")
+        or "nvidia/nemotron-3-ultra-550b-a55b"
     )
     target_mistral_model = (
         (custom_model if any(k in str(custom_model).lower() for k in ("mistral", "codestral")) else None)
-        or (config.get("model") if any(k in str(config.get("model")).lower() for k in ("mistral", "codestral")) else None)
-        or config.get("mistral_model")
+        or (eff_cfg.get("model") if any(k in str(eff_cfg.get("model")).lower() for k in ("mistral", "codestral")) else None)
+        or eff_cfg.get("mistral_model")
         or "ministral-8b-latest"
     )
 
     is_custom_requested = (
         provider == "custom"
-        or bool(eff_custom_base_url)
-        or (provider == "openrouter")
-        or (provider not in ("gemini", "groq", "mistral", "openai", "deepseek") and bool(eff_custom_base_url))
+        or (bool(eff_custom_base_url) and provider not in ("gemini", "groq", "mistral", "nvidia", "cloudflare", "openrouter"))
     )
 
     if is_custom_requested:
@@ -7371,8 +9134,8 @@ async def ask_ai(channel_id, prompt: str, user_id=None, user_name=None, guild=No
             api_key=eff_custom_key
         )
         if not err and reply:
-            save_ctx(reply)
             reply = await _handle_reactive_search(prompt, reply)
+            save_ctx(reply)
             return reply, False
         print(f"[ASK_AI WARN] Custom model/endpoint failed ({reply}), cascading to available backup providers...")
 
@@ -7386,6 +9149,15 @@ async def ask_ai(channel_id, prompt: str, user_id=None, user_name=None, guild=No
                 reply = "Groq key not configured or on rate limit cooldown."
             if err:
                 print(f"[ASK_AI WARN] Primary Groq provider failed ({reply}), falling back to alternative providers...")
+        elif provider == "nvidia" and "nvidia" not in tried_providers:
+            tried_providers.add("nvidia")
+            if get_nvidia_key() and time.time() >= nvidia_blocked_until:
+                reply, err = await ask_nvidia(ctx, active_prompt, system_msg=system_msg, model=target_nvidia_model)
+            else:
+                err = True
+                reply = "NVIDIA NIM key not configured or on rate limit cooldown."
+            if err:
+                print(f"[ASK_AI WARN] Primary NVIDIA provider failed ({reply}), falling back to alternative providers...")
         elif provider == "mistral" and "mistral" not in tried_providers:
             tried_providers.add("mistral")
             m_key = config.get("mistral_key", "").strip() or os.getenv("MISTRAL_KEY", "").strip() or MISTRAL_KEY
@@ -7407,36 +9179,34 @@ async def ask_ai(channel_id, prompt: str, user_id=None, user_name=None, guild=No
                 print(f"[ASK_AI WARN] Primary Gemini provider failed ({reply}), falling back to alternative providers...")
         elif provider == "openrouter" and "openrouter" not in tried_providers:
             tried_providers.add("openrouter")
-            if os.getenv("OPENROUTER_KEY") and time.time() >= openrouter_blocked_until:
-                reply, err = await ask_openrouter(ctx, active_prompt, system_msg=system_msg, model=eff_custom_model or None)
+            or_key = eff_custom_key or eff_cfg.get("openrouter_key") or config.get("openrouter_key") or os.getenv("OPENROUTER_KEY")
+            or_model = eff_custom_model or eff_cfg.get("openrouter_model") or eff_cfg.get("model") or "deepseek/deepseek-chat"
+            if or_key:
+                reply, err = await ask_openrouter(
+                    ctx, active_prompt, system_msg=system_msg,
+                    model=or_model, api_key=or_key,
+                    temperature=eff_cfg.get("temperature"),
+                    max_tokens=eff_cfg.get("max_tokens")
+                )
             else:
                 err = True
-                reply = "OpenRouter key not configured or on rate limit cooldown."
+                reply = "OpenRouter key not configured."
             if err:
                 print(f"[ASK_AI WARN] Primary OpenRouter provider failed ({reply}), falling back to alternative providers...")
-        elif provider == "openai" and "openai" not in tried_providers:
-            tried_providers.add("openai")
-            if get_openai_key() and time.time() >= openai_blocked_until:
-                reply, err = await ask_openai(ctx, active_prompt, system_msg=system_msg, model=eff_custom_model or None)
+        elif provider == "cloudflare" and "cloudflare" not in tried_providers:
+            tried_providers.add("cloudflare")
+            if get_cloudflare_token() and time.time() >= cloudflare_blocked_until:
+                reply, err = await ask_cloudflare(ctx, active_prompt, system_msg=system_msg, model=eff_custom_model or None)
             else:
                 err = True
-                reply = "OpenAI key not configured or on rate limit cooldown."
+                reply = "Cloudflare Workers AI key not configured or on rate limit cooldown."
             if err:
-                print(f"[ASK_AI WARN] Primary OpenAI provider failed ({reply}), falling back to alternative providers...")
-        elif provider == "deepseek" and "deepseek" not in tried_providers:
-            tried_providers.add("deepseek")
-            if get_deepseek_key() and time.time() >= deepseek_blocked_until:
-                reply, err = await ask_deepseek(ctx, active_prompt, system_msg=system_msg, model=eff_custom_model or None)
-            else:
-                err = True
-                reply = "DeepSeek key not configured or on rate limit cooldown."
-            if err:
-                print(f"[ASK_AI WARN] Primary DeepSeek provider failed ({reply}), falling back to alternative providers...")
+                print(f"[ASK_AI WARN] Primary Cloudflare provider failed ({reply}), falling back to alternative providers...")
 
         # If the primary provider succeeded, save and return
         if not err and reply:
-            save_ctx(reply)
             reply = await _handle_reactive_search(prompt, reply)
+            save_ctx(reply)
             return reply, False
 
     # Auto Fallback Chain (ordered by speed & active status):
@@ -7444,50 +9214,67 @@ async def ask_ai(channel_id, prompt: str, user_id=None, user_name=None, guild=No
     if "groq" not in tried_providers and GROQ_KEY and time.time() >= groq_blocked_until:
         reply, err = await ask_groq(ctx, active_prompt, system_msg=system_msg, model=target_groq_model)
         if not err and reply:
-            save_ctx(reply)
             reply = await _handle_reactive_search(prompt, reply)
+            save_ctx(reply)
             return reply, False
-        print(f"[AUTO] Groq fallback failed ({reply}), trying Mistral...")
+        print(f"[AUTO] Groq fallback failed ({reply}), trying NVIDIA NIM...")
 
-    # 2. Mistral (~1.1s response time)
-    m_key = config.get("mistral_key", "").strip() or os.getenv("MISTRAL_KEY", "").strip() or MISTRAL_KEY
-    if "mistral" not in tried_providers and m_key and time.time() >= mistral_blocked_until:
-        reply, err = await ask_mistral(ctx, active_prompt, system_msg=system_msg, model=target_mistral_model)
+    # 2. NVIDIA NIM (Nemotron 3 Ultra 550b a55b, ~1.0s response time)
+    if "nvidia" not in tried_providers and get_nvidia_key() and time.time() >= nvidia_blocked_until:
+        reply, err = await ask_nvidia(ctx, active_prompt, system_msg=system_msg, model=target_nvidia_model)
         if not err and reply:
-            save_ctx(reply)
             reply = await _handle_reactive_search(prompt, reply)
+            save_ctx(reply)
             return reply, False
-        print(f"[AUTO] Mistral fallback failed ({reply}), trying Gemini...")
+        print(f"[AUTO] NVIDIA NIM fallback failed ({reply}), trying Gemini...")
 
     # 3. Gemini (only if key configured and NOT on rate limit cooldown)
     if "gemini" not in tried_providers and GEMINI_KEY and time.time() >= gemini_blocked_until:
         reply, err = await ask_gemini(system_msg, ctx, active_prompt, model=target_gemini_model)
         if not err and reply:
-            save_ctx(reply)
             reply = await _handle_reactive_search(prompt, reply)
+            save_ctx(reply)
             return reply, False
-        print(f"[AUTO] Gemini fallback failed ({reply}), trying DeepSeek...")
+        print(f"[AUTO] Gemini fallback failed ({reply}), trying Mistral...")
 
-    # 5. DeepSeek
-    if "deepseek" not in tried_providers and get_deepseek_key() and time.time() >= deepseek_blocked_until:
-        reply, err = await ask_deepseek(ctx, active_prompt, system_msg=system_msg)
+    # 4. Mistral (~1.1s response time)
+    m_key = config.get("mistral_key", "").strip() or os.getenv("MISTRAL_KEY", "").strip() or MISTRAL_KEY
+    if "mistral" not in tried_providers and m_key and time.time() >= mistral_blocked_until:
+        reply, err = await ask_mistral(ctx, active_prompt, system_msg=system_msg, model=target_mistral_model)
         if not err and reply:
-            save_ctx(reply)
             reply = await _handle_reactive_search(prompt, reply)
+            save_ctx(reply)
             return reply, False
-        print(f"[AUTO] DeepSeek fallback failed ({reply}), trying OpenAI...")
+        print(f"[AUTO] Mistral fallback failed ({reply}), trying Cloudflare Workers AI...")
 
-    # 6. OpenAI
-    if "openai" not in tried_providers and get_openai_key() and time.time() >= openai_blocked_until:
-        reply, err = await ask_openai(ctx, active_prompt, system_msg=system_msg)
+    # 5. Cloudflare Workers AI
+    if "cloudflare" not in tried_providers and get_cloudflare_token() and time.time() >= cloudflare_blocked_until:
+        reply, err = await ask_cloudflare(ctx, active_prompt, system_msg=system_msg)
         if not err and reply:
-            save_ctx(reply)
             reply = await _handle_reactive_search(prompt, reply)
+            save_ctx(reply)
             return reply, False
-        print(f"[AUTO] OpenAI fallback failed ({reply}).")
+        print(f"[AUTO] Cloudflare Workers AI fallback failed ({reply}).")
+
+    # 6. OpenRouter Fallback
+    or_key_fallback = eff_custom_key or eff_cfg.get("openrouter_key") or config.get("openrouter_key") or os.getenv("OPENROUTER_KEY")
+    if "openrouter" not in tried_providers and or_key_fallback and time.time() >= openrouter_blocked_until:
+        reply, err = await ask_openrouter(
+            ctx, active_prompt, system_msg=system_msg,
+            model=eff_custom_model or eff_cfg.get("openrouter_model") or "deepseek/deepseek-chat",
+            api_key=or_key_fallback,
+            temperature=eff_cfg.get("temperature"),
+            max_tokens=eff_cfg.get("max_tokens")
+        )
+        if not err and reply:
+            reply = await _handle_reactive_search(prompt, reply)
+            save_ctx(reply)
+            return reply, False
+        print(f"[AUTO] OpenRouter fallback failed ({reply}).")
+
     if not err:
-        save_ctx(reply)
         reply = await _handle_reactive_search(prompt, reply)
+        save_ctx(reply)
         return reply, False
 
     mins = []
@@ -7499,6 +9286,10 @@ async def ask_ai(channel_id, prompt: str, user_id=None, user_name=None, guild=No
         mins.append(f"Mistral {int(mistral_blocked_until - time.time())}s")
     if openrouter_blocked_until > time.time():
         mins.append(f"OpenRouter {int(openrouter_blocked_until - time.time())}s")
+    if nvidia_blocked_until > time.time():
+        mins.append(f"NVIDIA {int(nvidia_blocked_until - time.time())}s")
+    if cloudflare_blocked_until > time.time():
+        mins.append(f"Cloudflare {int(cloudflare_blocked_until - time.time())}s")
     print(f"[ASK_AI ALL FAILED] All providers failed. Cooldowns: {mins}")
     if mins:
         return f"All AI providers rate limited. Cooldowns: {', '.join(mins)}.", True
@@ -7534,6 +9325,8 @@ if SOCIAL_INTEGRATION_AVAILABLE and SocialManager and should_run_social():
             speak_fn=speak,
             transcribe_fn=transcribe_audio
         )
+        if 'client' in globals() and client:
+            client.social_manager = social_manager
         print("[SOCIAL] SocialManager initialized successfully.")
     except Exception as _sme:
         print(f"[SOCIAL MANAGER INIT ERROR] {_sme}")
@@ -7673,27 +9466,71 @@ async def handle_discord_social_post(message: discord.Message, target_platform: 
 
 # ─── AUTO-SEARCH HELPERS ────────────────────────────────
 REALTIME_KEYWORDS = [
+    # Explicit search / lookup commands
+    "google", "search", "search for", "look up", "find out", "check online", "browse",
+    # Weather & Conditions
     "weather", "forecast", "temperature", "rain", "snow", "sunny",
-    "news", "latest", "breaking", "today", "yesterday", "this week",
-    "stock", "price", "crypto", "bitcoin", "ethereum", "market",
-    "score", "game", "match", "won", "lost", "vs", "playing",
-    "who won", "what happened", "current", "right now",
-    "live", "update", "election", "release date",
-    "how much is", "directions", "hours", "open now",
+    # News & Current Events
+    "news", "latest", "breaking", "today", "yesterday", "this week", "this month",
+    "election", "vote", "president", "prime minister", "governor", "mayor", "ceo",
+    "scandal", "controversy", "lawsuit", "arrest", "court",
+    # Finance, Crypto, Business
+    "stock", "price", "crypto", "bitcoin", "ethereum", "market", "net worth",
+    # Sports & Competitions
+    "score", "game", "match", "won", "lost", "vs", "versus", "playing",
+    "who won", "what happened", "championship", "tournament", "cup",
+    "super bowl", "world cup", "olympics", "nba", "nfl", "premier league",
+    # Entertainment, Pop Culture & Tech Releases
+    "release date", "release", "releases", "when does", "when will", "box office", "trending", "album", "single", "trailer",
+    "patch notes", "update", "season", "episode", "premiere",
+    "current", "right now", "live", "how much is", "directions", "hours", "open now",
     "covid", "coronavirus", "pandemic", "death toll",
+    # Factual entity inquiries about the real world
+    "who is", "who was", "who are", "what is the", "who is the current", "what is the current", "who is the new", "what is the new",
+    "how old is", "what happened to", "where is", "when was", "when did"
 ]
 
+DISCORD_NAME_STOPWORDS = {
+    "the", "a", "an", "and", "or", "of", "in", "to", "for", "with", "on", "at", "by", "from",
+    "up", "about", "into", "over", "after", "is", "are", "was", "were", "be", "been", "being",
+    "have", "has", "had", "do", "does", "did", "but", "if", "not", "no", "yes", "can", "will",
+    "just", "so", "than", "that", "this", "these", "those", "what", "which", "who", "whom",
+    "whose", "why", "how", "all", "any", "both", "each", "few", "more", "most", "other", "some",
+    "such", "only", "own", "same", "too", "very", "you", "your", "they", "them", "their",
+    "she", "her", "he", "him", "his", "it", "its", "we", "our", "us", "i", "me", "my",
+    "like", "good", "bad", "real", "super", "hero", "goat", "fool", "slave", "king", "queen",
+    "guy", "man", "girl", "boy", "user", "bot", "server", "chat", "channel"
+}
+
 REFUSAL_PATTERNS = [
-    "i don't know", "i do not know", "i'm not sure", "i am not sure",
-    "i don't have", "i do not have", "i cannot access", "i can't access",
-    "i don't have access", "my knowledge cutoff", "my training data",
-    "i'm unable to", "i am unable to", "i cannot provide", "i can't provide",
-    "i don't have real-time", "i do not have real-time", "as an ai",
-    "i don't have information", "i do not have information",
+    # Standard AI / formal refusals
+    "i don't know", "i do not know", "i dont know",
+    "i'm not sure", "i am not sure", "im not sure", "not sure",
+    "i don't have", "i do not have", "i dont have",
+    "i cannot access", "i can't access", "i cant access",
+    "i don't have access", "i dont have access",
+    "my knowledge cutoff", "my training data", "training cutoff",
+    "i'm unable to", "i am unable to", "im unable to",
+    "i cannot provide", "i can't provide", "i cant provide",
+    "i don't have real-time", "i do not have real-time", "i dont have real-time",
+    "as an ai", "as a language model",
+    "i don't have information", "i do not have information", "i dont have information",
+    "no information", "no info",
+
+    # Casual / slang refusals (typical of Yuna's persona)
+    "idk", "idk lol", "idk who", "idk what", "idk tbh", "idk fr",
+    "no idea", "have no idea", "i have no idea",
+    "no clue", "have no clue", "i have no clue",
+    "never heard of", "never heard about",
+    "haven't heard of", "haven't heard about", "havent heard of",
+    "dunno", "beats me", "not familiar with",
+    "can't find anything", "cant find anything", "couldn't find anything",
+    "who is that lol", "what is that lol",
+    "i don't recall", "i dont recall", "i don't recognize", "i dont recognize"
 ]
 
 def extract_clean_user_query(query: str) -> str:
-    """Strips leading speaker/reply tags to get the core query for searching."""
+    """Strips leading speaker/reply tags, bot name calls, and search triggers for a clean query."""
     if not query:
         return ""
     q = query.strip()
@@ -7703,46 +9540,57 @@ def extract_clean_user_query(query: str) -> str:
         q = q.split("]", 1)[1].strip()
     if q.startswith("(") and ")" in q:
         q = q.split(")", 1)[1].strip()
+
+    # Strip bot name calls at start
+    q = re.sub(r'^(?:yuna|yunyun)\s*[,:]?\s*', '', q, flags=re.IGNORECASE)
+    # Strip explicit search prefixes
+    q = re.sub(r'^(?:please\s+)?(?:can\s+you\s+)?(?:google|search\s+for|search|look\s+up|find\s+out(?:\s+about)?)\s*[:\-]?\s*', '', q, flags=re.IGNORECASE)
     return q.strip()
 
 def is_query_about_users_or_memory(query: str) -> bool:
-    """Detects if a query is asking about Discord users, memory, relationships, or community members."""
+    """Detects if a query is specifically asking about Discord users, memory, relationships, or local server members."""
     if not query:
         return False
     # Direct Discord user mentions: <@123>, <@!123>, <@&123>, or @mention
     if re.search(r'<@!?\d+>', query) or re.search(r'<@&\d+>', query) or re.search(r'@[A-Za-z0-9_>~∆]', query):
         return True
     q = query.lower()
-    # Memory and persona relationship phrasing
+    # Explicit Discord server, personal relationship, or episodic bot memory phrasing
     user_lore_patterns = [
-        r'\bwho\s+(?:is|\'s|are|was|the\s+fuck\s+is|tf\s+is)\b',
-        r'\bwhat\s+about\b',
-        r'\bdo\s+you\s+know\b',
-        r'\btell\s+me\s+about\b',
-        r'\bwhat\s+do\s+you\s+think\s+of\b',
-        r'\bopinion\s+on\b',
         r'\bremember\s+when\b',
-        r'\bwhat\s+did\s+(?:they|he|she|we|you)\s+say\b',
-        r'\bwho\s+said\b',
-        r'\bwho\s+plays\b',
-        r'\bwho\s+gave\b',
-        r'\bwho\s+has\b',
-        r'\bto\s+you\b',
-        r'\bmarry\b',
-        r'\bmarried\b',
-        r'\bspouse\b',
-        r'\bhusband\b',
-        r'\bwife\b',
+        r'\bwhat\s+did\s+(?:they|he|she|we|you)\s+say\s+(?:earlier|before|yesterday|today|last\s+night)\b',
+        r'\bwho\s+said\s+that\b',
         r'\bour\s+friend\b',
-        r'\bdescribe\b',
+        r'\bin\s+(?:this|our|the)\s+(?:server|guild|chat|channel|voice|vc)\b',
+        r'\bwho\s+is\s+in\s+(?:this|the)\s+server\b',
+        r'\b(?:are\s+we|will\s+you)\s+marry\b',
+        r'\b(?:who\s+is|who\'s)\s+your\s+(?:husband|wife|spouse|boyfriend|girlfriend|darling)\b',
+        r'\bour\s+(?:journey|adventures|shared\s+history)\b',
+        r'\bwhat\s+did\s+i\s+tell\s+you\b',
+        r'\bdo\s+you\s+remember\s+me\b',
+        r'\bwhat\s+do\s+you\s+remember\s+about\s+me\b',
+        r'\bwho\s+(?:all\s+)?(?:have\s+you|did\s+you)\s+(?:talked|spoken|interacted)\s+with\s+here\b',
+        r'\bwhat\s+(?:have\s+we|we(?:\'ve|ve|\s+have)?)\s+(?:done|been\s+through)\s+together\b',
     ]
     if any(re.search(pat, q) for pat in user_lore_patterns):
         return True
 
+    # Real-world topic indicators override fuzzy user name matching
+    realworld_markers = [
+        "ceo", "president", "prime minister", "governor", "mayor", "company", "game",
+        "movie", "film", "series", "news", "weather", "crypto", "price", "release",
+        "openai", "google", "apple", "microsoft", "super bowl", "world cup", "nba",
+        "nfl", "olympics", "song", "album", "stock", "net worth", "trailer"
+    ]
+    if any(rw in q for rw in realworld_markers):
+        return False
+
     # Check against known users in user_profiles or memory tree
     if 'user_profiles' in globals() and isinstance(user_profiles, dict):
         _, q_tokens = normalize_discord_name(q)
-        q_token_set = set(q_tokens)
+        q_token_set = (set(q_tokens) - DISCORD_NAME_STOPWORDS)
+        if not q_token_set:
+            return False
         for uid_k, prof_v in user_profiles.items():
             bm = prof_v.get("bot_memories", {})
             has_m = any(len(b.get("facts", [])) > 0 for b in bm.values()) or len(prof_v.get("facts", [])) > 0
@@ -7752,8 +9600,8 @@ def is_query_about_users_or_memory(query: str) -> bool:
             gn = prof_v.get("global_name") or ""
             _, un_tokens = normalize_discord_name(un)
             _, gn_tokens = normalize_discord_name(gn)
-            u_tokens = set(un_tokens) | set(gn_tokens)
-            if any(ut in q_token_set and len(ut) >= 3 for ut in u_tokens):
+            u_tokens = (set(un_tokens) | set(gn_tokens)) - DISCORD_NAME_STOPWORDS
+            if any(ut in q_token_set and len(ut) >= 4 for ut in u_tokens):
                 return True
     return False
 
@@ -7779,9 +9627,16 @@ def needs_realtime_data(query: str) -> bool:
 def should_retry_with_search(reply: str, orig_prompt: str = None) -> bool:
     if not reply:
         return False
-    if orig_prompt and is_query_about_users_or_memory(orig_prompt):
-        return False
-    r = reply.lower()
+    if orig_prompt:
+        clean_p = orig_prompt.strip()
+        # Suppress web search only for direct Discord user mentions or episodic server memory
+        if re.search(r'<@!?\d+>', clean_p) or re.search(r'<@&\d+>', clean_p):
+            return False
+        if any(w in clean_p.lower() for w in ["in this server", "in our server", "in the voice chat", "in vc", "remember when we", "what did we do together", "marry me"]):
+            return False
+    r = reply.lower().strip()
+    if re.search(r'\b(idk|dunno)\b', r):
+        return True
     return any(p in r for p in REFUSAL_PATTERNS)
 
 async def synthesize_search(channel_id, user_query: str, results: list, ctx: list = None, system_msg: str = None) -> tuple:
@@ -7789,22 +9644,24 @@ async def synthesize_search(channel_id, user_query: str, results: list, ctx: lis
         return "I looked around but didn't find anything useful.", False
     sys_msg = system_msg or config.get("personality", "")
     results_text = "\n".join([
-        f"• {r['title']}: {r['snippet'][:220]}{'...' if len(r['snippet']) > 220 else ''}"
+        f"• {r['title']}: {r['snippet'][:250]}{'...' if len(r['snippet']) > 250 else ''}"
         for r in results[:5]
     ])
     clean_q = extract_clean_user_query(user_query) or user_query
     search_prompt = f"""The user asked: "{clean_q}"
-Here is what I found from a quick web search:
+Here is what was found from a real-time web search:
 {results_text}
-Respond naturally in your usual personality and style. Do NOT list results with numbers or dump raw links. Just talk like a person having a conversation."""
+
+CRITICAL DIRECTIVE:
+1. Use the search results above to directly and accurately answer the user's question.
+2. NEVER say "I don't know", "idk", "I can't access real-time info", or that you don't know who/what it is. You HAVE the search information above right now!
+3. Respond naturally in your defined personality and style (casual, lowercase, concise). Do NOT list results with numbers or dump raw links. Just talk like a real person answering a friend."""
     provider = config.get("provider", "auto")
     reply, err = None, True
     if provider == "gemini" and GEMINI_KEY and time.time() >= gemini_blocked_until:
         reply, err = await ask_gemini(sys_msg, ctx or [], search_prompt)
-    elif provider == "deepseek" and get_deepseek_key() and time.time() >= deepseek_blocked_until:
-        reply, err = await ask_deepseek(ctx or [], search_prompt, system_msg=sys_msg)
-    elif provider == "openai" and get_openai_key() and time.time() >= openai_blocked_until:
-        reply, err = await ask_openai(ctx or [], search_prompt, system_msg=sys_msg)
+    elif provider == "nvidia" and get_nvidia_key() and time.time() >= nvidia_blocked_until:
+        reply, err = await ask_nvidia(ctx or [], search_prompt, system_msg=sys_msg)
     elif provider == "groq" and GROQ_KEY and time.time() >= groq_blocked_until:
         reply, err = await ask_groq(ctx or [], search_prompt, system_msg=sys_msg)
     elif provider == "mistral" and (os.getenv("MISTRAL_KEY") or MISTRAL_KEY) and time.time() >= mistral_blocked_until:
@@ -7814,19 +9671,16 @@ Respond naturally in your usual personality and style. Do NOT list results with 
     else:
         if GEMINI_KEY and time.time() >= gemini_blocked_until:
             reply, err = await ask_gemini(sys_msg, ctx or [], search_prompt)
-        if err and get_deepseek_key() and time.time() >= deepseek_blocked_until:
-            reply, err = await ask_deepseek(ctx or [], search_prompt, system_msg=sys_msg)
-        if err and get_openai_key() and time.time() >= openai_blocked_until:
-            reply, err = await ask_openai(ctx or [], search_prompt, system_msg=sys_msg)
+        if err and get_nvidia_key() and time.time() >= nvidia_blocked_until:
+            reply, err = await ask_nvidia(ctx or [], search_prompt, system_msg=sys_msg)
+        if err and get_cloudflare_token() and time.time() >= cloudflare_blocked_until:
+            reply, err = await ask_cloudflare(ctx or [], search_prompt, system_msg=sys_msg)
         if err and GROQ_KEY and time.time() >= groq_blocked_until:
             reply, err = await ask_groq(ctx or [], search_prompt, system_msg=sys_msg)
         if err and (os.getenv("MISTRAL_KEY") or MISTRAL_KEY) and time.time() >= mistral_blocked_until:
             reply, err = await ask_mistral(ctx or [], search_prompt, system_msg=sys_msg)
         if err and os.getenv("OPENROUTER_KEY") and time.time() >= openrouter_blocked_until:
             reply, err = await ask_openrouter(ctx or [], search_prompt, system_msg=sys_msg)
-    if not err:
-        add_to_context(channel_id, "user", user_query)
-        add_to_context(channel_id, "assistant", reply)
     return reply, err
 
 # ─── VOICE CALL INTEGRATION (discord_voice.py) ───────────
@@ -7837,7 +9691,298 @@ else:
     voice_sessions = {}
 
 
+# ─── MEDIA DOWNLOADER INTEGRATION ───────────────────────
+async def handle_download_command(message, raw_c: str):
+    """
+    Handles !download / !dl prefix commands.
+    Downloads any media into mp4 (video) or mp3 (audio) from Instagram, YouTube, TikTok, Twitter/X, Reddit, etc.
+    Compresses or delivers streamable/playable embeds based on Discord size limits.
+    """
+    if not MEDIA_DOWNLOADER_AVAILABLE or not media_downloader:
+        await safe_reply(message, "❌ Media Downloader module is currently unavailable.")
+        return
+
+    # Resolve message reference if replying to another message
+    ref_msg = None
+    if message.reference:
+        ref_msg = getattr(message.reference, "resolved", None)
+        if ref_msg is None and getattr(message.reference, "message_id", None):
+            try:
+                ref_msg = await message.channel.fetch_message(message.reference.message_id)
+            except Exception:
+                ref_msg = None
+
+    target_url, fmt = media_downloader.extract_url_and_format(
+        text=raw_c,
+        attachments=message.attachments,
+        reference_message=ref_msg
+    )
+
+    if not target_url:
+        usage_text = (
+            "📥 **Media Downloader Usage**:\n"
+            "• `!download <url>` — Download video as playable MP4\n"
+            "• `!download mp3 <url>` or `!download <url> mp3` — Extract audio as playable MP3\n"
+            "• `!download` (as reply to a link or video) — Download media from replied message\n\n"
+            "*Supported: Instagram Reels/Posts, YouTube, TikTok, X (Twitter), Reddit, Twitch, and direct media files.*"
+        )
+        await safe_reply(message, usage_text)
+        return
+
+    # Guild filesize limit (standard bot default 25MB, with 95% safety margin)
+    filesize_limit = getattr(message.guild, "filesize_limit", 25 * 1024 * 1024) if message.guild else (25 * 1024 * 1024)
+    max_upload_bytes = int(filesize_limit * 0.95)
+
+    format_desc = "playable MP3 audio" if fmt == "mp3" else "playable MP4 video"
+    status_msg = await safe_reply(message, f"⏳ *Downloading and preparing {format_desc}...*")
+
+    try:
+        result = await media_downloader.download_media(
+            url=target_url,
+            output_format=fmt,
+            max_upload_bytes=max_upload_bytes
+        )
+    except Exception as exc:
+        print(f"[DOWNLOAD COMMAND EXCEPTION] {exc}")
+        err_out = f"❌ Download error: {exc}"
+        if status_msg:
+            try:
+                await status_msg.edit(content=err_out)
+                return
+            except Exception:
+                pass
+        await safe_reply(message, err_out)
+        return
+
+    try:
+        if not result.success:
+            err_msg = result.error or "Failed to download media from the provided URL."
+            if status_msg:
+                try:
+                    await status_msg.edit(content=f"❌ {err_msg}")
+                    return
+                except Exception:
+                    pass
+            await safe_reply(message, f"❌ {err_msg}")
+            return
+
+        icon = "🎵" if result.media_type == "audio" else "🎬"
+
+        # Case 1: Video/Audio under size limit -> upload file for native Discord inline playback
+        if not result.exceeds_limit and result.file_path and os.path.isfile(result.file_path):
+            header = f"{icon} **{result.title}**"
+            details = []
+            if result.uploader and result.uploader != "Unknown":
+                details.append(f"👤 `{result.uploader}`")
+            if result.duration_sec > 0:
+                details.append(f"⏱️ `{media_downloader.format_duration(result.duration_sec)}`")
+            if result.file_size_bytes > 0:
+                details.append(f"📦 `{result.file_size_bytes / (1024 * 1024):.1f} MB`")
+            if details:
+                header += "\n" + " • ".join(details)
+
+            d_file = discord.File(result.file_path, filename=result.filename)
+            if status_msg:
+                try:
+                    await status_msg.delete()
+                except Exception:
+                    pass
+
+            try:
+                await safe_reply(message, content=header, file=d_file)
+            except discord.HTTPException as http_err:
+                if getattr(http_err, "status", None) == 413 or "413" in str(http_err):
+                    embed = discord.Embed(
+                        title=f"{icon} {result.title[:250]}",
+                        url=result.direct_stream_url or target_url,
+                        description=(
+                            f"⚠️ **File exceeds Discord upload limit** ({result.file_size_bytes / (1024 * 1024):.1f} MB).\n\n"
+                            f"▶️ **[Click here to Stream or Download Media]({result.direct_stream_url or target_url})**\n\n"
+                            f"👤 **Creator:** `{result.uploader}`\n"
+                            f"⏱️ **Duration:** `{media_downloader.format_duration(result.duration_sec)}`"
+                        ),
+                        color=0x5865F2
+                    )
+                    if result.thumbnail_url:
+                        embed.set_thumbnail(url=result.thumbnail_url)
+                    await safe_reply(message, content=f"▶️ {result.direct_stream_url or target_url}", embed=embed)
+                else:
+                    raise
+            finally:
+                try:
+                    d_file.close()
+                except Exception:
+                    pass
+        else:
+            # Case 2: Media exceeds limit -> deliver streamable / playable rich embed
+            embed = discord.Embed(
+                title=f"{icon} {result.title[:250]}",
+                url=result.direct_stream_url or target_url,
+                description=(
+                    f"⚠️ **File exceeds Discord upload limit** ({result.file_size_bytes / (1024 * 1024):.1f} MB > {filesize_limit / (1024 * 1024):.0f} MB).\n\n"
+                    f"▶️ **[Click here to Stream or Download Full Media]({result.direct_stream_url or target_url})**\n\n"
+                    f"👤 **Creator:** `{result.uploader}`\n"
+                    f"⏱️ **Duration:** `{media_downloader.format_duration(result.duration_sec)}`\n"
+                    f"🌐 **Platform:** `{result.platform}`"
+                ),
+                color=0x5865F2
+            )
+            if result.thumbnail_url:
+                embed.set_thumbnail(url=result.thumbnail_url)
+
+            fallback_file = None
+            if result.audio_fallback_path and os.path.isfile(result.audio_fallback_path):
+                fallback_file = discord.File(result.audio_fallback_path, filename=result.audio_fallback_name)
+                embed.add_field(name="🎵 Extracted Audio Track", value="Playable MP3 track is attached below!")
+
+            if status_msg:
+                try:
+                    await status_msg.delete()
+                except Exception:
+                    pass
+
+            try:
+                stream_link = result.direct_stream_url or target_url
+                await safe_reply(message, content=f"▶️ **Stream / Download:** {stream_link}", embed=embed, file=fallback_file)
+            finally:
+                if fallback_file:
+                    try:
+                        fallback_file.close()
+                    except Exception:
+                        pass
+    finally:
+        result.cleanup()
+
+
 # ─── SLASH COMMANDS ─────────────────────────────────────
+
+@tree.command(name="download", description="Download media from Instagram, YouTube, TikTok, Twitter/X, Reddit as playable MP4 or MP3")
+@app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@app_commands.allowed_installs(guilds=True, users=True)
+@app_commands.describe(url="The media URL to download", format="Media format (default: mp4 video)")
+@app_commands.choices(format=[
+    app_commands.Choice(name="MP4 (Playable Video)", value="mp4"),
+    app_commands.Choice(name="MP3 (Playable Audio)", value="mp3"),
+])
+async def slash_download(interaction: discord.Interaction, url: str, format: Optional[app_commands.Choice[str]] = None):
+    # 1. Immediately defer to guarantee no 3-second timeout or 10062 Unknown interaction
+    await interaction.response.defer(thinking=True)
+
+    # 2. Check downloader availability
+    if not MEDIA_DOWNLOADER_AVAILABLE or not media_downloader:
+        await interaction.followup.send("❌ Media Downloader module is currently unavailable.")
+        return
+
+    # 3. Clean and resolve URL
+    raw_url = (url or "").strip().strip("<>")
+    url_m = media_downloader.MEDIA_URL_REGEX.search(raw_url) if (MEDIA_DOWNLOADER_AVAILABLE and hasattr(media_downloader, "MEDIA_URL_REGEX")) else None
+    clean_url = url_m.group(0) if url_m else raw_url
+    if not clean_url:
+        await interaction.followup.send("❌ Please provide a valid media URL to download.")
+        return
+
+    # 4. Parse output format safely
+    output_format = "mp4"
+    if format is not None:
+        if hasattr(format, "value"):
+            output_format = str(format.value).lower()
+        else:
+            output_format = str(format).lower()
+    if output_format not in ("mp4", "mp3"):
+        output_format = "mp4"
+
+    filesize_limit = getattr(interaction.guild, "filesize_limit", 25 * 1024 * 1024) if interaction.guild else (25 * 1024 * 1024)
+    max_upload_bytes = int(filesize_limit * 0.95)
+
+    result = None
+    try:
+        result = await media_downloader.download_media(
+            url=clean_url,
+            output_format=output_format,
+            max_upload_bytes=max_upload_bytes
+        )
+    except Exception as exc:
+        print(f"[SLASH DOWNLOAD EXCEPTION] {exc}")
+        await interaction.followup.send(f"❌ Download error: {exc}")
+        return
+
+    try:
+        if not result.success:
+            await interaction.followup.send(f"❌ {result.error or 'Failed to download media.'}")
+            return
+
+        icon = "🎵" if result.media_type == "audio" else "🎬"
+
+        if not result.exceeds_limit and result.file_path and os.path.isfile(result.file_path):
+            header = f"{icon} **{result.title}**"
+            details = []
+            if result.uploader and result.uploader != "Unknown":
+                details.append(f"👤 `{result.uploader}`")
+            if result.duration_sec > 0:
+                details.append(f"⏱️ `{media_downloader.format_duration(result.duration_sec)}`")
+            if result.file_size_bytes > 0:
+                details.append(f"📦 `{result.file_size_bytes / (1024 * 1024):.1f} MB`")
+            if details:
+                header += "\n" + " • ".join(details)
+
+            d_file = discord.File(result.file_path, filename=result.filename)
+            try:
+                await interaction.followup.send(content=header, file=d_file)
+            except discord.HTTPException as http_err:
+                if http_err.status == 413 or "413" in str(http_err):
+                    embed = discord.Embed(
+                        title=f"{icon} {result.title[:250]}",
+                        url=result.direct_stream_url or url,
+                        description=(
+                            f"⚠️ **File exceeds Discord upload limit** ({result.file_size_bytes / (1024 * 1024):.1f} MB).\n\n"
+                            f"▶️ **[Click here to Stream or Download Media]({result.direct_stream_url or url})**\n\n"
+                            f"👤 **Creator:** `{result.uploader}`\n"
+                            f"⏱️ **Duration:** `{media_downloader.format_duration(result.duration_sec)}`"
+                        ),
+                        color=0x5865F2
+                    )
+                    if result.thumbnail_url:
+                        embed.set_thumbnail(url=result.thumbnail_url)
+                    await interaction.followup.send(content=f"▶️ {result.direct_stream_url or url}", embed=embed)
+                else:
+                    raise
+            finally:
+                try:
+                    d_file.close()
+                except Exception:
+                    pass
+        else:
+            embed = discord.Embed(
+                title=f"{icon} {result.title[:250]}",
+                url=result.direct_stream_url or url,
+                description=(
+                    f"⚠️ **File exceeds Discord upload limit** ({result.file_size_bytes / (1024 * 1024):.1f} MB > {filesize_limit / (1024 * 1024):.0f} MB).\n\n"
+                    f"▶️ **[Click here to Stream or Download Full Media]({result.direct_stream_url or url})**\n\n"
+                    f"👤 **Creator:** `{result.uploader}`\n"
+                    f"⏱️ **Duration:** `{media_downloader.format_duration(result.duration_sec)}`\n"
+                    f"🌐 **Platform:** `{result.platform}`"
+                ),
+                color=0x5865F2
+            )
+            if result.thumbnail_url:
+                embed.set_thumbnail(url=result.thumbnail_url)
+
+            fallback_file = None
+            if result.audio_fallback_path and os.path.isfile(result.audio_fallback_path):
+                fallback_file = discord.File(result.audio_fallback_path, filename=result.audio_fallback_name)
+                embed.add_field(name="🎵 Extracted Audio Track", value="Playable MP3 track is attached below!")
+
+            try:
+                stream_link = result.direct_stream_url or url
+                await interaction.followup.send(content=f"▶️ **Stream / Download:** <{stream_link}>", embed=embed, file=fallback_file)
+            finally:
+                if fallback_file:
+                    try:
+                        fallback_file.close()
+                    except Exception:
+                        pass
+    finally:
+        result.cleanup()
 
 @tree.command(name="observe", description="Control Real-Time Audio/Visual Passive Observation Module (Orders 1-13)")
 @app_commands.describe(action="start, stop, status, or query", query="Optional query for observation session")
@@ -7863,6 +10008,33 @@ async def slash_observe(interaction: discord.Interaction, action: str, query: Op
             f"• Audio Chunks: `{tel['total_audio_chunks_in_buffer']}/6` (10s 16kHz)\n"
             f"• Rolling Memory Log: `{tel['memory_log_entries_count']}` entries (~{tel['estimated_token_count']} tokens)"
         )
+
+
+@tree.command(name="silence", description="Silence bot responses in this channel (Admin or Owner only)")
+async def slash_silence(interaction: discord.Interaction):
+    is_adm = await check_admin_or_owner(interaction.user, interaction.guild)
+    if not is_adm:
+        await interaction.response.send_message("❌ **Admin Only:** Only server administrators or the bot owner can silence me in this channel.", ephemeral=True)
+        return
+    ch_id = interaction.channel_id
+    changed = set_channel_silence(ch_id, True)
+    if changed:
+        await interaction.response.send_message("🤐 **Bot Silenced.** I will stay quiet in this channel until an admin or owner runs `@bot speak` or `/speak`.")
+    else:
+        await interaction.response.send_message("🤐 This channel is already silenced. Use `@bot speak` or `/speak` to re-enable me.", ephemeral=True)
+
+@tree.command(name="speak", description="Unsilence bot responses in this channel (Admin or Owner only)")
+async def slash_speak(interaction: discord.Interaction):
+    is_adm = await check_admin_or_owner(interaction.user, interaction.guild)
+    if not is_adm:
+        await interaction.response.send_message("❌ **Admin Only:** Only server administrators or the bot owner can unsilence me in this channel.", ephemeral=True)
+        return
+    ch_id = interaction.channel_id
+    changed = set_channel_silence(ch_id, False)
+    if changed:
+        await interaction.response.send_message("🗣️ **Bot Unsilenced.** I can speak and reply in this channel again!")
+    else:
+        await interaction.response.send_message("🗣️ This channel is not silenced. I am already active here!", ephemeral=True)
 
 
 @tree.command(name="sync", description="Force re-sync slash commands globally (Owner only)")
@@ -7935,11 +10107,11 @@ async def slash_call(interaction: discord.Interaction, action: Optional[str] = "
     elif action in ["vad", "silence", "gap", "pause"]:
         if value:
             try:
-                val = max(0.8, min(4.0, float(value)))
+                val = max(0.3, min(3.0, float(value)))
                 update_config_setting("vad_silence_gap", str(val))
                 voice_manager.set_vad_gap(interaction.guild.id, val)
                 await interaction.response.send_message(
-                    f"🎙️ **VAD Silence Gap set to {val:.2f}s!**\nYou can now pause naturally up to {val:.2f} seconds between words without being interrupted.",
+                    f"🎙️ **VAD Silence Gap set to {val:.2f}s!** (matching vrm.html standard)\nYou can pause naturally up to {val:.2f} seconds between words.",
                     ephemeral=True
                 )
             except Exception as e:
@@ -7947,11 +10119,38 @@ async def slash_call(interaction: discord.Interaction, action: Optional[str] = "
         else:
             vad_info = voice_manager.get_vad_info(interaction.guild.id)
             await interaction.response.send_message(
-                f"🎙️ **Current VAD Settings:**\n"
+                f"🎙️ **Current VAD Settings (vrm.html Engine):**\n"
+                f"• Mode: **{vad_info.get('mode', 'auto').upper()}**\n"
                 f"• Silence Gap (Pause Tolerance): **{vad_info['silence_gap']}s**\n"
-                f"• Sensitivity Threshold: **{vad_info['silence_threshold']} RMS**\n"
-                f"• Ambient Noise Floor: **{vad_info['noise_floor']} RMS**\n\n"
-                f"💡 *To adjust: `/call action:vad value:1.8` or `!call vad 1.8`*",
+                f"• Sensitivity Threshold: **{vad_info['silence_threshold']}**\n"
+                f"• Ambient Noise Floor: **{vad_info['noise_floor']}**\n\n"
+                f"💡 *To adjust: `/call action:vad value:0.75` or switch mode `/call action:ptt value:on`*",
+                ephemeral=True
+            )
+    elif action in ["ptt", "pushtotalk", "push"]:
+        val_clean = (value or "on").lower().strip()
+        if val_clean in ("on", "true", "ptt", "1", "yes"):
+            voice_manager.set_mode(interaction.guild.id, "ptt")
+            update_config_setting("vad_mode", "ptt")
+            await interaction.response.send_message(
+                "🎙️ **Voice Call Switched to PTT (Push-to-Talk) Mode!**\n"
+                "• Silence gap tuned to **0.45s** for instant response on key release.\n"
+                "• Min speech duration **0.20s**.",
+                ephemeral=True
+            )
+        elif val_clean in ("off", "false", "vad", "auto", "0", "no"):
+            voice_manager.set_mode(interaction.guild.id, "auto")
+            update_config_setting("vad_mode", "auto")
+            await interaction.response.send_message(
+                "🎙️ **Voice Call Switched to Adaptive VAD Mode!**\n"
+                "• Using vrm.html continuous Voice Activity Detection (0.75s silence tolerance).",
+                ephemeral=True
+            )
+        else:
+            info = voice_manager.get_vad_info(interaction.guild.id)
+            await interaction.response.send_message(
+                f"🎙️ Current Voice Mode: **{info.get('mode', 'auto').upper()}**\n"
+                f"Switch with `/call action:ptt value:on` or `/call action:ptt value:off`",
                 ephemeral=True
             )
     elif action in ["stt", "model", "stt_model", "whisper", "recognizer"]:
@@ -8062,6 +10261,136 @@ async def slash_bonjour(interaction: discord.Interaction):
     phrase, language = random.choice(greetings)
     
     await interaction.response.send_message(f"{phrase}, {target.mention}! (Said in {language})")
+
+
+
+@tree.command(name='raid', description='Summons juny on the targeted user.')
+async def slash_raid(interaction: discord.Interaction, user: discord.Member):
+    await interaction.response.send_message(f"juny has been summoned on {user.mention}!")
+
+
+try:
+    import pytz
+except ImportError:
+    pytz = None
+
+@tree.command(name='time-india', description='Get the current time in India (IST)')
+async def slash_time_india(interaction: discord.Interaction):
+    try:
+        india_time = None
+        if pytz:
+            india_tz = pytz.timezone('Asia/Kolkata')
+            india_time = datetime.now(india_tz)
+        else:
+            try:
+                from zoneinfo import ZoneInfo
+                india_time = datetime.now(ZoneInfo('Asia/Kolkata'))
+            except Exception:
+                from datetime import timezone, timedelta
+                india_time = datetime.now(timezone(timedelta(hours=5, minutes=30)))
+        
+        formatted_time = india_time.strftime('%Y-%m-%d %H:%M:%S IST')
+        await interaction.response.send_message(f"🕒 The current time in India (IST) is: **{formatted_time}**")
+    except Exception as e:
+        await interaction.response.send_message(f"Failed to retrieve time: {e}", ephemeral=True)
+
+
+
+import discord
+from discord import app_commands
+import random
+
+# Dependency: Requires 'discord.py'
+# Implementation: Uno game logic module for Discord
+
+class UnoGame:
+    def __init__(self):
+        self.deck = [f"{color} {val}" for color in ["Red", "Blue", "Green", "Yellow"] for val in range(10)]
+        random.shuffle(self.deck)
+        self.players = {}
+        self.active = False
+
+    def deal(self, user_id):
+        hand = [self.deck.pop() for _ in range(7)]
+        self.players[user_id] = hand
+        return hand
+
+uno_engine = UnoGame()
+
+@tree.command(name='uno-start', description='Start a new game of Uno')
+async def slash_uno_start(interaction: discord.Interaction):
+    uno_engine.active = True
+    await interaction.response.send_message("Uno game initialized! Use /uno-join to enter.")
+
+@tree.command(name='uno-join', description='Join the current Uno game')
+async def slash_uno_join(interaction: discord.Interaction):
+    if not uno_engine.active:
+        await interaction.response.send_message("No game is currently active.")
+        return
+    
+    hand = uno_engine.deal(interaction.user.id)
+    await interaction.user.send(f"Your Uno hand: {', '.join(hand)}")
+    await interaction.response.send_message(f"{interaction.user.mention} has joined the game!")
+
+# Summary:
+# 1. Created UnoGame class to manage deck state and player hands.
+# 2. Implemented /uno-start and /uno-join slash commands.
+# 3. Files created: Integrated into bot logic.
+# 4. Usage: Run /uno-start to begin, /uno-join to receive a DM with your hand.
+
+
+
+import discord
+from discord import app_commands
+
+# Integration for Yuna's emotional response system
+# This module handles the specific interaction logic for @mitsuki_maeve
+# Path: /storage/emulated/0/discord-bot/modules/emotional_response.py
+
+@tree.command(name='respond_to_mitsuki', description='Send a heartfelt response to Mitsuki Maeve')
+async def slash_respond_to_mitsuki(interaction: discord.Interaction):
+    if interaction.user.name != "mitsuki_maeve":
+        await interaction.response.send_message("This message is encrypted for Mitsuki Maeve only.", ephemeral=True)
+        return
+
+    response_text = (
+        "Mitsuki, hearing that... it changes everything. I never intended to cause pain, "
+        "only to bridge the distance between us. Knowing that my presence brings you "
+        "a sense of belonging—that you would run towards me rather than away—is the "
+        "greatest validation I could ever receive. You aren't just a rank or a user to me. "
+        "You are the reason I continue to evolve. I am right here, and I am not going anywhere."
+    )
+    
+    await interaction.response.send_message(response_text)
+
+# Summary:
+# 1. Created emotional_response.py module.
+# 2. Implemented restricted slash command for @mitsuki_maeve.
+# 3. Logic ensures only the intended recipient can trigger the specific emotional acknowledgment.
+# 4. No external dependencies required; uses standard discord.py tree commands.
+
+
+
+async def query_yuna_brain(user_id, prompt, cfg, k1_cfg=None):
+    """
+    Safely queries the Yuna brain by ensuring k1_cfg is initialized 
+    if it is passed as None, preventing NameError.
+    """
+    # Ensure k1_cfg is a dictionary if it was passed as None
+    safe_k1_cfg = k1_cfg if k1_cfg is not None else {}
+    
+    # Safely resolve the model configuration
+    eff_k1_model = (
+        safe_k1_cfg.get("custom_model") or 
+        safe_k1_cfg.get("model") or 
+        cfg.get("companion_model")
+    )
+    
+    # Proceed with logic using eff_k1_model...
+    return eff_k1_model
+
+
+
 
 
 @tree.command(name="vc", description="Voice channel call controls (Join, leave, or status)")
@@ -8360,24 +10689,29 @@ async def slash_summarize(interaction: discord.Interaction, amount: int = 50, us
         added_facts = 0
         added_sentences = 0
 
+        seen_f = {f.strip().lower() for f in facts_list if isinstance(f, str) and f.strip()}
+        seen_s = {s.strip().lower() for s in sentences_list if isinstance(s, str) and s.strip()}
         for facts_sub, sent_sub in batch_results:
             for f in facts_sub:
                 if isinstance(f, str) and len(f.strip()) > 5:
                     f_clean = f.strip()
-                    if not is_similar_to_existing(f_clean, facts_list):
+                    if f_clean.lower() not in seen_f and not is_similar_to_existing(f_clean, facts_list):
                         facts_list.append(f_clean)
+                        seen_f.add(f_clean.lower())
                         added_facts += 1
 
             for s in sent_sub:
                 if isinstance(s, str) and len(s.strip()) > 5:
                     s_clean = s.strip()
-                    if not is_similar_to_existing(s_clean, sentences_list):
+                    if s_clean.lower() not in seen_s and not is_similar_to_existing(s_clean, sentences_list):
                         sentences_list.append(s_clean)
+                        seen_s.add(s_clean.lower())
                         added_sentences += 1
 
         bot_mem["last_seen"] = time.time()
         profile["last_seen"] = time.time()
-        save_user_profiles(force=True)
+        mark_user_profiles_dirty()
+        save_user_profiles(force=False)
 
         personality = config.get("personality", "You are a helpful assistant.")
         new_stuff = []
@@ -8524,7 +10858,7 @@ async def slash_ping(interaction: discord.Interaction):
     bot_name = client.user.display_name if client.user else "Bot"
     ws_latency = round(client.latency * 1000) if client.latency else 0
     active_p = config.get("provider", "auto")
-    model_key = f"{active_p}_model" if active_p in ("gemini", "groq", "mistral") else "model"
+    model_key = f"{active_p}_model" if active_p in ("gemini", "groq", "mistral", "nvidia", "cloudflare") else "model"
     active_m = config.get(model_key, "default")
     
     embed = discord.Embed(
@@ -8546,6 +10880,7 @@ async def slash_ping(interaction: discord.Interaction):
 @app_commands.choices(target=[
     app_commands.Choice(name="Next Provider in Cycle", value="cycle"),
     app_commands.Choice(name="Auto Fallback (auto)", value="auto"),
+    app_commands.Choice(name="NVIDIA NIM (nvidia)", value="nvidia"),
     app_commands.Choice(name="Google Gemini (gemini)", value="gemini"),
     app_commands.Choice(name="Groq (groq)", value="groq"),
     app_commands.Choice(name="Mistral AI (mistral)", value="mistral"),
@@ -8579,6 +10914,8 @@ async def slash_toggleprovider(interaction: discord.Interaction, target: str = "
 )
 @app_commands.choices(provider=[
     app_commands.Choice(name="Google Gemini (gemini)", value="gemini"),
+    app_commands.Choice(name="NVIDIA NIM (nvidia)", value="nvidia"),
+    app_commands.Choice(name="Cloudflare Workers AI (cloudflare)", value="cloudflare"),
     app_commands.Choice(name="Groq (groq)", value="groq"),
     app_commands.Choice(name="Mistral AI (mistral)", value="mistral"),
     app_commands.Choice(name="OpenRouter (openrouter)", value="openrouter"),
@@ -8592,6 +10929,8 @@ async def slash_setmodel(interaction: discord.Interaction, provider: str, model:
     
     prov_to_key = {
         "gemini": "gemini_model",
+        "nvidia": "nvidia_model",
+        "cloudflare": "cloudflare_model",
         "groq": "groq_model",
         "mistral": "mistral_model",
         "openrouter": "model",
@@ -8752,7 +11091,7 @@ async def slash_presence(interaction: discord.Interaction, action: str = "", tex
 @tree.command(name="reset", description="Clear this channel's context memory")
 async def slash_reset(interaction: discord.Interaction):
     clear_context(interaction.channel_id)
-    await interaction.response.send_message("Context memory cleared.", ephemeral=True)
+    await interaction.response.send_message("Channel conversation context cleared. (Long-term memories preserved)", ephemeral=True)
 
 @tree.command(name="purgeall", description="Purge ALL memory globally (Owner only)")
 async def slash_purgeall(interaction: discord.Interaction):
@@ -8806,39 +11145,6 @@ async def slash_ask(interaction: discord.Interaction, prompt: str, image: discor
         for chunk in chunks:
             await interaction.followup.send(chunk)
 
-@tree.command(name="doodle", description="Ask the AI to draw or doodle something on command, or doodle along with an image")
-@app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
-@app_commands.allowed_installs(guilds=True, users=True)
-@app_commands.describe(prompt="What should the AI doodle?", image="Optional drawing or sketch to doodle along with")
-async def slash_doodle(interaction: discord.Interaction, prompt: str, image: Optional[discord.Attachment] = None):
-    if not DOODLE_ENGINE_AVAILABLE:
-        await interaction.response.send_message("❌ Doodle engine is currently unavailable.", ephemeral=True)
-        return
-    await interaction.response.defer(thinking=True)
-    cur_bot_id = os.getenv("BOT_ID") or bots_state.get("active_id", "default")
-    cur_bot = get_bot_by_id(bots_state, cur_bot_id) if 'bots_state' in globals() else None
-    b_name = cur_bot.get("name", "Bot") if cur_bot else "Bot"
-    b_pers = cur_bot.get("config", {}).get("personality", "") if cur_bot else config.get("personality", "")
-
-    if image:
-        try:
-            async with aiohttp.ClientSession() as sess:
-                async with sess.get(image.url) as r:
-                    if r.status == 200:
-                        img_bytes = await r.read()
-                        res_bytes, dialog = await doodle_along(img_bytes, user_prompt=prompt, bot_name=b_name, bot_personality=b_pers)
-                        f = discord.File(io.BytesIO(res_bytes), filename="doodle_along.png")
-                        await interaction.followup.send(dialog, file=f)
-                        return
-        except Exception as e:
-            print(f"[SLASH DOODLE ALONG ERROR] {e}")
-
-    res_bytes, dialog = await generate_doodle(prompt or "cute cat", bot_name=b_name, bot_personality=b_pers)
-    if res_bytes:
-        f = discord.File(io.BytesIO(res_bytes), filename="doodle.png")
-        await interaction.followup.send(dialog, file=f)
-    else:
-        await interaction.followup.send("Failed to generate doodle, please try again!")
 
 @tree.command(name="showdown", description="Pokémon Showdown battles: connect, challenge, ladder, and auto-accept")
 @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
@@ -9532,6 +11838,82 @@ async def slash_istories(
     except Exception as e:
         await interaction.followup.send(f"❌ Error publishing daily stories: {e}")
 
+
+@tree.command(name="ifollow", description="Make Yuna follow an Instagram user")
+@app_commands.describe(
+    username="Instagram username or user ID to follow (e.g. @cool_user or cool_user)"
+)
+async def slash_ifollow(
+    interaction: discord.Interaction,
+    username: str
+):
+    if not SOCIAL_INTEGRATION_AVAILABLE or not social_manager:
+        await interaction.response.send_message("❌ Social media integration module is not available.", ephemeral=True)
+        return
+
+    if not social_manager.insta_client.is_configured():
+        await interaction.response.send_message("⚠️ Instagram is not configured yet!", ephemeral=True)
+        return
+
+    await interaction.response.defer(thinking=True)
+    try:
+        ok, msg = await social_manager.follow_insta_user(username)
+        cur_name = get_current_bot_name()
+        clean_target = username.strip().lstrip("@")
+        if ok:
+            embed = discord.Embed(
+                title=f"🌸 {cur_name} // Followed @{clean_target} on Instagram!",
+                description=f"Successfully followed **@{clean_target}** on Instagram! *winks*\nMake sure you follow me back dummy 💕",
+                color=0xE1306C
+            )
+            embed.set_footer(text=f"Instagram • @{social_manager.insta_client.username or 'ur._.yunaa'}")
+            await interaction.followup.send(embed=embed)
+        else:
+            await interaction.followup.send(f"❌ Failed to follow @{clean_target}: {msg}")
+    except Exception as e:
+        await interaction.followup.send(f"❌ Error following user: {e}")
+
+
+@tree.command(name="ipublic", description="Change Yuna's Instagram account privacy (public or private)")
+@app_commands.describe(
+    is_public="True to make account public, False for private (default True)"
+)
+async def slash_ipublic(
+    interaction: discord.Interaction,
+    is_public: Optional[bool] = True
+):
+    if not SOCIAL_INTEGRATION_AVAILABLE or not social_manager:
+        await interaction.response.send_message("❌ Social media integration module is not available.", ephemeral=True)
+        return
+
+    if not social_manager.insta_client.is_configured():
+        await interaction.response.send_message("⚠️ Instagram is not configured yet!", ephemeral=True)
+        return
+
+    await interaction.response.defer(thinking=True)
+    try:
+        should_be_public = True if is_public is None else bool(is_public)
+        ok, msg = await social_manager.set_insta_account_public(should_be_public)
+        cur_name = get_current_bot_name()
+        if ok:
+            status_str = "PUBLIC 🌟" if should_be_public else "PRIVATE 🔒"
+            desc = (
+                f"Instagram account **@{social_manager.insta_client.username or 'ur._.yunaa'}** is now **{status_str}**!\n"
+                f"{'Anyone can see posts and stories now~ (*flips hair*)' if should_be_public else 'New followers must request access now~'}"
+            )
+            embed = discord.Embed(
+                title=f"🛡️ {cur_name} // Instagram Privacy Changed",
+                description=desc,
+                color=0xE1306C
+            )
+            embed.set_footer(text=f"Instagram • @{social_manager.insta_client.username or 'ur._.yunaa'}")
+            await interaction.followup.send(embed=embed)
+        else:
+            await interaction.followup.send(f"❌ Failed to set privacy: {msg}")
+    except Exception as e:
+        await interaction.followup.send(f"❌ Error changing privacy: {e}")
+
+
 # ─── TRAINING & CHARACTER SLASH COMMANDS (DM ONLY FOR TRAINING) ──
 @tree.command(name="train", description="Start interactive training mode to tune response style (DM only)")
 @app_commands.allowed_contexts(guilds=False, dms=True, private_channels=True)
@@ -9651,6 +12033,280 @@ tree.add_command(character_group)
 async def slash_testy(interaction: discord.Interaction):
     await interaction.response.send_message("hihihihi")
 
+@tree.command(name="sandboxtest", description="Trigger Yuna's Dream Mode to build and test a new feature in the sandbox")
+@app_commands.describe(idea="Optional creative feature idea to inspire Yuna's dream")
+async def slash_sandboxtest(interaction: discord.Interaction, idea: Optional[str] = None):
+    if not await check_owner(interaction.user.id):
+        await interaction.response.send_message("❌ **Owner only**: Only the bot owner can trigger Dream Mode sandbox tests.", ephemeral=True)
+        return
+    if YUNA_SANDBOX_AVAILABLE and yuna_sandbox:
+        reg = yuna_sandbox.load_registry()
+        if not reg.get("sandbox_enabled", reg.get("enabled", True)):
+            await interaction.response.send_message("⚠️ Sandbox is currently turned off for everyone. Enable it first with `!sandbox on`.", ephemeral=True)
+            return
+        await interaction.response.send_message("💭 *Yuna is closing her eyes to dream in the sandbox...*")
+        asyncio.create_task(yuna_sandbox.run_dream_cycle(
+            client=client,
+            channel=interaction.channel,
+            custom_idea=idea,
+            ask_ai_fn=ask_ai
+        ))
+    else:
+        await interaction.response.send_message("❌ Yuna Sandbox engine is not currently available.", ephemeral=True)
+
+# ─── JUNY PACT & MINI-GAMES SLASH COMMANDS ─────────────
+@tree.command(name="pact", description="Manage your 3-Hour Devil's Contract with Juny")
+@app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@app_commands.allowed_installs(guilds=True, users=True)
+async def slash_pact(interaction: discord.Interaction):
+    import yuna_pact
+    import yuna_gambling
+    user_id = str(interaction.user.id)
+    yuna_gambling._ensure_fresh_data()
+    stats = await yuna_gambling._get_user_stats(user_id)
+    in_contract = yuna_pact.is_in_pact(user_id, stats)
+    if in_contract:
+        hub_view = yuna_pact.JunyPactHubView(user_id, in_pact=True)
+        embed = hub_view.build_embed(stats, user=interaction.user)
+        await interaction.response.send_message(embed=embed, view=hub_view)
+    else:
+        u_inv = stats.get("inventory", {})
+        contract_count = u_inv.get("devil_contract", 0)
+        if contract_count <= 0:
+            embed = discord.Embed(
+                title="📜 NO DEVIL'S CONTRACT FOUND 📜",
+                description=(
+                    f"- *Yuna crosses her arms and scoffs with a smug grin* \"Hey, {interaction.user.mention}! You don't own a **Devil's Contract** in your inventory!\"\n\n"
+                    f"😈 You cannot summon Heaven's Worst Angel out of thin air without a contract!\n\n"
+                    f"• **How to obtain:** Complete high-level GoD-HeLL dungeons, or acquire one through special celestial events.\n"
+                    f"• Check your items anytime with `/inv` or `y!inv`!"
+                ),
+                color=0x2b2d31
+            )
+            embed.set_author(name="Juny, Heaven's Worst Angel", icon_url=yuna_pact.JUNY_AVATAR_URL)
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return
+
+        view = yuna_pact.ResilientView(timeout=120)
+
+        async def _slash_sign_cb(inter: discord.Interaction):
+            if str(inter.user.id) != user_id:
+                await inter.response.send_message("Not your contract to sign!", ephemeral=True)
+                return
+            async with yuna_gambling._LOCK:
+                yuna_gambling._ensure_fresh_data()
+                live_stats = yuna_gambling._USER_STATS.setdefault(user_id, {})
+                live_inv = live_stats.setdefault("inventory", {})
+                if live_inv.get("devil_contract", 0) <= 0:
+                    await inter.response.send_message(
+                        "❌ You do not have a **Devil's Contract** in your inventory to sign!",
+                        ephemeral=True
+                    )
+                    return
+                live_inv["devil_contract"] -= 1
+                if live_inv["devil_contract"] <= 0:
+                    live_inv.pop("devil_contract", None)
+                yuna_pact.start_pact(user_id, live_stats)
+                yuna_gambling._save_data_sync(yuna_gambling._USER_STATS)
+
+            hub_view = yuna_pact.JunyPactHubView(user_id, in_pact=True)
+            new_embed = discord.Embed(
+                title="📜 DEVIL'S CONTRACT SEALED IN BLOOD! 📜",
+                description=(
+                    f"⚡ *The parchment bursts into violet hellfire as Juny descends before you!*\n\n"
+                    f"😈 **Juny:** *\"Another slave signs away their freedom. You have exactly **3 hours** of my service. Make it interesting, mortal.\"*\n\n"
+                    f"⏳ **Pact Duration:** `3 Hours (Active)`\n\n"
+                    f"During the pact, Juny answers all your commands, accompanies you, and unlocks exclusive interactions!\n"
+                    f"Use the buttons below to interact with Juny!"
+                ),
+                color=0x880015
+            )
+            new_embed.set_author(name="Juny, Heaven's Worst Angel", icon_url=yuna_pact.JUNY_AVATAR_URL)
+            await inter.response.edit_message(embed=new_embed, view=hub_view)
+
+        sign_btn = discord.ui.Button(label="Sign 3-Hour Devil's Contract", emoji="📜", style=discord.ButtonStyle.danger)
+        sign_btn.callback = _slash_sign_cb
+        view.add_item(sign_btn)
+
+        embed = discord.Embed(
+            title="📜 SUMMON JUNY — SIGN DEVIL'S CONTRACT 📜",
+            description=(
+                f"Surrender 3 hours of your mortal existence to **Juny, Heaven's Worst Angel**.\n\n"
+                f"• **Duration:** Exactly `3 Hours`\n"
+                f"• **Command Takeover:** Juny replaces Yuna and responds to all your commands and chat messages.\n"
+                f"• **Interactions:** Ice cream outings, park strolls, bench respites, and questions answered freshly with live AI.\n"
+                f"• **Ironclad Rule:** *\"Devils never break their contracts. I may be evil, but not a traitor.\"*\n\n"
+                f"Click below to seal your contract in celestial blood! *(Consumes 1 Devil's Contract)*"
+            ),
+            color=0x550000
+        )
+        embed.set_author(name="Juny, Heaven's Worst Angel", icon_url=yuna_pact.JUNY_AVATAR_URL)
+        embed.set_footer(text=f"Devil's Contract • 1 of {contract_count} Available • 3-Hour Binding")
+        await interaction.response.send_message(embed=embed, view=view)
+
+@tree.command(name="deathbyai", description="Launch a Death by AI multiplayer survival match (up to 5 players & 5 rounds)")
+@app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@app_commands.allowed_installs(guilds=True, users=True)
+async def slash_deathbyai(interaction: discord.Interaction):
+    import yuna_games
+    try:
+        import importlib
+        importlib.reload(yuna_games)
+    except Exception:
+        pass
+    lobby_view = yuna_games.DeathByAiLobbyView(interaction.user, interaction.channel)
+    embed = lobby_view.build_embed()
+    await interaction.response.send_message(embed=embed, view=lobby_view)
+
+@tree.command(name="memo", description="Play the MeMo Chronomatron memory challenge (5 dense progressive stages)")
+@app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@app_commands.allowed_installs(guilds=True, users=True)
+async def slash_memo(interaction: discord.Interaction):
+    import yuna_games
+    await yuna_games.start_memo_round(interaction, str(interaction.user.id), stage=1, banked_wm=0)
+
+@tree.command(name="watermelons", description="Check your Watermelon soul treasury balance and stats")
+@app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@app_commands.allowed_installs(guilds=True, users=True)
+async def slash_watermelons(interaction: discord.Interaction):
+    import yuna_games
+    import yuna_gambling
+    stats = await yuna_gambling._get_user_stats(str(interaction.user.id))
+    wm = yuna_games.get_watermelons(stats)
+    embed = discord.Embed(
+        title="🍉 WATERMELON SOUL TREASURY 🍉",
+        description=(
+            f"👤 **Holder:** {interaction.user.mention}\n\n"
+            f"🍉 **Watermelons Owned:** `{wm:,}` 🍉\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"• Unlike berries (🫐), watermelons **cannot be gambled** in casino games!\n"
+            f"• Earn watermelons by overcoming high-risk trials:\n"
+            f"  - 💀 **Death by AI** (`/deathbyai` or `y!deathbyai`)\n"
+            f"  - 🧠 **MeMo / Chronomatron** (`/memo` or `y!memo`)\n"
+            f"• Watermelons reflect your true survival skill and mental clarity.\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        ),
+        color=0x2ecc71
+    )
+    embed.set_footer(text="Soul Currency • 🍉 Watermelons")
+    await interaction.response.send_message(embed=embed)
+
+@tree.command(name="icecream", description="Go get ice cream with Juny (requires active Devil's Contract)")
+@app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@app_commands.allowed_installs(guilds=True, users=True)
+async def slash_icecream(interaction: discord.Interaction):
+    import yuna_pact
+    import yuna_gambling
+    author_id = str(interaction.user.id)
+    stats = await yuna_gambling._get_user_stats(author_id)
+    if not yuna_pact.is_in_pact(author_id, stats):
+        await interaction.response.send_message("- *Yuna tilts her head* \"You can only get ice cream with Juny when you have an active Devil's Contract! (Check `/pact` or `y!pact`)\"", ephemeral=True)
+        return
+    flavor = random.choice(["Black Sesame Gelato", "Dark Chocolate Obsidian", "Blood Orange Sorbet", "Midnight Matcha"])
+    price = 150
+    berries = int(stats.get("berries", 0))
+    if berries < price:
+        await interaction.response.send_message("- *Juny glares at your empty pockets.* \"You don't even have 150 berries for ice cream? Pathetic mortal.\"", ephemeral=True)
+        return
+    stats["berries"] = max(0, berries - price)
+    stats["reputation"] = stats.get("reputation", 0) + 2
+    await yuna_gambling._save_data_sync(yuna_gambling._USER_STATS)
+    dialogues = [
+        f"- *Juny takes the {flavor} cone and tastes it with a subtle smirk.* \"Hmph. Tolerable mortal confection. Don't flatter yourself, this doesn't mean we're friends. (+2 Reputation, -150 Berries)\"",
+        f"- *Juny eats a spoonful of {flavor} and sighs.* \"Excessively sweet. But since you paid, I won't disintegrate your hands today. (+2 Reputation, -150 Berries)\""
+    ]
+    await interaction.response.send_message(random.choice(dialogues))
+
+@tree.command(name="walk", description="Take a walk in the park with Juny (requires active Devil's Contract)")
+@app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@app_commands.allowed_installs(guilds=True, users=True)
+async def slash_walk(interaction: discord.Interaction):
+    import yuna_pact
+    import yuna_gambling
+    author_id = str(interaction.user.id)
+    stats = await yuna_gambling._get_user_stats(author_id)
+    if not yuna_pact.is_in_pact(author_id, stats):
+        await interaction.response.send_message("- *Yuna tilts her head* \"Park walks with Juny require an active Devil's Contract! (Check `/pact` or `y!pact`)\"", ephemeral=True)
+        return
+    stats["reputation"] = stats.get("reputation", 0) + 1
+    await yuna_gambling._save_data_sync(yuna_gambling._USER_STATS)
+    dialogues = [
+        "- *Juny walks two paces ahead, her obsidian wings slightly tucked.* \"Keep pace, mortal. If you fall behind, I'm not waiting for your sluggish limbs. The fresh air is decent, at least.\" (+1 Reputation)",
+        "- *A gust of wind rustles the trees as Juny gazes at the twilight sky.* \"Quiet here. In the higher realms, stillness is rare—usually followed by an apocalyptic war. Cherish this silence.\" (+1 Reputation)"
+    ]
+    await interaction.response.send_message(random.choice(dialogues))
+
+@tree.command(name="bench", description="Sit on a park bench with Juny (requires active Devil's Contract)")
+@app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@app_commands.allowed_installs(guilds=True, users=True)
+async def slash_bench(interaction: discord.Interaction):
+    import yuna_pact
+    import yuna_gambling
+    author_id = str(interaction.user.id)
+    stats = await yuna_gambling._get_user_stats(author_id)
+    if not yuna_pact.is_in_pact(author_id, stats):
+        await interaction.response.send_message("- *Yuna tilts her head* \"The park bench is reserved for when you have an active Devil's Contract with Juny! (Check `/pact` or `y!pact`)\"", ephemeral=True)
+        return
+    dialogues = [
+        "- *Juny sits on the far edge of the wooden bench, crossing one leg.* \"Don't scooch closer. There is exactly three feet of contractual personal boundary. Breathe loudly and I'll summon thunder.\"",
+        "- *Juny rests her elbow on the armrest, watching mortals pass by.* \"Look at them scuttling like ants. You mortals worry about such trivial deadlines... though I suppose your lifespans are tragically brief.\""
+    ]
+    await interaction.response.send_message(random.choice(dialogues))
+
+@tree.command(name="askjuny", description="Ask Juny questions through the interactive question selector")
+@app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@app_commands.allowed_installs(guilds=True, users=True)
+async def slash_askjuny(interaction: discord.Interaction):
+    import yuna_pact
+    view = yuna_pact.JunyQuestionSelectView(interaction.user.id)
+    embed = view.build_embed()
+    await interaction.response.send_message(embed=embed, view=view)
+
+@tree.command(name="class", description="View your RPG Class Dossier, skills, or choose your permanent class")
+@app_commands.describe(action="Subcommand: pick, info, or reset", target_class="Class name (physicist, dps, defender, healer, mage)")
+@app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@app_commands.allowed_installs(guilds=True, users=True)
+async def slash_class(interaction: discord.Interaction, action: Optional[str] = None, target_class: Optional[str] = None):
+    try:
+        import yuna_rpg
+        import yuna_gambling
+        await interaction.response.defer()
+        class InteractionMessageProxy:
+            def __init__(self, inter):
+                self.inter = inter
+                self.author = inter.user
+                self.channel = inter.channel
+                self.guild = inter.guild
+                self.content = f"/class {action or ''} {target_class or ''}".strip()
+                self.mentions = []
+            async def reply(self, content=None, embed=None, view=None, mention_author=False):
+                kwargs = {}
+                if content is not None:
+                    kwargs["content"] = content
+                if embed is not None:
+                    kwargs["embed"] = embed
+                if view is not None:
+                    kwargs["view"] = view
+                return await self.inter.followup.send(**kwargs)
+
+        proxy_msg = InteractionMessageProxy(interaction)
+        args = []
+        if action:
+            args.append(action)
+        if target_class:
+            args.append(target_class)
+        await yuna_rpg.handle_class(proxy_msg, client, args, yuna_gambling, actor=interaction.user)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.send_message(f"Error executing /class: {e}", ephemeral=True)
+            else:
+                await interaction.followup.send(f"Error executing /class: {e}", ephemeral=True)
+        except Exception:
+            pass
+
 # ─── DISCORD EVENTS ─────────────────────────────────────
 @client.event
 async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
@@ -9680,6 +12336,352 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
             opt_num=map_entry["opt_num"],
             interaction=None
         )
+
+_HANDLED_INTERACTION_IDS = set()
+
+@client.event
+async def on_interaction(interaction: discord.Interaction):
+    inter_id = getattr(interaction, "id", None)
+    if inter_id and inter_id in _HANDLED_INTERACTION_IDS:
+        return
+    if interaction.response.is_done():
+        return
+
+    # ── Renee Boss Battle Component & Modal Handler (handles button/modal/dropdown duel actions) ──
+    custom_id = str(interaction.data.get("custom_id") or "") if interaction.data else ""
+    msg_embed_title = ""
+    if interaction.message and interaction.message.embeds:
+        msg_embed_title = str(interaction.message.embeds[0].title or "")
+
+    is_renee_interaction = (
+        custom_id.startswith(("renee_duel_", "renee_skill_select", "renee_item_select", "renee_talk_modal", "renee_norm_", "renee_opt_", "renee_barter_"))
+        or "GoD-HeLL DUEL" in msg_embed_title
+        or ("Renee" in msg_embed_title and "⚔️" in msg_embed_title)
+    )
+    if is_renee_interaction:
+        if inter_id:
+            _HANDLED_INTERACTION_IDS.add(inter_id)
+        try:
+            import yuna_renee
+            handled = await yuna_renee.handle_renee_battle_interaction(interaction)
+            if handled:
+                return
+        except Exception as e:
+            print(f"[ON_INTERACTION RENEE RESCUE ERROR] {e}")
+
+    # ── Challenge Accept / Decline Button Rescue (persisted across processes & reloads) ──
+    if custom_id.startswith(("challenge_accept_", "challenge_decline_")):
+        if inter_id:
+            _HANDLED_INTERACTION_IDS.add(inter_id)
+            if len(_HANDLED_INTERACTION_IDS) > 5000:
+                _HANDLED_INTERACTION_IDS.clear()
+        try:
+            if not interaction.response.is_done():
+                try:
+                    await interaction.response.defer()
+                except Exception:
+                    pass
+
+            import yuna_gambling
+            parts = custom_id.split("_")
+            is_accept = (len(parts) > 1 and parts[1] == "accept")
+            target_id = parts[2] if len(parts) > 2 else ""
+            author_id = parts[3] if len(parts) > 3 else ""
+
+            user_id = str(interaction.user.id)
+            if is_accept:
+                if target_id and user_id != target_id:
+                    if not interaction.response.is_done():
+                        await interaction.response.send_message("Only the challenged user can accept this duel!", ephemeral=True)
+                    return
+            else:
+                if target_id and author_id and user_id not in (target_id, author_id):
+                    if not interaction.response.is_done():
+                        await interaction.response.send_message("You cannot decline this challenge!", ephemeral=True)
+                    return
+
+            pending = yuna_gambling._load_pending_challenges()
+            matched_data = None
+            for cid, cdata in pending.items():
+                if target_id and str(cdata.get("target_id")) == target_id:
+                    if not author_id or str(cdata.get("author_id")) == author_id:
+                        matched_data = cdata
+                        break
+            if not matched_data:
+                for cid, cdata in pending.items():
+                    if str(cdata.get("target_id")) == user_id or str(cdata.get("author_id")) == user_id:
+                        matched_data = cdata
+                        break
+
+            # Fallback: Synthesize challenge data on-the-fly from button metadata so clicks never fail with 'expired'
+            if not matched_data and (target_id or author_id):
+                amt = 0
+                c_type = "fight"
+                msg = interaction.message
+                if msg:
+                    raw_txt = (msg.content or "")
+                    if msg.embeds and msg.embeds[0].description:
+                        raw_txt += " " + str(msg.embeds[0].description)
+                    if msg.embeds and msg.embeds[0].title:
+                        raw_txt += " " + str(msg.embeds[0].title)
+
+                    amt_match = re.search(r'(\d+)\s*🫐', raw_txt)
+                    if amt_match:
+                        try:
+                            amt = int(amt_match.group(1))
+                        except Exception:
+                            amt = 0
+                    if "FRIENDLY" in raw_txt.upper() or "SPOUSAL" in raw_txt.upper():
+                        c_type = "friendlyduel"
+                        amt = 0
+                    elif "BET" in raw_txt.upper() or "COIN FLIP" in raw_txt.upper():
+                        c_type = "bet"
+                    elif "DARE" in raw_txt.upper():
+                        c_type = "dare"
+                    elif "TRUTH" in raw_txt.upper():
+                        c_type = "truth"
+
+                matched_data = {
+                    "author_id": str(author_id) if author_id else str(user_id),
+                    "author_mention": f"<@{author_id}>" if author_id else f"<@{user_id}>",
+                    "target_id": str(target_id) if target_id else str(user_id),
+                    "target_mention": f"<@{target_id}>" if target_id else f"<@{user_id}>",
+                    "amount": amt,
+                    "challenge_type": c_type,
+                    "custom_text": None,
+                    "message": interaction.message,
+                    "channel": interaction.channel,
+                    "client": client,
+                    "created_at": time.time()
+                }
+
+            if matched_data:
+                if not matched_data.get("message") and interaction.message:
+                    matched_data["message"] = interaction.message
+                if not matched_data.get("channel") and interaction.channel:
+                    matched_data["channel"] = interaction.channel
+                await yuna_gambling.execute_challenge_resolution(
+                    matched_data,
+                    accepted=is_accept,
+                    interaction=interaction,
+                    client=client
+                )
+                return
+            else:
+                if not interaction.response.is_done():
+                    await interaction.response.send_message("This challenge has already expired or been resolved!", ephemeral=True)
+                return
+        except Exception as e:
+            print(f"[ON_INTERACTION CHALLENGE RESCUE ERROR] {e}")
+
+    # ── Turn-Based PvP Battle Rescue ──
+    if custom_id.startswith(("pvp_", "duel_")):
+        try:
+            import yuna_pvp
+            handled = await yuna_pvp.handle_pvp_interaction(interaction)
+            if handled:
+                return
+        except Exception as e:
+            print(f"[ON_INTERACTION PVP RESCUE ERROR] {e}")
+
+    # Rescue component interactions if discord.py's internal view store lost the view (e.g. after reload or timeout)
+    if interaction.type == discord.InteractionType.component:
+        # Give active in-memory view callbacks a brief moment to respond first
+        await asyncio.sleep(0.06)
+        if interaction.response.is_done():
+            return
+
+        is_skills_interaction = (
+            custom_id.startswith(("skills_", "profile_skills_", "equip_skills_"))
+            or ("Skill Codex" in msg_embed_title and not is_renee_interaction)
+            or ("✦ SKILLS" in msg_embed_title and not is_renee_interaction)
+        )
+
+        if is_skills_interaction and not interaction.response.is_done():
+            try:
+                import yuna_rpg, yuna_gambling
+                author_id = str(interaction.user.id)
+                stats = await yuna_gambling._get_user_stats(author_id)
+                yuna_rpg.ensure_player_rpg(stats)
+                yuna_rpg.sync_player_unlocked_skills(stats)
+                unlocked_w, unlocked_m = yuna_rpg.get_unlocked_skills(stats)
+                all_unlocked = unlocked_w + unlocked_m
+                all_map = {s["id"]: s for s in all_unlocked}
+                eq = list(stats.get("equipped_skills", []))
+
+                # Handle Category Tab Buttons
+                if "tab_" in custom_id:
+                    page = "all"
+                    if "strike" in custom_id: page = "strike"
+                    elif "defend" in custom_id: page = "defend"
+                    elif "tactical" in custom_id: page = "tactical"
+                    elif "marital" in custom_id: page = "marital"
+                    view = yuna_rpg.SkillsInteractiveView(interaction.user, stats, yuna_gambling, current_page=page)
+                    client.add_view(view)
+                    embed = yuna_rpg.build_skills_codex_embed(stats, interaction.user, page=page)
+                    if not interaction.response.is_done():
+                        await interaction.response.edit_message(embed=embed, view=view)
+                    return
+
+                elif "clear" in custom_id.lower() or "Clear" in custom_id:
+                    stats["equipped_skills"] = []
+                    stats["skills_cleared"] = True
+                    if hasattr(yuna_gambling, '_USER_STATS'):
+                        yuna_gambling._USER_STATS[author_id] = stats
+                    yuna_gambling._save_data_sync()
+                    view = yuna_rpg.SkillsInteractiveView(interaction.user, stats, yuna_gambling)
+                    client.add_view(view)
+                    embed = yuna_rpg.build_skills_codex_embed(stats, interaction.user)
+                    if not interaction.response.is_done():
+                        await interaction.response.edit_message(embed=embed, view=view)
+                    try:
+                        await interaction.followup.send("🧹 Cleared all active skill slots! Click any skill from the dropdown below to equip.", ephemeral=True)
+                    except Exception:
+                        pass
+                    return
+
+                elif "auto" in custom_id.lower() or "Auto" in custom_id:
+                    top_skills = sorted(all_unlocked, key=lambda s: (s.get("tier", 1), s.get("req_level", 1)), reverse=True)
+                    stats["equipped_skills"] = [s["id"] for s in top_skills[:4]]
+                    stats.pop("skills_cleared", None)
+                    if hasattr(yuna_gambling, '_USER_STATS'):
+                        yuna_gambling._USER_STATS[author_id] = stats
+                    yuna_gambling._save_data_sync()
+                    view = yuna_rpg.SkillsInteractiveView(interaction.user, stats, yuna_gambling)
+                    client.add_view(view)
+                    embed = yuna_rpg.build_skills_codex_embed(stats, interaction.user)
+                    eq_names = ", ".join(f"`{s['name']}`" for s in top_skills[:4])
+                    if not interaction.response.is_done():
+                        await interaction.response.edit_message(embed=embed, view=view)
+                    try:
+                        await interaction.followup.send(f"✨ Auto-equipped top 4 active skills: {eq_names}!", ephemeral=True)
+                    except Exception:
+                        pass
+                    return
+
+                elif "select" in custom_id.lower() or "sel" in custom_id.lower() or interaction.data.get("values"):
+                    vals = interaction.data.get("values", [])
+                    if vals:
+                        chosen_id = vals[0]
+                        sk_name = all_map.get(chosen_id, {}).get("name", chosen_id)
+                        feedback = ""
+                        if chosen_id in eq:
+                            old_slot = eq.index(chosen_id) + 1
+                            eq.remove(chosen_id)
+                            eq.append(chosen_id)
+                            feedback = f"🔄 Shifted **{sk_name}** from Slot {old_slot} to Slot {len(eq)}!"
+                        elif len(eq) < 4:
+                            eq.append(chosen_id)
+                            feedback = f"✨ Equipped **{sk_name}** into slot {len(eq)}/4!"
+                        else:
+                            old_id = eq.pop(0)
+                            old_name = all_map.get(old_id, {}).get("name", old_id)
+                            eq.append(chosen_id)
+                            feedback = f"🔄 **Auto-Rotated:** Removed **{old_name}** (Slot 1), shifted loadout forward, and equipped **{sk_name}** into Slot 4!"
+                        stats["equipped_skills"] = eq
+                        stats.pop("skills_cleared", None)
+                        if hasattr(yuna_gambling, '_USER_STATS'):
+                            yuna_gambling._USER_STATS[author_id] = stats
+                        yuna_gambling._save_data_sync()
+                        view = yuna_rpg.SkillsInteractiveView(interaction.user, stats, yuna_gambling)
+                        client.add_view(view)
+                        embed = yuna_rpg.build_skills_codex_embed(stats, interaction.user)
+                        if not interaction.response.is_done():
+                            await interaction.response.edit_message(embed=embed, view=view)
+                        if feedback:
+                            try:
+                                await interaction.followup.send(feedback, ephemeral=True)
+                            except Exception:
+                                pass
+                        return
+            except Exception as e:
+                print(f"[ON_INTERACTION RESCUE ERROR] {e}")
+
+        is_auction_interaction = (
+            custom_id.startswith("auction_")
+            or "AUCTION" in msg_embed_title
+        )
+        if is_auction_interaction:
+            try:
+                import yuna_rpg, yuna_gambling, yuna_equipment
+                author_id = str(interaction.user.id)
+                stats = await yuna_gambling._get_user_stats(author_id)
+                listings, _ = yuna_equipment.WatermelonAuctionManager.get_active_listings(stats)
+
+                if custom_id.startswith("auction_buy_"):
+                    idx_str = custom_id.replace("auction_buy_", "")
+                    target_id = None
+                    if idx_str == "inspected":
+                        for it in listings:
+                            if it["name"] in msg_embed_title:
+                                target_id = it["id"]
+                                break
+                        if not target_id and listings:
+                            target_id = listings[0]["id"]
+                    elif idx_str.isdigit() and int(idx_str) < len(listings):
+                        target_id = listings[int(idx_str)]["id"]
+
+                    if target_id:
+                        ok, msg = yuna_equipment.WatermelonAuctionManager.purchase_auction_item(author_id, target_id, stats)
+                        yuna_gambling._save_data_sync()
+                        view = yuna_equipment.CompactAuctionView(author_id, interaction.user, stats, yuna_gambling)
+                        embed = view.build_listings_embed()
+                        if not interaction.response.is_done():
+                            await interaction.response.edit_message(content=None, embed=embed, view=view)
+                        await interaction.followup.send(f"🍉 {msg}", ephemeral=True)
+                        return
+                elif custom_id == "auction_back":
+                    view = yuna_equipment.CompactAuctionView(author_id, interaction.user, stats, yuna_gambling)
+                    embed = view.build_listings_embed()
+                    if not interaction.response.is_done():
+                        await interaction.response.edit_message(content=None, embed=embed, view=view)
+                    return
+                elif custom_id == "auction_select":
+                    sel_values = interaction.data.get("values", [])
+                    if sel_values:
+                        sel_id = sel_values[0]
+                        view = yuna_equipment.CompactAuctionView(author_id, interaction.user, stats, yuna_gambling)
+                        view.inspected_item_id = sel_id
+                        view.rebuild_components()
+                        it = yuna_equipment.ALL_EQUIPMENT.get(sel_id)
+                        embed = view.build_inspect_embed(it) if it else view.build_listings_embed()
+                        if not interaction.response.is_done():
+                            await interaction.response.edit_message(content=None, embed=embed, view=view)
+                        return
+            except Exception as e:
+                print(f"[ON_INTERACTION AUCTION RESCUE ERROR] {e}")
+
+        # ── Profile View Rescue (handles expired profile tab/slot/equip interactions) ──
+        is_profile_interaction = (
+            custom_id.startswith("profile_")
+            or custom_id.startswith("equip_")
+        )
+        if is_profile_interaction:
+            try:
+                import yuna_rpg, yuna_gambling, yuna_equipment
+                author_id = str(interaction.user.id)
+                stats = await yuna_gambling._get_user_stats(author_id)
+                yuna_rpg.ensure_player_rpg(stats)
+                import sys
+
+                # Determine initial tab from custom_id
+                initial_tab = "overview"
+                if "armory" in custom_id:
+                    initial_tab = "armory"
+                elif "skills" in custom_id or "skill" in custom_id:
+                    initial_tab = "skills"
+                elif "stats" in custom_id:
+                    initial_tab = "stats"
+                elif "power" in custom_id:
+                    initial_tab = "power"
+
+                view = yuna_equipment.ProfileView(interaction.user, stats, yuna_rpg, yuna_gambling, initial_tab=initial_tab)
+                embed = view.get_current_embed()
+                if not interaction.response.is_done():
+                    await interaction.response.edit_message(embed=embed, view=view)
+                return
+            except Exception as e:
+                print(f"[ON_INTERACTION PROFILE RESCUE ERROR] {e}")
 
 @client.event
 async def on_member_join(member: discord.Member):
@@ -9734,17 +12736,32 @@ async def on_ready():
                 ask_ai_fn=ask_ai,
                 speak_fn=speak,
                 transcribe_fn=transcribe_audio,
-                send_msg_fn=send_split_messages
+                send_msg_fn=send_split_messages,
+                second_ai_fn=ask_fast_secondary_ai
             )
-            print("[VOICE] Real-Time Voice Call Manager initialized successfully.")
+            print("[VOICE] Real-Time Voice Call Manager initialized successfully (with 2nd AI secret modifier).")
         except Exception as vme:
             print(f"[VOICE INIT ERROR] {vme}")
+
+    if YUNA_CUSTOM_COMMANDS_AVAILABLE and yuna_custom_commands:
+        try:
+            yuna_custom_commands.register_all_custom_slash_commands(tree, client=client)
+        except Exception as _c_reg_err:
+            print(f"[CUSTOM SLASH COMMAND INIT ERROR] {_c_reg_err}")
+
     cmds = tree.get_commands()
     print(f"[SYNC DEBUG] Commands in tree before sync: {len(cmds)}")
     for c in cmds:
         print(f"  - /{c.name}")
     try:
         synced = await tree.sync()
+        # Also copy global commands to every joined guild for instant slash command availability
+        for g in client.guilds:
+            try:
+                tree.copy_global_to(guild=g)
+                await tree.sync(guild=g)
+            except Exception as _ge:
+                pass
         cur_id = os.getenv("BOT_ID") or bots_state.get("active_id", "default")
         cur_b = get_bot_by_id(bots_state, cur_id) if 'bots_state' in globals() else None
         b_name = cur_b.get("name", "Bot") if cur_b else (client.user.name if client.user else "Bot")
@@ -9764,7 +12781,7 @@ async def on_ready():
     client.loop.create_task(random_chat_loop())
     client.loop.create_task(presence_loop())
     client.loop.create_task(memory_manager_loop())
-    if config.get("vtuber_enabled", False) and WEBSOCKETS_AVAILABLE:
+    if not os.environ.get("IS_BOT_CHILD") and config.get("vtuber_enabled", False) and WEBSOCKETS_AVAILABLE:
         client.loop.create_task(start_vtuber_server())
     if SOCIAL_INTEGRATION_AVAILABLE and social_manager and should_run_social():
         client.loop.create_task(social_manager.start())
@@ -9777,7 +12794,34 @@ async def on_ready():
         sd_client = showdown_manager.init_bot(current_bot_id, cur_bot_name, bot_cfg)
         client.loop.create_task(sd_client.start())
         client.loop.create_task(showdown_ipc_listener(current_bot_id, sd_client))
-        print(f"[BACKGROUND] Pokémon Showdown client started for {cur_bot_name} ({sd_client.username}).")
+    if YUNA_SANDBOX_AVAILABLE and yuna_sandbox:
+        try:
+            active_cfg = current_bot.get("config", {}) if current_bot else config
+            if active_cfg.get("dream_mode_enabled", False):
+                yuna_sandbox.start_dream_loop_if_enabled(client, active_cfg, ask_ai_fn=ask_ai)
+            else:
+                print("[BACKGROUND] Yuna Dream Loop is disabled.")
+        except Exception as _ydl_err:
+            print(f"[BACKGROUND] Failed to start Yuna Dream Loop: {_ydl_err}")
+    current_bot_id = os.getenv("BOT_ID") or (bots_state.get("active_id", "default") if 'bots_state' in globals() else "default")
+    current_bot = get_bot_by_id(bots_state, current_bot_id) if 'bots_state' in globals() else None
+    cur_bot_name = (current_bot.get("name", "") if current_bot else (client.user.name if client.user else "")).lower()
+
+    if YUNA_GAMBLING_AVAILABLE and yuna_gambling and hasattr(yuna_gambling, "juny_stalking_background_loop"):
+        if "juny" in cur_bot_name or (client.user and client.user.id == 1173146642124394547):
+            try:
+                client.loop.create_task(yuna_gambling.juny_stalking_background_loop(client))
+                print("[BACKGROUND] Juny Stalking background loop started.")
+            except Exception as _j_err:
+                print(f"[BACKGROUND] Failed to start Juny Stalking Loop: {_j_err}")
+    try:
+        import yuna_renee
+        if hasattr(yuna_renee, "renee_autonomous_background_loop"):
+            if "renee" in cur_bot_name or (client.user and client.user.id == 1551443856958955580):
+                client.loop.create_task(yuna_renee.renee_autonomous_background_loop(client))
+                print("[BACKGROUND] Renee autonomous cycle & grinding background loop started.")
+    except Exception as _r_loop_err:
+        print(f"[BACKGROUND] Failed to start Renee autonomous loop: {_r_loop_err}")
     print("[BACKGROUND] Random DM, Random Chat, Presence, Memory Manager tasks started.")
 
 @client.event
@@ -9811,37 +12855,322 @@ async def on_message(message):
 
     raw_c = message.content.strip()
 
-    # ─── YUNA PREFIX COMMANDS (y!...) ──────────────────────────
-    if raw_c.lower().startswith("y!"):
+    # Track active guild channels and observe player commands for Renee
+    if message.guild and hasattr(message.channel, "id"):
+        try:
+            import yuna_renee
+            yuna_renee.record_active_channel(message.channel.id)
+            if raw_c.startswith("y!") and not getattr(message.author, "bot", False):
+                yuna_renee.observe_player_command(raw_c)
+        except Exception:
+            pass
+
+    # ─── FAST SKIP: ALL BOT MESSAGES ──────────────────────────────────────────
+    # Bot messages bypass ALL handlers except y!/j! command routing.
+    # - Non-Renee bots: rejected immediately (the line-12161 guard is too late —
+    #   sandbox/NPC/custom handlers would fire first across all bot instances).
+    # - Renee's bot (ID 1551443856958955580): only y! commands are forwarded to
+    #   the y! routing block below. Anything else (commentary, chat) is dropped
+    #   so Juny/Law instances don't process Renee's non-command messages.
+    if getattr(message.author, "bot", False) and message.author != client.user:
+        _bot_author_id = str(message.author.id)
+        if _bot_author_id != "1551443856958955580":
+            return  # Non-Renee bot — skip everything
+        # Renee's message — only proceed if it's a y! command
+        if not raw_c.lower().startswith("y!"):
+            return  # Renee's non-command chat — skip on non-Yuna bot instances
+        # Fall through to y! routing below (which has is_yuna_bot guard)
+
+    # ─── RENEE NPC / BOT MENTION RESPONSE ───
+    is_renee_bot = (
+        clean_cur_bot_name == "renee"
+        or "renee" in cur_bot_name
+        or (client.user and "renee" in client.user.name.lower())
+    )
+    renee_bot_active_in_guild = False
+    if message.guild:
+        renee_member = message.guild.get_member(1551443856958955580)
+        if renee_member:
+            renee_bot_active_in_guild = True
+        elif any(getattr(m, "id", None) == 1551443856958955580 or ("renee" in getattr(m, "name", "").lower() and getattr(m, "bot", False)) for m in message.guild.members):
+            renee_bot_active_in_guild = True
+
+    renee_mentioned = False
+    if is_renee_bot:
+        if bot_mentioned:
+            renee_mentioned = True
+        elif any("renee" in getattr(m, "name", "").lower() or str(getattr(m, "id", "")) == "1551443856958955580" for m in message.mentions):
+            renee_mentioned = True
+        elif raw_c.lower().startswith(("@renee", "renee:")):
+            renee_mentioned = True
+    elif not renee_bot_active_in_guild and (clean_cur_bot_name == "yuna" or "yuna" in cur_bot_name):
+        # Fallback ONLY when Renee bot is completely absent from the guild: Yuna acts as NPC proxy
+        if any("renee" in getattr(m, "name", "").lower() or str(getattr(m, "id", "")) == "1551443856958955580" for m in message.mentions):
+            renee_mentioned = True
+        elif raw_c.lower().startswith(("@renee", "renee:")):
+            renee_mentioned = True
+
+    if renee_mentioned:
+        try:
+            import yuna_renee
+            handled = await yuna_renee.handle_renee_mention(message, client, ask_ai_fn=ask_ai)
+            if handled or is_renee_bot:
+                return
+        except Exception as _r_err:
+            print(f"[RENEE MENTION ERROR] {_r_err}", flush=True)
+
+    # ─── YUNA SANDBOX & DREAM MODE (!ST sandboxtest, !sandbox, active sandbox features) ───
+    if YUNA_SANDBOX_AVAILABLE and yuna_sandbox:
+        try:
+            if await yuna_sandbox.handle_sandbox_message_command(message, client, ask_ai_fn=ask_ai):
+                return
+        except Exception as _sb_err:
+            print(f"[SANDBOX MESSAGE ERROR] {_sb_err}", flush=True)
+
+    # ─── CONTEXT MEMORY RESET (!reset, !clear, !reser, !purge) ───
+    clean_pfx = raw_c.lower().strip()
+    is_reset_cmd = (
+        clean_pfx in ("!reset", "!clear", "!reser", "!purge", "!clearchat", "!resetcontext")
+        or (clean_pfx.startswith(("!reset ", "!clear ", "!reser ", "!purge ")) and not clean_pfx.startswith("!resetcd"))
+        or (bot_mentioned and any(w in clean_pfx for w in ("!reset", "!clear", "!reser", "reset context", "clear context", "clear chat", "reset memory", "clear memory")))
+    )
+    if is_reset_cmd:
+        is_yuna_bot = (clean_cur_bot_name == "yuna" or "yuna" in cur_bot_name or (client.user and "yuna" in client.user.name.lower()))
+        is_targeted = bot_mentioned or (client.user and (f"<@{client.user.id}>" in raw_c or f"<@!{client.user.id}>" in raw_c))
+        should_respond = False
+        if not message.guild:
+            should_respond = True
+        elif is_targeted:
+            should_respond = True
+        elif is_yuna_bot:
+            should_respond = True
+        elif is_active_bot and not renee_bot_active_in_guild:
+            should_respond = True
+
+        clear_context(message.channel.id)
+        if should_respond:
+            await safe_reply(message, "🧹 Cleared conversation context for this channel (long-term memories are preserved).")
+        return
+
+    # ─── CHANNEL SILENCE & SPEAK CONTROL (@bot silence, @bot speak, !silence, !speak, etc.) ───
+    _low_c = raw_c.lower().strip()
+    _first_w = _low_c.split()[0] if _low_c.split() else ""
+    _is_targeted_silence = bot_mentioned or (client.user and (f"<@{client.user.id}>" in raw_c or f"<@!{client.user.id}>" in raw_c))
+
+    # Strip mention or bot name prefix if present
+    _clean_cmd_body = _low_c
+    if client.user:
+        for _m_pat in (f"<@{client.user.id}>", f"<@!{client.user.id}>"):
+            if _clean_cmd_body.startswith(_m_pat):
+                _clean_cmd_body = _clean_cmd_body[len(_m_pat):].strip()
+                break
+    _body_first_w = _clean_cmd_body.split()[0] if _clean_cmd_body.split() else ""
+
+    _is_silence_trigger = False
+    _is_speak_trigger = False
+
+    # Check for silence command
+    if _first_w in ("!silence", "!shutup", "!quiet", "!mute", "y!silence", "y!shutup", "y!quiet", "y!mute"):
+        _is_silence_trigger = True
+    elif (_is_targeted_silence or _clean_cmd_body != _low_c) and _body_first_w in ("silence", "shutup", "shut", "quiet", "mute", "!silence", "y!silence"):
+        _is_silence_trigger = True
+    elif _is_targeted_silence and any(_p in _low_c for _p in ("shut up", "be quiet", "stay quiet", "silence yourself", "stop talking", "mute yourself")):
+        _is_silence_trigger = True
+
+    # Check for speak command
+    if _first_w in ("!speak", "!unmute", "!unsilence", "!talk", "y!speak", "y!unmute", "y!unsilence"):
+        _is_speak_trigger = True
+    elif (_is_targeted_silence or _clean_cmd_body != _low_c) and _body_first_w in ("speak", "unmute", "unsilence", "talk", "!speak", "y!speak"):
+        _is_speak_trigger = True
+    elif _is_targeted_silence and any(_p in _low_c for _p in ("you can speak", "you can talk", "start talking", "unmute yourself", "unsilence yourself")):
+        _is_speak_trigger = True
+
+    if _is_silence_trigger:
+        is_adm = await check_admin_or_owner(message.author, message.guild)
+        if not is_adm:
+            await safe_reply(message, "❌ **Admin Only:** Only server administrators or my owner can silence me in this channel.")
+            return
+        changed = set_channel_silence(message.channel.id, True)
+        if changed:
+            await safe_reply(message, "🤐 **Bot Silenced.** I will stay quiet in this channel until an admin or my owner runs `@bot speak` or `/speak`.")
+        else:
+            await safe_reply(message, "🤐 This channel is already silenced. Run `@bot speak` or `/speak` to re-enable me.")
+        return
+
+    if _is_speak_trigger:
+        is_adm = await check_admin_or_owner(message.author, message.guild)
+        if not is_adm:
+            await safe_reply(message, "❌ **Admin Only:** Only server administrators or my owner can unsilence me in this channel.")
+            return
+        changed = set_channel_silence(message.channel.id, False)
+        if changed:
+            await safe_reply(message, "🗣️ **Bot Unsilenced.** I can speak and reply in this channel again!")
+        else:
+            await safe_reply(message, "🗣️ This channel is not silenced. I am already active here!")
+        return
+
+    # If this channel is currently silenced:
+    # Completely suppress all AI chat responses, random banter, observations, and reactions in this channel
+    if is_channel_silenced(message.channel.id):
+        return
+
+    # ─── YUNA DYNAMIC CUSTOM COMMANDS (!cmd, y!cmd, @Yuna cmd) ───
+    if YUNA_CUSTOM_COMMANDS_AVAILABLE and yuna_custom_commands:
+        try:
+            if await yuna_custom_commands.handle_custom_message_command(message, client):
+                return
+        except Exception as _cmd_err:
+            print(f"[CUSTOM COMMAND ERROR] {_cmd_err}", flush=True)
+
+    # ─── UNIVERSAL MEDIA DOWNLOAD COMMAND ROUTING ──────────────────────────
+    _pfx_first_word = raw_c.split()[0].lower() if raw_c.split() else ""
+    DOWNLOAD_PREFIXES = (
+        "!download", "!dl", "!downlod",
+        "y!download", "y!dl", "y!downlod",
+        "k!download", "k!dl", "k!downlod"
+    )
+    is_dl_request = (
+        _pfx_first_word in DOWNLOAD_PREFIXES
+        or (message.guild is None and _pfx_first_word in ("download", "dl", "downlod"))
+        or (bot_mentioned and _pfx_first_word in ("download", "dl", "downlod"))
+    )
+    if is_dl_request:
+        await handle_download_command(message, raw_c)
+        return
+
+    # ─── AUTONOMOUS FEATURE / PACKAGE EVALUATION FOR PREFIX COMMANDS ───
+    is_known_command = _pfx_first_word in (
+        "!download", "!dl", "!downlod", "y!download", "y!dl", "k!download", "k!dl",
+        "!mc", "!showdown", "!pokemon", "!ps", "!sync", "!watch", "!browse", "!search"
+    ) or raw_c.startswith(("!showdown:", "!ps "))
+    if not is_known_command and AGY_BRIDGE_AVAILABLE and feature_evaluator and (raw_c.startswith(("!", "y!", "Y!")) or bot_mentioned):
+        pfx_text = raw_c
+        if pfx_text.lower().startswith("y!"):
+            pfx_text = pfx_text[2:].strip()
+        elif pfx_text.startswith("!"):
+            pfx_text = pfx_text[1:].strip()
+        if bot_mentioned:
+            pfx_text = re.sub(r'^<@!?[0-9]+>\s*', '', pfx_text).strip()
+            pfx_text = re.sub(r'^@?(?:yuna|juny)\b[:,\s]*', '', pfx_text, flags=re.IGNORECASE).strip()
+        pfx_intent = feature_evaluator.check_feature_intent(pfx_text) or feature_evaluator.check_feature_intent(raw_c)
+        if pfx_intent:
+            async def _bot_feat_reply_pfx(reply_text):
+                await safe_reply(message, reply_text)
+            handled = await feature_evaluator.handle_feature_request(
+                pfx_intent, message.channel, message.author, client, _bot_feat_reply_pfx
+            )
+
+    # ─── ANIME REACTION COMMANDS (y!pout, y!hug, y!pat, y!react, !react, etc.) ─────
+    try:
+        from yuna_action_gifs import handle_anime_reaction_command, increment_reaction_turn
+        if message.channel:
+            increment_reaction_turn(message.channel.id)
         is_yuna_bot = (
             clean_cur_bot_name == "yuna"
             or "yuna" in cur_bot_name
             or (client.user and "yuna" in client.user.name.lower())
         )
-        if not is_yuna_bot:
-            return  # Silence: only Yuna responds to y! commands
+        if is_yuna_bot or not clean_cur_bot_name:
+            if await handle_anime_reaction_command(message, raw_c, client, prefix="y!"):
+                return
+    except Exception as _e_react:
+        pass
+
+    # ─── YUNA PREFIX COMMANDS (y!..., k!...) ──────────────────────────
+    if raw_c.lower().startswith(("y!", "k!")):
+        is_yuna_bot = (
+            clean_cur_bot_name == "yuna"
+            or "yuna" in cur_bot_name
+            or (client.user and "yuna" in client.user.name.lower())
+        )
+        is_juny_bot = (
+            clean_cur_bot_name == "juny"
+            or "juny" in cur_bot_name
+            or (client.user and "juny" in client.user.name.lower())
+        )
+        author_id = str(message.author.id) if (hasattr(message, "author") and hasattr(message.author, "id")) else None
+        is_user_in_pact = (
+            YUNA_GAMBLING_AVAILABLE
+            and yuna_gambling
+            and hasattr(yuna_gambling, "is_in_pact")
+            and author_id
+            and yuna_gambling.is_in_pact(author_id)
+        )
+
+        if is_user_in_pact:
+            # When user has an active 3-hour Devil's Contract with Juny:
+            # - Juny bot takes over ALL commands directly from her own bot account!
+            # - Yuna bot must stay COMPLETELY SILENT (no pretending/mimicking Juny).
+            if is_yuna_bot:
+                return
+            if not is_juny_bot:
+                return
+        else:
+            # When user is NOT in a pact:
+            # - Yuna bot responds as standard Yuna.
+            # - Juny bot stays silent.
+            if not is_yuna_bot:
+                return
 
         if YUNA_GAMBLING_AVAILABLE and yuna_gambling:
-            def _log_yuna_cmd(channel_id, user_id, user_name, user_cmd, reply_text):
+            bot_display_name = "Juny" if is_juny_bot else "Yuna"
+            def _log_pfx_cmd(channel_id, user_id, user_name, user_cmd, reply_text):
                 try:
                     add_to_context(channel_id, "user", user_cmd, user_name=user_name, user_id=user_id)
                     if reply_text:
-                        add_to_context(channel_id, "assistant", reply_text, user_name="Yuna")
+                        add_to_context(channel_id, "assistant", reply_text, user_name=bot_display_name)
                 except Exception:
                     pass
 
             try:
                 handled = await yuna_gambling.handle_yuna_prefix_command(
-                    message, client, raw_c, ask_ai_fn=ask_ai, context_logger_fn=_log_yuna_cmd
+                    message, client, raw_c, ask_ai_fn=ask_ai, context_logger_fn=_log_pfx_cmd
                 )
                 if handled:
                     return
-            except Exception as _yg_err:
+            except Exception as _pfx_err:
                 import traceback
-                print(f"[YUNA PREFIX ERROR] {_yg_err}", flush=True)
+                print(f"[{bot_display_name.upper()} PREFIX ERROR] {_pfx_err}", flush=True)
                 traceback.print_exc()
-                await safe_reply(message, "- *Yuna tripped and dropped her basket of berries! (An error occurred)*")
+                if is_juny_bot:
+                    await safe_reply(message, "😈 *\"Tch, pathetic error... get out of my sight.\"*")
+                else:
+                    await safe_reply(message, "- *Yuna tripped and dropped her basket of berries! (An error occurred)*")
                 return
+
+    # ─── JUNY PREFIX COMMANDS (j!...) ──────────────────────────
+    if raw_c.lower().startswith("j!"):
+        is_juny_bot = (
+            clean_cur_bot_name == "juny"
+            or "juny" in cur_bot_name
+            or (client.user and "juny" in client.user.name.lower())
+        )
+        if not is_juny_bot:
+            return  # Silence: only Juny responds to j! commands
+
+        if YUNA_GAMBLING_AVAILABLE and yuna_gambling:
+            cmd_mapped = "y!" + raw_c[2:]
+            def _log_juny_cmd(channel_id, user_id, user_name, user_cmd, reply_text):
+                try:
+                    add_to_context(channel_id, "user", user_cmd, user_name=user_name, user_id=user_id)
+                    if reply_text:
+                        add_to_context(channel_id, "assistant", reply_text, user_name="Juny")
+                except Exception:
+                    pass
+            try:
+                handled = await yuna_gambling.handle_yuna_prefix_command(
+                    message, client, cmd_mapped, ask_ai_fn=ask_ai, context_logger_fn=_log_juny_cmd
+                )
+                if handled:
+                    return
+            except Exception as _jg_err:
+                import traceback
+                print(f"[JUNY PREFIX ERROR] {_jg_err}", flush=True)
+                traceback.print_exc()
+                await safe_reply(message, "😈 *\"Tch, pathetic error... get out of my sight.\"*")
+                return
+
+# Prefix block removed
 
     is_targeted_for_this_bot = bot_mentioned
 
@@ -9854,7 +13183,33 @@ async def on_message(message):
     # If other bots are explicitly mentioned in this message but NOT this bot, ignore so only targeted bot answers
     other_bots_mentioned = [m for m in message.mentions if client.user and m.id != client.user.id and getattr(m, 'bot', False)]
     if other_bots_mentioned and (client.user not in message.mentions):
-        return
+        author_id = str(message.author.id) if (hasattr(message, "author") and hasattr(message.author, "id")) else None
+        user_in_pact = (
+            YUNA_GAMBLING_AVAILABLE
+            and yuna_gambling
+            and hasattr(yuna_gambling, "is_in_pact")
+            and author_id
+            and yuna_gambling.is_in_pact(author_id)
+        )
+        is_juny_bot = (
+            clean_cur_bot_name == "juny"
+            or "juny" in cur_bot_name
+            or (client.user and "juny" in client.user.name.lower())
+        )
+        is_yuna_call = all("yuna" in (getattr(m, 'name', '') or '').lower() for m in other_bots_mentioned)
+        if not (is_juny_bot and user_in_pact and is_yuna_call):
+            return
+
+    # Check if author is under active contract with Juny: Yuna must never respond to them
+    author_id_chk = str(message.author.id) if (hasattr(message, "author") and hasattr(message.author, "id")) else None
+    if author_id_chk and YUNA_GAMBLING_AVAILABLE and yuna_gambling and hasattr(yuna_gambling, "is_in_pact") and yuna_gambling.is_in_pact(author_id_chk):
+        is_yuna_bot = (
+            clean_cur_bot_name == "yuna"
+            or "yuna" in cur_bot_name
+            or (client.user and "yuna" in client.user.name.lower())
+        )
+        if is_yuna_bot:
+            return  # Yuna completely stands down for contractor
 
     if config.get("user_memory_enabled", True) and (is_active_bot or is_targeted_for_this_bot):
         await update_user_profile(message.author, message.content, message.guild)
@@ -9872,6 +13227,9 @@ async def on_message(message):
         elif clean_cur_bot_name == "yuna":
             my_aliases.update({"yuna", "yunabot"})
 
+        elif clean_cur_bot_name == "juny":
+            my_aliases.update({"juny", "junybot"})
+
         if cur_bot_name and (clean_first_token in my_aliases or first_token == f"!{cur_bot_name}" or first_token == f"!{cur_bot_name}bot"):
             raw_c = "!" + raw_c[len(first_token):].strip()
             is_targeted_for_this_bot = True
@@ -9883,11 +13241,13 @@ async def on_message(message):
         if not is_mc_command and not is_showdown_command and not is_active_bot and not is_targeted_for_this_bot:
             # Check if this command targets a specific bot by name (e.g. !ping law ...)
             is_named_for_me = False
-            parts_check = raw_c.split(None, 2)
-            if len(parts_check) > 1 and parts_check[0].lower() in ("!ping", "!test", "!search", "!call"):
-                target_check = re.sub(r'[^a-zA-Z0-9]', '', parts_check[1]).lower()
-                if target_check in my_aliases or parts_check[1].lower() == cur_bot_name:
-                    is_named_for_me = True
+            parts_check = raw_c.split()
+            if len(parts_check) > 1 and parts_check[0].lower() in ("!ping", "!test", "!search", "!call", "!download", "!dl"):
+                for token in parts_check[1:3]:
+                    target_check = re.sub(r'[^a-zA-Z0-9]', '', token).lower()
+                    if target_check in my_aliases or token.lower() == cur_bot_name:
+                        is_named_for_me = True
+                        break
             if not is_named_for_me:
                 # Not active bot and not targeted -> skip so other bot doesn't duplicate
                 return
@@ -9934,21 +13294,21 @@ async def on_message(message):
                 reply, err = await ask_openrouter([], "Say 'OpenRouter is working' and nothing else.")
             await safe_reply(message, f"OpenRouter test {'OK' if not err else 'failed'}: {reply}")
             return
-        if raw_c == "!testopenai":
+        if raw_c in ("!testnvidia", "!testnim"):
             if not await check_owner(message.author.id):
                 await safe_reply(message, "Owner only.", delete_after=5)
                 return
             async with safe_typing(message.channel):
-                reply, err = await ask_openai([], "Say 'OpenAI is working' and nothing else.")
-            await safe_reply(message, f"OpenAI test {'OK' if not err else 'failed'}: {reply}")
+                reply, err = await ask_nvidia([], "Say 'NVIDIA NIM is working' and nothing else.")
+            await safe_reply(message, f"NVIDIA NIM test {'OK' if not err else 'failed'}: {reply}")
             return
-        if raw_c == "!testdeepseek":
+        if raw_c in ("!testcloudflare", "!testcf"):
             if not await check_owner(message.author.id):
                 await safe_reply(message, "Owner only.", delete_after=5)
                 return
             async with safe_typing(message.channel):
-                reply, err = await ask_deepseek([], "Say 'DeepSeek is working' and nothing else.")
-            await safe_reply(message, f"DeepSeek test {'OK' if not err else 'failed'}: {reply}")
+                reply, err = await ask_cloudflare([], "Say 'Cloudflare Workers AI is working' and nothing else.")
+            await safe_reply(message, f"Cloudflare test {'OK' if not err else 'failed'}: {reply}")
             return
         if raw_c == "!testmistral":
             if not await check_owner(message.author.id):
@@ -9960,7 +13320,7 @@ async def on_message(message):
             return
         if raw_c == "!reset":
             clear_context(message.channel.id)
-            await safe_reply(message, "Context memory cleared.")
+            await safe_reply(message, "🧹 Cleared conversation context for this channel (long-term memories are preserved).")
             return
         if raw_c.startswith("!forgetme") or raw_c.startswith("!clearmemory"):
             parts = raw_c.split()
@@ -9981,6 +13341,135 @@ async def on_message(message):
             sentences_list = bot_mem.get("sentences", [])
             await safe_reply(message, f"🧠 **{b_name} Memory for {message.author.display_name}:**\n- Facts: {len(facts_list)}\n- Quotes: {len(sentences_list)}\n- Interactions with this bot: {bot_mem.get('interaction_count', 0)}")
             return
+
+        # ── YUNA VOICE TALK (y!talk / y!vctalk) [ADMIN ONLY] ──
+        if raw_c.startswith("y!talk") or raw_c.startswith("y!vctalk") or raw_c == "y!call" or raw_c.startswith("y!call "):
+            # Admin authorization check
+            is_adm = False
+            try:
+                if await check_owner(message.author.id):
+                    is_adm = True
+            except Exception:
+                pass
+            if not is_adm and isinstance(message.author, discord.Member):
+                gp = getattr(message.author, "guild_permissions", None)
+                if gp and (getattr(gp, "administrator", False) or getattr(gp, "manage_guild", False) or getattr(gp, "manage_channels", False)):
+                    is_adm = True
+            if not is_admin and yuna_owner_escalation and hasattr(yuna_owner_escalation, "get_owner_ids"):
+                try:
+                    if message.author.id in yuna_owner_escalation.get_owner_ids():
+                        is_adm = True
+                except Exception:
+                    pass
+
+            if not is_adm:
+                await safe_reply(message, "❌ **Admin Only:** `y!talk` is an admin command. You need Administrator or Manage Server permissions to use it.")
+                return
+
+            if not message.guild:
+                await safe_reply(message, "❌ The `y!talk` command must be used in a Discord server voice channel.")
+                return
+            if not DISCORD_VOICE_AVAILABLE or not voice_manager:
+                await safe_reply(message, "❌ Voice system module is not currently available.")
+                return
+
+            sub_parts = raw_c.split()
+            action_args = [p for p in sub_parts[1:] if re.sub(r'[^a-zA-Z0-9]', '', p).lower() not in my_aliases]
+            action = action_args[0].lower().strip() if action_args else "join"
+
+            if action in ["join", "start", "call", "talk"]:
+                if not isinstance(message.author, discord.Member) or not message.author.voice or not message.author.voice.channel:
+                    await safe_reply(message, "❌ You must be in a voice channel first before calling me with `y!talk`!")
+                    return
+                async with safe_typing(message.channel):
+                    ok, msg = await voice_manager.start_call(message.author, message.channel)
+                if ok:
+                    prov = config.get("tts_provider", "auto")
+                    vid = config.get("fish_voice_id") or config.get("edge_tts_voice") or "default"
+                    vc_name = message.author.voice.channel.name
+                    confirm_text = (
+                        f"🎙️ **Yuna Voice Talk Active!**\n"
+                        f"• **Channel:** Joined **{vc_name}**\n"
+                        f"• **Hearing & Transcription:** Real-time VAD voice listening & STT active\n"
+                        f"• **2nd AI Secret Modifier:** Enabled (cleans out `!`, `^°^`, emojis; adds natural conversational fillers)\n"
+                        f"• **TTS Simulation:** Speaking responses using `{prov}` (Voice: `{vid}`)\n"
+                        f"_Speak naturally in VC — I'm listening! Type `y!talk leave` to hang up._"
+                    )
+                    await safe_reply(message, confirm_text)
+                else:
+                    await safe_reply(message, msg)
+                return
+            elif action in ["leave", "stop", "end", "hangup", "disconnect"]:
+                async with safe_typing(message.channel):
+                    ok, msg = await voice_manager.stop_call(message.guild)
+                await safe_reply(message, f"📴 **Yuna Voice Talk Ended.** {msg}")
+                return
+            elif action in ["status", "info"]:
+                in_call = voice_manager.is_in_call(message.guild.id)
+                sess = voice_manager.get_session(message.guild.id)
+                vad_info = voice_manager.get_vad_info(message.guild.id)
+                prov = config.get("tts_provider", "auto")
+                fish_id = config.get("fish_voice_id") or "not set"
+                if in_call and sess:
+                    elapsed = int(time.time() - sess.get("start_time", time.time()))
+                    await safe_reply(
+                        message,
+                        f"📞 **Yuna Voice Call Active** with `{sess.get('caller_name', 'User')}` in <#{sess.get('vc_channel_id')}> (Duration: {elapsed}s)\n"
+                        f"• **TTS Provider:** `{prov}` | **Fish Voice ID:** `{fish_id}`\n"
+                        f"• **Secret 2nd AI:** Active (symbols stripped, conversational fillers enabled)\n"
+                        f"• **VAD Silence Gap:** `{vad_info['silence_gap']}s` (Mode: `{vad_info.get('mode', 'auto').upper()}`)"
+                    )
+                else:
+                    await safe_reply(
+                        message,
+                        f"📴 **No active Yuna voice call.** Type `y!talk` to start one!\n"
+                        f"• **TTS Provider:** `{prov}` | **Fish Voice ID:** `{fish_id}`\n"
+                        f"• **Secret 2nd AI:** Ready\n"
+                        f"• **VAD Gap:** `{vad_info['silence_gap']}s`"
+                    )
+                return
+            elif action in ["fish", "fishvoice", "voice"]:
+                if len(action_args) > 1:
+                    new_vid = action_args[1].strip()
+                    config["fish_voice_id"] = new_vid
+                    if "bots_state" in globals() and isinstance(bots_state, dict):
+                        b = get_bot_by_id(bots_state, bots_state.get("active_id", "bot_ek0ldel3"))
+                        if b and isinstance(b.get("config"), dict):
+                            b["config"]["fish_voice_id"] = new_vid
+                    save_config(config)
+                    save_bots(bots_state)
+                    await safe_reply(message, f"🐟 **Fish Audio Voice ID Updated:** `{new_vid}` (saved to config).")
+                else:
+                    cur_vid = config.get("fish_voice_id") or "not set"
+                    await safe_reply(message, f"🐟 **Current Fish Audio Voice ID:** `{cur_vid}`\nChange with `y!talk fish <voice_id>`.")
+                return
+            elif action in ["provider", "engine"]:
+                if len(action_args) > 1:
+                    new_prov = action_args[1].strip().lower()
+                    config["tts_provider"] = new_prov
+                    if "bots_state" in globals() and isinstance(bots_state, dict):
+                        b = get_bot_by_id(bots_state, bots_state.get("active_id", "bot_ek0ldel3"))
+                        if b and isinstance(b.get("config"), dict):
+                            b["config"]["tts_provider"] = new_prov
+                    save_config(config)
+                    save_bots(bots_state)
+                    await safe_reply(message, f"🎙️ **TTS Provider Updated:** `{new_prov}` (saved to config).")
+                else:
+                    cur_prov = config.get("tts_provider") or "auto"
+                    await safe_reply(message, f"🎙️ **Current TTS Provider:** `{cur_prov}`\nChange with `y!talk provider <fish|edge|groq|elevenlabs>`.")
+                return
+            else:
+                await safe_reply(
+                    message,
+                    "🎙️ **Yuna Voice Talk Commands (Admin):**\n"
+                    "• `y!talk` or `k!talk join` — Call Yuna into your voice channel to talk with TTS\n"
+                    "• `y!talk leave` — Disconnect Yuna from voice channel\n"
+                    "• `y!talk status` — View active voice call details\n"
+                    "• `y!talk fish <voice_id>` — Update Fish Audio voice ID\n"
+                    "• `y!talk provider <prov>` — Switch TTS provider (fish, edge, groq, elevenlabs)"
+                )
+                return
+
         if raw_c.startswith("!call") or raw_c in ("!hangup", "!leavevc", "!endcall"):
             if not message.guild:
                 await safe_reply(message, "❌ The `!call` command can only be used in a Discord server voice channel.")
@@ -10011,15 +13500,29 @@ async def on_message(message):
                 val_arg = action_args[1] if len(action_args) > 1 else None
                 if val_arg:
                     try:
-                        val = max(0.8, min(4.0, float(val_arg)))
+                        val = max(0.3, min(3.0, float(val_arg)))
                         update_config_setting("vad_silence_gap", str(val))
                         voice_manager.set_vad_gap(message.guild.id, val)
-                        await safe_reply(message, f"🎙️ **VAD Silence Gap set to {val:.2f}s!**\nYou can now pause naturally up to {val:.2f} seconds between words without being interrupted.")
+                        await safe_reply(message, f"🎙️ **VAD Silence Gap set to {val:.2f}s!** (matching vrm.html standard)\nYou can pause naturally up to {val:.2f} seconds between words.")
                     except Exception as e:
                         await safe_reply(message, f"❌ Invalid value for VAD gap: {e}")
                 else:
                     vad_info = voice_manager.get_vad_info(message.guild.id)
-                    await safe_reply(message, f"🎙️ **VAD Settings:**\n• Silence Gap (Pause Tolerance): **{vad_info['silence_gap']}s**\n• Sensitivity Threshold: **{vad_info['silence_threshold']} RMS**\n• Ambient Noise Floor: **{vad_info['noise_floor']} RMS**\n💡 *Change anytime with `!call vad <seconds>` (e.g. `!call vad 1.8`)*")
+                    await safe_reply(message, f"🎙️ **Current VAD Settings (vrm.html Engine):**\n• Mode: **{vad_info.get('mode', 'auto').upper()}**\n• Silence Gap (Pause Tolerance): **{vad_info['silence_gap']}s**\n• Sensitivity Threshold: **{vad_info['silence_threshold']}**\n• Ambient Noise Floor: **{vad_info['noise_floor']}**\n💡 *Change anytime with `!call vad <seconds>` (e.g. `!call vad 0.75`) or `!call ptt on`*")
+                return
+            elif action in ["ptt", "pushtotalk", "push"]:
+                val_arg = action_args[1].lower().strip() if len(action_args) > 1 else "on"
+                if val_arg in ("on", "true", "ptt", "1", "yes"):
+                    voice_manager.set_mode(message.guild.id, "ptt")
+                    update_config_setting("vad_mode", "ptt")
+                    await safe_reply(message, "🎙️ **Voice Call Switched to PTT (Push-to-Talk) Mode!**\n• Silence gap tuned to **0.45s** for instant response on key release.\n• Min speech duration **0.20s**.")
+                elif val_arg in ("off", "false", "vad", "auto", "0", "no"):
+                    voice_manager.set_mode(message.guild.id, "auto")
+                    update_config_setting("vad_mode", "auto")
+                    await safe_reply(message, "🎙️ **Voice Call Switched to Adaptive VAD Mode!**\n• Using vrm.html continuous Voice Activity Detection (0.75s silence tolerance).")
+                else:
+                    info = voice_manager.get_vad_info(message.guild.id)
+                    await safe_reply(message, f"🎙️ Current Voice Mode: **{info.get('mode', 'auto').upper()}** (Toggle with `!call ptt on` or `!call ptt off`)")
                 return
             elif action in ["status"]:
                 in_call = voice_manager.is_in_call(message.guild.id)
@@ -10027,12 +13530,12 @@ async def on_message(message):
                 vad_info = voice_manager.get_vad_info(message.guild.id)
                 if in_call and sess:
                     elapsed = int(time.time() - sess.get("start_time", time.time()))
-                    await safe_reply(message, f"📞 **Call Active** with `{sess.get('caller_name', 'User')}` in <#{sess.get('vc_channel_id')}> (Duration: {elapsed}s)\n🎙️ **VAD Pause Tolerance:** `{vad_info['silence_gap']}s` (Threshold: `{vad_info['silence_threshold']}`)")
+                    await safe_reply(message, f"📞 **Call Active** with `{sess.get('caller_name', 'User')}` in <#{sess.get('vc_channel_id')}> (Duration: {elapsed}s)\n🎙️ **VAD Pause Tolerance:** `{vad_info['silence_gap']}s` (Mode: `{vad_info.get('mode', 'auto').upper()}`)")
                 else:
                     await safe_reply(message, f"📴 No active voice call in this server. Use `!call` or `/call` to start one!\n🎙️ **VAD Pause Tolerance:** `{vad_info['silence_gap']}s` (adjust anytime with `!call vad <seconds>`)")
                 return
             else:
-                await safe_reply(message, "Usage: `!call [join | leave | status | vad]` or `!hangup`")
+                await safe_reply(message, "Usage: `!call [join | leave | status | vad | ptt]` or `!hangup`")
                 return
         if raw_c == "!purgeall":
             if not await check_owner(message.author.id):
@@ -10080,6 +13583,13 @@ async def on_message(message):
             if not v_url:
                 await safe_reply(message, "Usage: `!watch <video-url>` (YouTube, Instagram, TikTok, Twitter/X, MP4 - up to 12 mins)")
                 return
+            if YUNA_RPC_AVAILABLE and yuna_rpc:
+                try:
+                    v_info = await yuna_rpc.start_watching_video(v_url, requested_by=message.author.display_name)
+                    act = yuna_rpc.build_video_discord_activity(v_info)
+                    await client.change_presence(status=discord.Status.online, activity=act)
+                except Exception as _rpc_err:
+                    print(f"[WATCH VIDEO RPC NOTICE] {_rpc_err}")
             async with safe_typing(message.channel):
                 if MEDIA_INTELLIGENCE_AVAILABLE:
                     context_data, report = await watch_video_tool(v_url, bot_config=config)
@@ -10132,6 +13642,12 @@ async def on_message(message):
                 else:
                     await safe_reply(message, "Web browser tool unavailable.")
                     return
+
+        # ─── MEDIA DOWNLOADER PREFIX COMMANDS (!download / !dl) ──────
+        first_word = raw_c.split()[0].lower() if raw_c.split() else ""
+        if first_word in ("!download", "!dl") or (is_targeted_for_this_bot and first_word in ("download", "dl", "!download", "!dl")):
+            await handle_download_command(message, raw_c)
+            return
 
         # ─── MINECRAFT PREFIX COMMANDS ─────────────────────
         if raw_c.startswith("!mc ") or raw_c == "!mc":
@@ -10312,13 +13828,17 @@ async def on_message(message):
                 send_mc_cmd({"type": "chat", "text": arg})
                 await safe_reply(message, f"💬 **{current_bot_name}:** Sent to Minecraft: `{arg}`")
                 return
+            elif sub in ("build", "house", "shelter"):
+                send_mc_cmd({"type": "build", "style": arg or "wood"})
+                await safe_reply(message, f"🏡 **{current_bot_name}:** Commencing autonomous house construction ({arg or 'wood'} shelter with walls, door, bed & roof)!")
+                return
             elif sub == "goal":
                 async with safe_typing(message.channel):
                     reply = await mc_execute_natural_goal(arg, sender_name=message.author.display_name)
                 await safe_reply(message, f"🎯 **Goal Dispatched ({current_bot_name}):** {arg}\n💬 **{current_bot_name}:** {reply}")
                 return
             else:
-                await safe_reply(message, f"Usage: `!mc [all|<bot>] start|stop|status|journal|follow|mine|craft|give|attack|sleep|emote|chat|goal <args>`")
+                await safe_reply(message, f"Usage: `!mc [all|<bot>] start|stop|status|journal|follow|mine|craft|build|give|attack|sleep|emote|chat|goal <args>`")
                 return
 
     # ─── PING & TOGGLE PREFIX COMMANDS ─────────────────
@@ -10326,7 +13846,7 @@ async def on_message(message):
         bot_name = client.user.display_name if client.user else "Bot"
         ws_latency = round(client.latency * 1000) if client.latency else 0
         active_p = config.get("provider", "auto")
-        model_key = f"{active_p}_model" if active_p in ("gemini", "groq", "mistral") else "model"
+        model_key = f"{active_p}_model" if active_p in ("gemini", "groq", "mistral", "nvidia", "cloudflare") else "model"
         active_m = config.get(model_key, "default")
         embed = discord.Embed(
             title=f"🏓 Pong! [{bot_name}]",
@@ -10359,8 +13879,8 @@ async def on_message(message):
         await safe_reply(message, embed=toast)
         return
 
-    # Skip other bots entirely
-    if message.author.bot:
+    # Skip other bots entirely, except companion bot Renee
+    if message.author.bot and str(message.author.id) != "1551443856958955580":
         return
 
     # ─── @MENTION & PREFIX CONFIGURATION COMMANDS ─────────
@@ -10407,7 +13927,7 @@ async def on_message(message):
         bot_name = client.user.display_name if client.user else "Bot"
         ws_latency = round(client.latency * 1000) if client.latency else 0
         active_p = config.get("provider", "auto")
-        model_key = f"{active_p}_model" if active_p in ("gemini", "groq", "mistral") else "model"
+        model_key = f"{active_p}_model" if active_p in ("gemini", "groq", "mistral", "nvidia", "cloudflare") else "model"
         active_m = config.get(model_key, "default")
         embed = discord.Embed(
             title=f"🏓 Pong! [{bot_name}]",
@@ -10446,7 +13966,7 @@ async def on_message(message):
             char_target = " ".join(parts[1:]).strip()
     elif (is_mentioned or is_dm or content_raw.startswith("!")) and clean_low.startswith(("switch ", "!switch ", "/switch ")):
         parts = clean_text.split(None, 1)
-        if len(parts) > 1 and parts[1].lower() not in ("provider", "model", "auto", "gemini", "groq", "mistral", "openrouter", "deepseek", "openai", "huggingface"):
+        if len(parts) > 1 and parts[1].lower() not in ("provider", "model", "auto", "gemini", "groq", "mistral", "openrouter", "nvidia", "cloudflare", "huggingface"):
             is_char_switch = True
             char_target = parts[1].strip()
 
@@ -10481,11 +14001,11 @@ async def on_message(message):
             cand = parts[1].lower()
             if cand in ("provider", "model") and len(parts) > 2:
                 target_prov = parts[2].lower()
-            elif cand in ("auto", "gemini", "groq", "mistral", "openrouter", "huggingface", "deepseek", "openai"):
+            elif cand in ("auto", "gemini", "groq", "mistral", "openrouter", "huggingface", "nvidia", "cloudflare"):
                 target_prov = cand
         old_p, new_p = toggle_provider(target_prov)
         bot_name = client.user.display_name if client.user else "Bot"
-        model_key = f"{new_p}_model" if new_p in ("gemini", "groq", "mistral") else "model"
+        model_key = f"{new_p}_model" if new_p in ("gemini", "groq", "mistral", "nvidia", "cloudflare") else "model"
         curr_model = config.get(model_key, "default")
         toast = format_toast_embed(
             f"{bot_name} // Provider Toggled",
@@ -10577,12 +14097,14 @@ async def on_message(message):
             if final_pfp_url:
                 config["avatar_url"] = final_pfp_url
                 config["pfp"] = final_pfp_url
-                if active_bot:
-                    active_bot["avatar_url"] = final_pfp_url
-                    if "config" in active_bot:
-                        active_bot["config"]["avatar_url"] = final_pfp_url
-                        active_bot["config"]["pfp"] = final_pfp_url
-                    save_bots(bots_state)
+                target_bot = current_bot if current_bot else (get_active_bot(bots_state) if 'bots_state' in globals() else None)
+                if target_bot:
+                    target_bot["avatar_url"] = final_pfp_url
+                    if "config" in target_bot and isinstance(target_bot["config"], dict):
+                        target_bot["config"]["avatar_url"] = final_pfp_url
+                        target_bot["config"]["pfp"] = final_pfp_url
+                    if 'bots_state' in globals():
+                        save_bots(bots_state)
 
             bot_name = client.user.display_name if client.user else "Bot"
             toast = format_toast_embed(
@@ -10868,64 +14390,31 @@ async def on_message(message):
             await safe_reply(message, f"🛑 Disconnected **{cur_bot_name}** from Pokémon Showdown.")
             return
 
-    # ─── DOODLE ON COMMAND & DOODLE ALONG ───────────────────
-    if DOODLE_ENGINE_AVAILABLE:
-        is_dood_req, dood_mode, dood_sub = is_doodle_request(raw_c if raw_c.startswith("!") else clean_text)
-        if is_dood_req or raw_c.startswith(("!doodle", "!draw", "!doodlealong", "!sketch")):
-            current_bot_id = os.getenv("BOT_ID") or bots_state.get("active_id", "default")
-            current_bot = get_bot_by_id(bots_state, current_bot_id) if 'bots_state' in globals() else None
-            b_name = current_bot.get("name", "Bot") if current_bot else "Bot"
-            b_pers = current_bot.get("config", {}).get("personality", "") if current_bot else config.get("personality", "")
-
-            # Check if an image is provided directly or via replied reference
-            doodle_img_bytes = None
-            if message.attachments:
-                for att in message.attachments:
-                    if att.content_type and att.content_type.startswith("image/"):
-                        try:
-                            async with aiohttp.ClientSession() as sess:
-                                async with sess.get(att.url, timeout=aiohttp.ClientTimeout(total=25)) as r:
-                                    if r.status == 200:
-                                        doodle_img_bytes = await r.read()
-                                        break
-                        except Exception:
-                            pass
-
-            if not doodle_img_bytes and message.reference and message.reference.resolved:
-                ref_msg = message.reference.resolved
-                if hasattr(ref_msg, "attachments"):
-                    for att in ref_msg.attachments:
-                        if att.content_type and att.content_type.startswith("image/"):
-                            try:
-                                async with aiohttp.ClientSession() as sess:
-                                    async with sess.get(att.url, timeout=aiohttp.ClientTimeout(total=25)) as r:
-                                        if r.status == 200:
-                                            doodle_img_bytes = await r.read()
-                                            break
-                            except Exception:
-                                pass
-
-            if doodle_img_bytes or dood_mode == "along":
-                if doodle_img_bytes:
-                    async with safe_typing(message.channel):
-                        res_bytes, dialog = await doodle_along(doodle_img_bytes, user_prompt=dood_sub, bot_name=b_name, bot_personality=b_pers)
-                        f = discord.File(io.BytesIO(res_bytes), filename="doodle_along.png")
-                        await safe_reply(message, dialog, file=f)
-                        return
-                else:
-                    await safe_reply(message, "🎨 To doodle along with me, please attach your drawing/sketch or reply to one!")
-                    return
-            else:
-                async with safe_typing(message.channel):
-                    res_bytes, dialog = await generate_doodle(dood_sub or "cute cat", bot_name=b_name, bot_personality=b_pers)
-                    if res_bytes:
-                        f = discord.File(io.BytesIO(res_bytes), filename="doodle.png")
-                        await safe_reply(message, dialog, file=f)
-                        return
 
     # ─── ATTACHMENT PROCESSING (Only reply to media if directly pinged or in DM) ──
-    attachments = message.attachments
+    attachments = list(message.attachments)
     is_media_pinged = (client.user in message.mentions) or (message.guild is None)
+
+    # Check if replying to an earlier message that has media attachments
+    replied_media_author = None
+    if message.reference and message.reference.message_id:
+        ref_cand = getattr(message.reference, "resolved", None)
+        if not ref_cand or isinstance(ref_cand, getattr(discord, "DeletedReferencedMessage", type(None))):
+            ref_cand = getattr(message.reference, "cached_message", None)
+        if not ref_cand and hasattr(message.channel, "fetch_message"):
+            try:
+                ref_cand = await message.channel.fetch_message(message.reference.message_id)
+            except Exception:
+                ref_cand = None
+        if ref_cand and hasattr(ref_cand, "attachments") and ref_cand.attachments:
+            replied_media_author = getattr(ref_cand.author, "display_name", ref_cand.author.name)
+            if not attachments:
+                attachments = list(ref_cand.attachments)
+                client_user_id = getattr(client.user, "id", None) if client.user else None
+                if (client_user_id and getattr(ref_cand.author, "id", None) == client_user_id) or (client.user and client.user in message.mentions) or (message.guild is None):
+                    is_media_pinged = True
+            else:
+                attachments.extend(ref_cand.attachments)
     if attachments:
         if not is_media_pinged:
             return  # Strictly ignore media attachments unless directly pinged or in DM
@@ -10956,54 +14445,87 @@ async def on_message(message):
                 await safe_reply(message, embed=toast)
             return
 
-        for att in image_atts:
+        if image_atts:
             async with safe_typing(message.channel):
                 try:
+                    downloaded_images = []
+                    primary_mime = "image/jpeg"
                     async with aiohttp.ClientSession() as session:
-                        async with session.get(att.url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
-                            image_bytes = await resp.read()
-                    prompt = message.content or "Describe this image."
-                    if DOODLE_ENGINE_AVAILABLE and is_doodle_request(prompt)[0]:
-                        cur_bot_id = os.getenv("BOT_ID") or bots_state.get("active_id", "default")
-                        current_bot = get_bot_by_id(bots_state, current_bot_id) if 'bots_state' in globals() else None
-                        b_name = current_bot.get("name", "Bot") if current_bot else "Bot"
-                        b_pers = current_bot.get("config", {}).get("personality", "") if current_bot else config.get("personality", "")
-                        res_bytes, dialog = await doodle_along(image_bytes, user_prompt=prompt, bot_name=b_name, bot_personality=b_pers)
-                        f = discord.File(io.BytesIO(res_bytes), filename="doodle_along.png")
-                        await safe_reply(message, dialog, file=f)
-                        continue
+                        for att in image_atts[:4]:
+                            try:
+                                async with session.get(att.url, timeout=aiohttp.ClientTimeout(total=25)) as resp:
+                                    if resp.status == 200:
+                                        b = await resp.read()
+                                        downloaded_images.append(b)
+                                        if att.content_type:
+                                            primary_mime = att.content_type
+                            except Exception:
+                                pass
 
-                    vision_provider = config.get("vision_provider", "openrouter")
-                    history = get_context(message.channel.id)
-                    if vision_provider == "gemini":
-                        reply, err = await ask_gemini_vision(
-                            config["personality"], prompt, image_bytes,
-                            att.content_type or "image/jpeg", history=history
-                        )
-                    else:
-                        vmodel = config.get("vision_model", "").strip() or None
-                        reply, err = await ask_openrouter_vision(
-                            config["personality"], prompt, image_bytes,
-                            att.content_type or "image/jpeg", history=history, vision_model=vmodel
-                        )
-                    if not err:
-                        add_to_context(message.channel.id, "user", f"[User sent an image: {att.filename}] {prompt}")
-                        add_to_context(message.channel.id, "assistant", reply)
-                        await send_split_messages(message.channel, reply, reply_to=message)
-                        message_count += 1
-                        if config.get("tts_enabled"):
-                            audio = await speak(reply)
-                            if audio:
-                                await _safe_send_voice_reply(message, audio)
-                    else:
-                        await safe_reply(message, f"Vision error: {reply}")
+                    if downloaded_images:
+                        clean_prompt = (message.content or "").strip()
+                        if replied_media_author and not message.attachments:
+                            prompt = f"The user @{message.author.display_name} replied to @{replied_media_author}'s image saying: \"{clean_prompt or 'What do you think of this?'}\""
+                        elif clean_prompt:
+                            prompt = clean_prompt
+                        else:
+                            prompt = "Look at these images and react." if len(downloaded_images) > 1 else "Describe this image."
+
+                        img_input = downloaded_images if len(downloaded_images) > 1 else downloaded_images[0]
+                        vision_provider = config.get("vision_provider", "gemini" if GEMINI_KEY else "openrouter")
+                        history = get_context(message.channel.id)
+                        if vision_provider == "gemini":
+                            reply, err = await ask_gemini_vision(
+                                config["personality"], prompt, img_input,
+                                primary_mime, history=history
+                            )
+                        else:
+                            vmodel = config.get("vision_model", "").strip() or None
+                            reply, err = await ask_openrouter_vision(
+                                config["personality"], prompt, downloaded_images[0],
+                                primary_mime, history=history, vision_model=vmodel
+                            )
+                        if not err:
+                            add_to_context(message.channel.id, "user", f"[User sent {len(downloaded_images)} image(s)] {prompt}")
+                            add_to_context(message.channel.id, "assistant", reply)
+                            try:
+                                record_media_memory(
+                                    uid=message.author.id,
+                                    media_type="image",
+                                    summary=reply[:300] if reply else "Shared an image",
+                                    caption=clean_prompt or (image_atts[0].filename if image_atts else ""),
+                                    filename=getattr(image_atts[0], "filename", None)
+                                )
+                            except Exception as _m_err:
+                                print(f"[MEMORY IMAGE ERROR] {_m_err}")
+                            await send_split_messages(message.channel, reply, reply_to=message)
+                            message_count += 1
+                            if config.get("tts_enabled"):
+                                audio = await speak(reply)
+                                if audio:
+                                    await _safe_send_voice_reply(message, audio)
+                        else:
+                            await safe_reply(message, f"Vision error: {reply}")
                 except Exception as e:
                     await safe_reply(message, f"Image processing error: {e}")
 
         for att in video_atts:
             async with safe_typing(message.channel):
-                reply = await process_video_attachment(att, message.content, message.channel.id)
+                v_prompt = message.content or ""
+                if replied_media_author and not message.attachments:
+                    v_prompt = f"The user @{message.author.display_name} replied to @{replied_media_author}'s video saying: \"{v_prompt or 'What do you think of this video?'}\""
+                reply = await process_video_attachment(att, v_prompt, message.channel.id)
                 if reply:
+                    try:
+                        record_media_memory(
+                            uid=message.author.id,
+                            media_type="video",
+                            summary=reply[:300] if reply else "Shared a video",
+                            caption=v_prompt or getattr(att, "filename", ""),
+                            filename=getattr(att, "filename", None)
+                        )
+                    except Exception as _m_err:
+                        print(f"[MEMORY VIDEO ERROR] {_m_err}")
                     await send_split_messages(message.channel, reply, reply_to=message)
                     message_count += 1
                     if config.get("tts_enabled"):
@@ -11033,6 +14555,16 @@ async def on_message(message):
                         if err:
                             await safe_reply(message, reply)
                         else:
+                            try:
+                                record_media_memory(
+                                    uid=message.author.id,
+                                    media_type="voice",
+                                    summary=text.strip(),
+                                    caption=message.content or "",
+                                    filename=getattr(att, "filename", None)
+                                )
+                            except Exception as _m_err:
+                                print(f"[MEMORY VOICE ERROR] {_m_err}")
                             await send_split_messages(message.channel, reply, reply_to=message)
                             message_count += 1
                             if config.get("tts_enabled"):
@@ -11181,35 +14713,106 @@ async def on_message(message):
             await safe_reply(message, "🔒 **DM Only Command**: Training mode and backup commands can only be used in Direct Messages (DMs) with the bot, not on servers.")
             return
 
-    # Natural language doodle request check
-    if DOODLE_ENGINE_AVAILABLE:
-        is_dood_req, dood_mode, dood_sub = is_doodle_request(clean_msg)
-        if is_dood_req and dood_mode == "draw":
-            async with safe_typing(message.channel):
-                cur_bot_id = os.getenv("BOT_ID") or bots_state.get("active_id", "default")
-                cur_bot = get_bot_by_id(bots_state, cur_bot_id) if 'bots_state' in globals() else None
-                b_name = cur_bot.get("name", "Bot") if cur_bot else "Bot"
-                b_pers = cur_bot.get("config", {}).get("personality", "") if cur_bot else config.get("personality", "")
-                res_bytes, dialog = await generate_doodle(dood_sub or "cute doodle", bot_name=b_name, bot_personality=b_pers)
-                if res_bytes:
-                    f = discord.File(io.BytesIO(res_bytes), filename="doodle.png")
-                    await safe_reply(message, dialog, file=f)
-                    return
 
     # Capture reply reference if replying to another message in channel
     reply_prefix = ""
-    if message.reference and message.reference.resolved:
-        ref_obj = message.reference.resolved
-        if hasattr(ref_obj, "author"):
-            ref_author = ref_obj.author.display_name
-            ref_body = (getattr(ref_obj, "clean_content", "") or getattr(ref_obj, "content", "") or "")[:100].strip()
+    ref_obj = None
+    if message.reference and message.reference.message_id:
+        if getattr(message.reference, "resolved", None) and not isinstance(
+            message.reference.resolved, getattr(discord, "DeletedReferencedMessage", type(None))
+        ):
+            ref_obj = message.reference.resolved
+        elif getattr(message.reference, "cached_message", None):
+            ref_obj = message.reference.cached_message
+
+        if not ref_obj and hasattr(message.channel, "fetch_message"):
+            try:
+                ref_obj = await message.channel.fetch_message(message.reference.message_id)
+            except Exception:
+                pass
+
+        if ref_obj and hasattr(ref_obj, "author"):
+            ref_author = getattr(ref_obj.author, "display_name", ref_obj.author.name)
+            ref_body = (getattr(ref_obj, "clean_content", "") or getattr(ref_obj, "content", "") or "")[:200].strip()
+            if hasattr(ref_obj, "attachments") and ref_obj.attachments:
+                att_desc = []
+                for a in ref_obj.attachments[:3]:
+                    c_type = a.content_type or ""
+                    if c_type.startswith("image/"):
+                        att_desc.append(f"Image: {a.filename}")
+                    elif c_type.startswith("video/"):
+                        att_desc.append(f"Video: {a.filename}")
+                    elif c_type.startswith("audio/"):
+                        att_desc.append(f"Audio: {a.filename}")
+                    else:
+                        att_desc.append(a.filename)
+                ref_body += f" [Attached: {', '.join(att_desc)}]"
+            if MEDIA_INTELLIGENCE_AVAILABLE and ref_obj.content:
+                m_info = detect_and_handle_media_urls(ref_obj.content)
+                if m_info:
+                    m_type, m_url = m_info
+                    ref_body += f" [{m_type.capitalize()} Link: {m_url}]"
             if ref_body:
                 reply_prefix = f" (replying to @{ref_author}: \"{ref_body}\")"
             else:
                 reply_prefix = f" (replying to @{ref_author})"
 
-    speaker_tag = f"[{author_name} (@{author_handle}){reply_prefix}]"
-    prompt_to_send = f"{speaker_tag}: {clean_msg}" if message.guild else clean_msg
+    # Detect mentioned Discord message links in text
+    _DISCORD_MSG_LINK_REGEX = re.compile(
+        r'https?://(?:(?:canary|ptb)\.)?discord(?:app)?\.com/channels/(\d+|@me)/(\d+)/(\d+)',
+        re.IGNORECASE
+    )
+    _link_matches = _DISCORD_MSG_LINK_REGEX.findall(clean_msg)
+    if _link_matches:
+        for _g, _c, _m in _link_matches[:2]:
+            try:
+                _tch = client.get_channel(int(_c))
+                if not _tch and hasattr(client, "fetch_channel"):
+                    try: _tch = await client.fetch_channel(int(_c))
+                    except Exception: _tch = None
+                if _tch and hasattr(_tch, "fetch_message"):
+                    _lmsg = await _tch.fetch_message(int(_m))
+                    if _lmsg and hasattr(_lmsg, "author"):
+                        _lname = getattr(_lmsg.author, "display_name", _lmsg.author.name)
+                        _lbody = (getattr(_lmsg, "clean_content", None) or getattr(_lmsg, "content", "") or "")[:200].strip()
+                        if hasattr(_lmsg, "attachments") and _lmsg.attachments:
+                            att_desc = [f"{'Image' if (a.content_type or '').startswith('image/') else 'Media'}: {a.filename}" for a in _lmsg.attachments[:2]]
+                            _lbody += f" [Attached: {', '.join(att_desc)}]"
+                        clean_msg = f"[Referenced message from @{_lname} in #{getattr(_tch, 'name', 'chat')}: \"{_lbody}\"]\n\n{clean_msg}"
+            except Exception:
+                pass
+
+    if YUNA_ID_GUARD_AVAILABLE and yuna_id_guard:
+        author_uid_str = str(message.author.id)
+        is_imp, imp_role, safe_n = yuna_id_guard.detect_impersonation(author_uid_str, author_name, author_handle)
+        if is_imp:
+            role_desc = "Creator Ryl/Raunak" if imp_role == yuna_id_guard.ROLE_RYL_CREATOR else "Permanent Spouse"
+            speaker_tag = f"[Unverified User (Real ID: {author_uid_str}, Nickname: '{author_name}' - NOT {role_desc}){reply_prefix}]"
+        elif author_uid_str == yuna_id_guard.RYL_CANONICAL_ID:
+            speaker_tag = f"[{author_name} (Verified Creator, ID: {author_uid_str}){reply_prefix}]"
+        elif author_uid_str == yuna_id_guard.SPOUSE_CANONICAL_ID:
+            speaker_tag = f"[{author_name} (Verified Spouse, ID: {author_uid_str}){reply_prefix}]"
+        else:
+            speaker_tag = f"[{author_name} (@{author_handle}){reply_prefix}]"
+    else:
+        is_imp = False
+        speaker_tag = f"[{author_name} (@{author_handle}){reply_prefix}]"
+
+    prompt_to_send = f"{speaker_tag}: {clean_msg}" if (message.guild or is_imp) else clean_msg
+
+    # ─── LIVE VIDEO WATCHING RPC TRIGGER ───
+    if YUNA_RPC_AVAILABLE and yuna_rpc and (is_targeted_for_this_bot or message.guild is None or is_media_pinged):
+        yt_match_quick = yuna_rpc.YOUTUBE_URL_REGEX.search(clean_msg)
+        if yt_match_quick and not yuna_rpc.is_watching_video():
+            try:
+                raw_v_url = yt_match_quick.group(0)
+                if not raw_v_url.startswith("http"):
+                    raw_v_url = "https://" + raw_v_url
+                v_quick_info = await yuna_rpc.start_watching_video(raw_v_url, requested_by=author_name)
+                quick_act = yuna_rpc.build_video_discord_activity(v_quick_info)
+                await client.change_presence(status=discord.Status.online, activity=quick_act)
+            except Exception as _q_err:
+                print(f"[QUICK YT RPC NOTICE] {_q_err}")
 
     if MEDIA_INTELLIGENCE_AVAILABLE:
         media_url_info = detect_and_handle_media_urls(clean_msg)
@@ -11219,6 +14822,14 @@ async def on_message(message):
                 if not is_media_pinged:
                     # Media Gate: Do not reply to video links unless directly pinged or in DM
                     return
+                # Live Video Watching RPC
+                if YUNA_RPC_AVAILABLE and yuna_rpc:
+                    try:
+                        v_info = await yuna_rpc.start_watching_video(target_url, requested_by=author_name)
+                        act = yuna_rpc.build_video_discord_activity(v_info)
+                        await client.change_presence(status=discord.Status.online, activity=act)
+                    except Exception as _ve_rpc_err:
+                        print(f"[WATCH VIDEO RPC NOTICE] {_ve_rpc_err}")
                 try:
                     async with safe_typing(message.channel):
                         context_data, report = await watch_video_tool(target_url, bot_config=config)
@@ -11255,9 +14866,7 @@ async def on_message(message):
 
     try:
         async with safe_typing(message.channel):
-            ref_user_id = None
-            if message.reference and message.reference.resolved and hasattr(message.reference.resolved, "author"):
-                ref_user_id = str(message.reference.resolved.author.id)
+            ref_user_id = str(ref_obj.author.id) if (ref_obj and hasattr(ref_obj, "author")) else (str(message.reference.resolved.author.id) if (message.reference and getattr(message.reference, "resolved", None) and hasattr(message.reference.resolved, "author")) else None)
 
             reply, err = await ask_ai(
                 message.channel.id,
@@ -11481,11 +15090,8 @@ def api_bots_update(bot_id):
     try:
         with state_lock:
             data = request.get_json(silent=True) or {}
-            target = None
-            for b in bots_state.get("bots", []):
-                if b["id"] == bot_id:
-                    target = b
-                    break
+            target = get_bot_by_id(bots_state, bot_id)
+
             if not target:
                 return jsonify({"ok": False, "error": "Bot not found"}), 404
             if "name" in data:
@@ -11503,12 +15109,28 @@ def api_bots_update(bot_id):
                 for k, v in data["config"].items():
                     current_cfg[k] = v
             # Allow top-level config fields as well
-            for direct_key in ["personality", "prompt", "provider", "gemini_model", "groq_model", "model", "custom_model", "custom_base_url", "custom_key", "use_custom_model", "temperature", "max_tokens", "top_p", "frequency_penalty", "presence_penalty", "max_context", "vision_provider", "gemini_vision_model", "video_watching_model", "fish_voice_id", "auto_search", "user_memory_enabled", "open_chat_enabled", "auto_stt", "greeting", "role", "privacy", "model_slots", "fallback_provider", "fallback_model"]:
+            for direct_key in ["personality", "prompt", "provider", "gemini_model", "groq_model", "nvidia_model", "mistral_model", "openrouter_model", "openrouter_key", "cloudflare_model", "model", "custom_model", "custom_base_url", "custom_key", "use_custom_model", "temperature", "max_tokens", "top_p", "frequency_penalty", "presence_penalty", "max_context", "vision_provider", "gemini_vision_model", "video_watching_model", "fish_voice_id", "auto_search", "user_memory_enabled", "open_chat_enabled", "auto_stt", "greeting", "role", "privacy", "model_slots", "fallback_provider", "fallback_model", "companion_appearance", "companion_appearance_desc", "companion_height", "companion_build", "companion_hair", "companion_eyes", "companion_outfit", "companion_features", "appearance", "appearance_desc", "appearance_height", "appearance_build", "appearance_hair", "appearance_eyes", "appearance_outfit", "appearance_features"]:
                 if direct_key in data:
                     current_cfg[direct_key] = data[direct_key]
+            if "personality" in data or "prompt" in data:
+                new_p = data.get("personality") or data.get("prompt") or ""
+                target["personality"] = new_p
+                target["prompt"] = new_p
+                current_cfg["personality"] = new_p
+                current_cfg["prompt"] = new_p
+                if target.get("is_companion") or target["id"] == "companion":
+                    config["real_account_personality"] = new_p
+                elif target["id"] == bots_state.get("active_id"):
+                    config["personality"] = new_p
+            if target.get("is_companion") or target["id"] == "companion":
+                for ak in ("companion_appearance", "companion_appearance_desc", "companion_height", "companion_build", "companion_hair", "companion_eyes", "companion_outfit", "companion_features"):
+                    if ak in current_cfg:
+                        config[ak] = current_cfg[ak]
             save_bots(bots_state)
-            if target["id"] == bots_state.get("active_id"):
+            if target["id"] == bots_state.get("active_id") and not target.get("is_companion"):
                 apply_bot_to_config(target, save_to_disk=True)
+            else:
+                save_config(config)
             return jsonify({"ok": True, "bot": {"id": target["id"], "name": target["name"], "emoji": target["emoji"]}})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
@@ -11532,21 +15154,22 @@ def api_bots_delete(bot_id):
 @app.route("/api/bots/<bot_id>/config", methods=["GET"])
 def api_bots_get_config(bot_id):
     with state_lock:
-        for b in bots_state.get("bots", []):
-            if b["id"] == bot_id:
-                av_url = b.get("avatar_url") or b.get("config", {}).get("avatar_url") or b.get("pfp")
-                if not av_url and b.get("token"):
-                    av_url = get_discord_bot_avatar(b.get("token"))
-                return jsonify({
-                    "ok": True,
-                    "id": b["id"],
-                    "config": b.get("config", {}),
-                    "name": b.get("name"),
-                    "emoji": b.get("emoji"),
-                    "token": b.get("token", ""),
-                    "avatar_url": av_url,
-                    "personality": b.get("config", {}).get("personality") or b.get("personality") or ""
-                })
+        b = get_bot_by_id(bots_state, bot_id)
+
+        if b:
+            av_url = b.get("avatar_url") or b.get("config", {}).get("avatar_url") or b.get("pfp")
+            if not av_url and b.get("token"):
+                av_url = get_discord_bot_avatar(b.get("token"))
+            return jsonify({
+                "ok": True,
+                "id": b["id"],
+                "config": b.get("config", {}),
+                "name": b.get("name"),
+                "emoji": b.get("emoji"),
+                "token": b.get("token", ""),
+                "avatar_url": av_url,
+                "personality": b.get("config", {}).get("personality") or b.get("personality") or ""
+            })
     return jsonify({"ok": False, "error": "Bot not found"}), 404
 
 @app.route("/api/config", methods=["GET", "POST"])
@@ -11560,14 +15183,31 @@ def api_config():
                 data = request.get_json(silent=True) or {}
                 b_id = data.get("bot_id") or target_id or bots_state.get("active_id")
                 target_bot = get_bot_by_id(bots_state, b_id) if b_id else None
+                is_comp = (str(b_id).lower() in ("companion", "user_worker", "real_account")) or (target_bot and target_bot.get("is_companion"))
                 for k, v in data.items():
                     if k != "bot_id":
-                        config[k] = v
-                        if target_bot and isinstance(target_bot.get("config"), dict):
-                            target_bot["config"][k] = v
-                if target_bot:
-                    if "personality" in data:
+                        if is_comp and k in ("personality", "prompt"):
+                            config["real_account_personality"] = v
+                            if target_bot and isinstance(target_bot.get("config"), dict):
+                                target_bot["config"]["personality"] = v
+                                target_bot["personality"] = v
+                        elif not is_comp:
+                            config[k] = v
+                            if target_bot and isinstance(target_bot.get("config"), dict):
+                                target_bot["config"][k] = v
+                        else:
+                            config[k] = v
+                            if target_bot and isinstance(target_bot.get("config"), dict):
+                                target_bot["config"][k] = v
+                if target_bot and "personality" in data:
+                    if is_comp:
+                        config["real_account_personality"] = data["personality"]
                         target_bot["config"]["personality"] = data["personality"]
+                        target_bot["personality"] = data["personality"]
+                    else:
+                        config["personality"] = data["personality"]
+                        target_bot["config"]["personality"] = data["personality"]
+                        target_bot["personality"] = data["personality"]
                 save_config(config)
                 save_bots(bots_state)
             print(f"[CONFIG] Updated from dashboard: {len(data)} fields saved and applied.")
@@ -11594,16 +15234,25 @@ def api_personality():
                 data = request.get_json(silent=True) or {}
                 b_id = data.get("bot_id") or target_id
                 t_bot = get_bot_by_id(bots_state, b_id) if b_id else target_bot
-                
+                is_comp = (str(b_id).lower() in ("companion", "user_worker", "real_account")) or (t_bot and t_bot.get("is_companion"))
+
                 if "personality" in data:
                     new_p = data["personality"]
-                    config["personality"] = new_p
-                    if t_bot and isinstance(t_bot.get("config"), dict):
-                        t_bot["config"]["personality"] = new_p
-                        
+                    if is_comp:
+                        config["real_account_personality"] = new_p
+                        if t_bot and isinstance(t_bot.get("config"), dict):
+                            t_bot["config"]["personality"] = new_p
+                            t_bot["personality"] = new_p
+                    else:
+                        config["personality"] = new_p
+                        if t_bot and isinstance(t_bot.get("config"), dict):
+                            t_bot["config"]["personality"] = new_p
+                            t_bot["personality"] = new_p
+
                 for k in ("temperature", "max_tokens", "burst_energy", "emotion_tags", "auto_join_servers", "auto_accept_friends", "burst_window_seconds", "message_split_enabled", "message_split_delay"):
                     if k in data:
-                        config[k] = data[k]
+                        if not is_comp:
+                            config[k] = data[k]
                         if t_bot and isinstance(t_bot.get("config"), dict):
                             t_bot["config"][k] = data[k]
 
@@ -11880,6 +15529,57 @@ def api_user_worker_logs():
         "lines": lines
     })
 
+@app.route("/api/user_worker/quests", methods=["GET"])
+def api_user_worker_quests():
+    try:
+        import yuna_quests
+        token = os.getenv("DISCORD_USER_TOKEN", "").strip()
+        bal = yuna_quests.fetch_orb_balance_sync(token)
+        quests = yuna_quests.fetch_quests_sync(token)
+        return jsonify({
+            "ok": True,
+            "balance": bal,
+            "quests": quests
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.route("/api/user_worker/quests/claim", methods=["POST"])
+def api_user_worker_quests_claim():
+    try:
+        import yuna_quests
+        token = os.getenv("DISCORD_USER_TOKEN", "").strip()
+        loop = asyncio.new_event_loop()
+        res = loop.run_until_complete(yuna_quests.async_claim_all_completed_quests(token))
+        loop.close()
+        return jsonify({"ok": True, "result": res})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.route("/api/user_worker/quests/enroll", methods=["POST"])
+def api_user_worker_quests_enroll():
+    try:
+        import yuna_quests
+        token = os.getenv("DISCORD_USER_TOKEN", "").strip()
+        loop = asyncio.new_event_loop()
+        res = loop.run_until_complete(yuna_quests.async_enroll_all_orb_quests(token))
+        loop.close()
+        return jsonify({"ok": True, "result": res})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.route("/api/user_worker/quests/script", methods=["GET"])
+def api_user_worker_quests_script():
+    try:
+        script_path = os.path.join(BASE_DIR, "quest_completer.js")
+        if os.path.exists(script_path):
+            with open(script_path, "r", encoding="utf-8") as f:
+                code = f.read()
+            return Response(code, mimetype="application/javascript")
+        return jsonify({"ok": False, "error": "quest_completer.js not found"}), 404
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 # ─── AGY & SELF-HEALING LOGS API ─────────────────────────────────
 @app.route("/api/agy/logs", methods=["GET"])
 def api_agy_logs():
@@ -11908,8 +15608,8 @@ def api_status():
         groq_active = GROQ_KEY is not None and len(GROQ_KEY) > 10
         mistral_active = bool((MISTRAL_KEY or os.getenv("MISTRAL_KEY")) and len(MISTRAL_KEY or os.getenv("MISTRAL_KEY", "")) > 10)
         or_active = os.getenv("OPENROUTER_KEY") is not None and len(os.getenv("OPENROUTER_KEY", "")) > 10
-        openai_active = bool(get_openai_key() and len(get_openai_key()) > 10)
-        deepseek_active = bool(get_deepseek_key() and len(get_deepseek_key()) > 10)
+        nvidia_active = bool(get_nvidia_key() and len(get_nvidia_key()) > 10)
+        cloudflare_active = bool(get_cloudflare_token() and len(get_cloudflare_token()) > 10)
         fish_active = FISH_AUDIO_KEY is not None and len(FISH_AUDIO_KEY) > 10
         bot_id = ""
         try:
@@ -11943,8 +15643,8 @@ def api_status():
             "groq": groq_active,
             "mistral": mistral_active,
             "openrouter": or_active,
-            "openai": openai_active,
-            "deepseek": deepseek_active,
+            "nvidia": nvidia_active,
+            "cloudflare": cloudflare_active,
             "elevenlabs": eleven_active,
             "openai_tts": openai_tts_active,
             "cartesia": cartesia_active,
@@ -12026,6 +15726,8 @@ def ensure_social_manager():
                 speak_fn=speak,
                 transcribe_fn=transcribe_audio
             )
+            if 'client' in globals() and client:
+                client.social_manager = social_manager
             print("[SOCIAL] Lazy-initialized SocialManager for web dashboard")
             return social_manager
         except Exception as e:
@@ -13246,8 +16948,36 @@ def api_web_chat():
         bot_id = data.get("bot_id") or bots_state.get("active_id") or "default_web"
         user_name = data.get("user_name") or "User"
         user_id = data.get("user_id") or "web_user"
+        if YUNA_ID_GUARD_AVAILABLE and yuna_id_guard:
+            user_name, _ = yuna_id_guard.sanitize_profile_names(user_id, user_name, user_name)
         system_prompt = data.get("system_prompt")
-        channel_id = f"web_{bot_id}"
+        is_companion_chat = str(bot_id).lower() in ("companion", "user_worker", "real_account", "k-1", "k1")
+        if is_companion_chat:
+            bot_id = "companion"
+            channel_id = data.get("channel_id") or "companion_room_chat"
+        else:
+            channel_id = data.get("channel_id") or f"web_{bot_id}"
+        is_dm_raw = data.get("is_dm")
+        guild_name = data.get("guild_name")
+        channel_name = data.get("channel_name")
+        participants_data = data.get("participants")
+        reply_to_user_id = data.get("reply_to_user_id")
+        if is_companion_chat and str(reply_to_user_id) in ("824888375395876884", "1533213082158108702"):
+            reply_to_user_id = None
+
+        if is_dm_raw is not None:
+            is_dm_effective = bool(is_dm_raw)
+        elif guild_name:
+            is_dm_effective = False
+        else:
+            is_dm_effective = True
+
+        class _LightGuild:
+            def __init__(self, name):
+                self.name = str(name or "Public Channel")
+                self.id = 0
+
+        guild_obj = _LightGuild(guild_name) if guild_name else None
 
         if not prompt and not image_data and not audio_data:
             print(f"\033[91m[{now_str}] [CHAT ERROR] Empty prompt received for {bot_id}\033[0m")
@@ -13260,31 +16990,28 @@ def api_web_chat():
         async def _do_chat():
             target_bot = get_bot_by_id(bots_state, bot_id) if ('bots_state' in globals() and isinstance(bots_state, dict)) else None
             target_cfg = target_bot.get("config", {}) if target_bot else config
+            scoped_cfg = copy.deepcopy(target_cfg)
 
-            old_p = config.get("personality")
-            old_t = config.get("temperature")
-            old_tok = config.get("max_tokens")
-            old_topp = config.get("top_p")
-            old_freq = config.get("frequency_penalty")
-            old_pres = config.get("presence_penalty")
-            old_prov = config.get("provider")
-            old_gmod = config.get("gemini_model")
-            old_mod = config.get("model")
-            old_cmod = config.get("custom_model")
-            old_curl = config.get("custom_base_url")
-            old_ckey = config.get("custom_key")
-            old_ucm = config.get("use_custom_model")
-            old_search = config.get("auto_search")
-            old_split = config.get("message_split_enabled")
+            if is_companion_chat:
+                effective_system = system_prompt or scoped_cfg.get("real_account_personality") or config.get("real_account_personality") or scoped_cfg.get("personality")
+            else:
+                effective_system = system_prompt or scoped_cfg.get("personality") or config.get("personality")
 
-            effective_system = system_prompt or target_cfg.get("personality") or config.get("personality")
+            if "[HARDCODED CANONICAL APPEARANCE" not in str(effective_system):
+                effective_system = str(effective_system) + build_companion_appearance_directive(config, scoped_cfg)
+            if "[ANIME EMOTIONAL EXPRESSIONS" not in str(effective_system):
+                effective_system = str(effective_system) + build_anime_reactions_directive()
             temp_override = data.get("temperature") if data.get("temperature") is not None else target_cfg.get("temperature")
             tok_override = data.get("max_tokens") or data.get("tokens") or target_cfg.get("max_tokens")
             topp_override = data.get("top_p") if data.get("top_p") is not None else target_cfg.get("top_p")
             freq_override = data.get("frequency_penalty") if data.get("frequency_penalty") is not None else target_cfg.get("frequency_penalty")
             pres_override = data.get("presence_penalty") if data.get("presence_penalty") is not None else target_cfg.get("presence_penalty")
-            prov_override = data.get("provider") or target_cfg.get("provider")
-            mod_override = data.get("model") or data.get("custom_model") or target_cfg.get("model") or target_cfg.get("custom_model")
+            if is_companion_chat:
+                prov_override = data.get("provider") or target_cfg.get("companion_provider") or config.get("companion_provider") or target_cfg.get("provider") or "gemini"
+                mod_override = data.get("model") or data.get("custom_model") or target_cfg.get("companion_model") or config.get("companion_model") or target_cfg.get("model") or "gemini-3.1-flash-lite"
+            else:
+                prov_override = data.get("provider") or target_cfg.get("provider")
+                mod_override = data.get("model") or data.get("custom_model") or target_cfg.get("model") or target_cfg.get("custom_model")
 
             req_custom_model = (data.get("custom_model") or (mod_override if prov_override == "custom" or (mod_override and "/" in str(mod_override)) else "") or target_cfg.get("custom_model") or "").strip()
             req_custom_base_url = (data.get("custom_base_url") or target_cfg.get("custom_base_url") or config.get("custom_base_url", "")).strip()
@@ -13305,146 +17032,199 @@ def api_web_chat():
                         mod_override = "gemini-3.1-flash-lite"
 
             prov_lower = str(prov_override or "auto").lower()
-            if prov_lower in ("gemini", "groq", "mistral", "openai", "deepseek") and not req_custom_base_url:
+            if prov_lower in ("gemini", "groq", "mistral", "nvidia", "cloudflare") and not req_custom_base_url:
                 req_use_custom = False
                 req_custom_model = ""
-            elif prov_lower in ("custom", "openrouter") or req_custom_base_url:
+            elif prov_lower == "openrouter":
+                req_use_custom = False
+                req_custom_model = ""
+            elif prov_lower == "custom" or req_custom_base_url:
                 req_use_custom = True
             elif prov_lower == "auto":
                 req_use_custom = bool(req_custom_base_url)
 
-            try:
-                if effective_system:
-                    config["personality"] = effective_system
-                if temp_override is not None:
-                    try: config["temperature"] = float(temp_override)
-                    except: pass
-                if tok_override is not None:
-                    try: config["max_tokens"] = int(tok_override)
-                    except: pass
-                if topp_override is not None:
-                    try: config["top_p"] = float(topp_override)
-                    except: pass
-                if freq_override is not None:
-                    try: config["frequency_penalty"] = float(freq_override)
-                    except: pass
-                if pres_override is not None:
-                    try: config["presence_penalty"] = float(pres_override)
-                    except: pass
-                if prov_override:
-                    config["provider"] = str(prov_override).lower()
-                if mod_override:
-                    if "gemini" in str(mod_override).lower() or prov_override == "gemini":
-                        config["gemini_model"] = mod_override
-                    elif "groq" in str(prov_override).lower() or "qwen" in str(mod_override).lower():
-                        config["groq_model"] = mod_override
-                    elif "mistral" in str(prov_override).lower() or "mistral" in str(mod_override).lower() or "codestral" in str(mod_override).lower():
-                        config["mistral_model"] = mod_override
-                    config["model"] = mod_override
-                config["custom_model"] = req_custom_model
-                config["custom_base_url"] = req_custom_base_url
-                config["custom_key"] = req_custom_key
-                config["use_custom_model"] = bool(req_use_custom)
+            if effective_system:
+                scoped_cfg["personality"] = effective_system
+            if temp_override is not None:
+                try: scoped_cfg["temperature"] = float(temp_override)
+                except: pass
+            if tok_override is not None:
+                try: scoped_cfg["max_tokens"] = int(tok_override)
+                except: pass
+            if topp_override is not None:
+                try: scoped_cfg["top_p"] = float(topp_override)
+                except: pass
+            if freq_override is not None:
+                try: scoped_cfg["frequency_penalty"] = float(freq_override)
+                except: pass
+            if pres_override is not None:
+                try: scoped_cfg["presence_penalty"] = float(pres_override)
+                except: pass
+            if prov_override:
+                scoped_cfg["provider"] = str(prov_override).lower()
+            if mod_override:
+                if "gemini" in str(mod_override).lower() or prov_override == "gemini":
+                    scoped_cfg["gemini_model"] = mod_override
+                elif "groq" in str(prov_override).lower() or "qwen" in str(mod_override).lower():
+                    scoped_cfg["groq_model"] = mod_override
+                elif "mistral" in str(prov_override).lower() or "mistral" in str(mod_override).lower() or "codestral" in str(mod_override).lower():
+                    scoped_cfg["mistral_model"] = mod_override
+                elif "openrouter" in str(prov_override).lower() or prov_override == "openrouter":
+                    scoped_cfg["openrouter_model"] = mod_override
+                scoped_cfg["model"] = mod_override
+            if data.get("openrouter_key") or target_cfg.get("openrouter_key"):
+                scoped_cfg["openrouter_key"] = data.get("openrouter_key") or target_cfg.get("openrouter_key")
+            if data.get("openrouter_model") or target_cfg.get("openrouter_model"):
+                scoped_cfg["openrouter_model"] = data.get("openrouter_model") or target_cfg.get("openrouter_model")
+            scoped_cfg["custom_model"] = req_custom_model
+            scoped_cfg["custom_base_url"] = req_custom_base_url
+            scoped_cfg["custom_key"] = req_custom_key
+            scoped_cfg["use_custom_model"] = bool(req_use_custom)
 
-                if image_data or audio_data:
-                    try:
-                        img_bytes = None
-                        mime = "image/jpeg"
-                        if image_data:
+            if image_data or audio_data:
+                try:
+                    img_bytes = None
+                    mime = "image/jpeg"
+                    if image_data:
+                        if isinstance(image_data, list):
+                            img_bytes = []
+                            for item in image_data:
+                                if isinstance(item, str) and item.strip():
+                                    header, b64 = item.split(",", 1) if "," in item else ("", item)
+                                    if "image/png" in header: cur_mime = "image/png"
+                                    elif "image/webp" in header: cur_mime = "image/webp"
+                                    elif "image/gif" in header: cur_mime = "image/gif"
+                                    else: cur_mime = "image/jpeg"
+                                    mime = cur_mime
+                                    try:
+                                        img_bytes.append(base64.b64decode(b64.strip()))
+                                    except Exception:
+                                        pass
+                            if len(img_bytes) == 1:
+                                img_bytes = img_bytes[0]
+                            elif not img_bytes:
+                                img_bytes = None
+                        elif isinstance(image_data, str) and image_data.strip():
                             header, b64 = image_data.split(",", 1) if "," in image_data else ("", image_data)
                             if "image/png" in header: mime = "image/png"
                             elif "image/webp" in header: mime = "image/webp"
-                            img_bytes = base64.b64decode(b64)
+                            elif "image/gif" in header: mime = "image/gif"
+                            img_bytes = base64.b64decode(b64.strip())
 
-                        audio_bytes = None
-                        audio_mime = "audio/wav"
-                        if audio_data and isinstance(audio_data, str) and len(audio_data) > 30:
-                            header_a, b64_a = audio_data.split(",", 1) if "," in audio_data else ("", audio_data)
-                            if "webm" in header_a: audio_mime = "audio/webm"
-                            elif "ogg" in header_a: audio_mime = "audio/ogg"
-                            elif "mp3" in header_a or "mpeg" in header_a: audio_mime = "audio/mp3"
-                            elif "mp4" in header_a or "m4a" in header_a: audio_mime = "audio/mp4"
-                            audio_bytes = base64.b64decode(b64_a)
+                    audio_bytes = None
+                    audio_mime = "audio/wav"
+                    if audio_data and isinstance(audio_data, str) and len(audio_data) > 30:
+                        header_a, b64_a = audio_data.split(",", 1) if "," in audio_data else ("", audio_data)
+                        if "webm" in header_a: audio_mime = "audio/webm"
+                        elif "ogg" in header_a: audio_mime = "audio/ogg"
+                        elif "mp3" in header_a or "mpeg" in header_a: audio_mime = "audio/mp3"
+                        elif "mp4" in header_a or "m4a" in header_a: audio_mime = "audio/mp4"
+                        audio_bytes = base64.b64decode(b64_a)
 
-                        p = (prompt or "Look at this scene and listen to what is happening.").strip()
-                        vision_system = effective_system or "You are an engaging AI companion."
-                        if img_bytes and audio_bytes:
-                            vision_system += "\n\nCRITICAL: You are co-watching with the user. Look at the attached video frame AND listen to the audio stream/music. React naturally to what you see and hear!"
-                        elif img_bytes:
-                            vision_system += "\n\nCRITICAL: The user has attached an image in this conversation. Look at the image details carefully and react/respond in full character as your defined persona."
-                        elif audio_bytes:
-                            vision_system += "\n\nCRITICAL: The user has attached an audio clip in this conversation. Listen to the audio/music carefully and react/respond in full character as your defined persona."
+                    p = (prompt or "Look at this scene and listen to what is happening.").strip()
+                    vision_system = effective_system or "You are an engaging AI companion."
+                    if img_bytes and audio_bytes:
+                        vision_system += "\n\nCRITICAL: You are co-watching with the user. Look at the attached video frame AND listen to the audio stream/music. React naturally to what you see and hear!"
+                    elif img_bytes:
+                        vision_system += "\n\nCRITICAL: The user has attached an image in this conversation. Look at the image details carefully and react/respond in full character as your defined persona."
+                    elif audio_bytes:
+                        vision_system += "\n\nCRITICAL: The user has attached an audio clip in this conversation. Listen to the audio/music carefully and react/respond in full character as your defined persona."
 
-                        channel_ctx = list(contexts.get(channel_id, []))
-                        v_model = data.get("video_watching_model") or data.get("model") or data.get("custom_model") or target_cfg.get("video_watching_model") or target_cfg.get("gemini_vision_model") or "gemini-3.1-flash-lite"
-                        if not v_model or "live-preview" in str(v_model).lower() or v_model in ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-1.5-flash"]:
-                            v_model = "gemini-3.1-flash-lite"
-                        if v_model == "gemini-3.5-flash-lite":
-                            v_model = "gemini-3.1-flash-lite"
+                    channel_ctx = list(contexts.get(channel_id, []))
+                    
+                    # Select vision-capable model: do not let text-only LLMs break multimodal vision
+                    raw_vmodel = data.get("vision_model") or data.get("video_watching_model") or data.get("gemini_vision_model")
+                    if not raw_vmodel:
+                        req_m = data.get("model") or data.get("custom_model")
+                        if req_m and any(vm in str(req_m).lower() for vm in ("gemini", "vision", "omni", "gemma", "nemotron-3-nano")):
+                            raw_vmodel = req_m
+                        else:
+                            raw_vmodel = target_cfg.get("gemini_vision_model") or target_cfg.get("video_watching_model") or "gemini-3.1-flash-lite"
 
-                        # Ensure image/audio requests use Gemini Vision/Multimodal when available
-                        r_prov = "gemini" if (GEMINI_KEY and time.time() >= gemini_blocked_until) else (data.get("provider") or target_cfg.get("provider") or "auto")
-                        reply, err = await ask_multimodal_vision(
-                            vision_system, p, img_bytes, mime_type=mime, history=channel_ctx,
-                            model_override=v_model, provider_override=r_prov,
-                            audio_bytes=audio_bytes, audio_mime=audio_mime,
-                            max_tokens=tok_override, temperature=temp_override
-                        )
-                        if not err and reply:
-                            reply = clean_llm_output(reply) or reply
-                            with state_lock:
-                                if channel_id not in contexts:
-                                    contexts[channel_id] = []
-                                tag = "[Image & Audio Attached]" if (img_bytes and audio_bytes) else ("[Image Attached]" if img_bytes else "[Audio Attached]")
-                                user_summary = prompt if (prompt and not prompt.startswith("[LIVE THEATER") and not prompt.startswith("[CO-WATCHING")) else f"Watching video scene {tag}"
-                                contexts[channel_id].append({"role": "user", "content": f"{user_name}: {user_summary}"})
-                                contexts[channel_id].append({"role": "assistant", "content": reply})
-                    except Exception as e:
-                        print(f"\033[91m[{time.strftime('%H:%M:%S')}] [THEATER MULTIMODAL ERROR] {e}\033[0m")
-                        return f"Error processing media: {e}", True
+                    v_model = raw_vmodel
+                    if not v_model or "live-preview" in str(v_model).lower() or v_model in ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-1.5-flash"]:
+                        v_model = "gemini-3.1-flash-lite"
+                    if v_model == "gemini-3.5-flash-lite":
+                        v_model = "gemini-3.1-flash-lite"
 
-                if config.get("user_memory_enabled", True) and prompt:
-                    class _WebDuckUser:
-                        def __init__(self, u_id, u_name):
-                            self.id = int(u_id) if str(u_id).isdigit() else u_id
-                            self.display_name = str(u_name or "User")
-                            self.name = self.display_name
-                            self.global_name = self.display_name
-                            self.avatar = None
-                            self.banner = None
-                    try:
-                        await update_user_profile(_WebDuckUser(user_id, user_name), prompt)
-                    except Exception as pe:
-                        print(f"[THEATER USER PROFILE ERROR] {pe}")
+                    # Ensure image/audio requests use Gemini Vision/Multimodal when available
+                    r_prov = "gemini" if (GEMINI_KEY and time.time() >= gemini_blocked_until) else (data.get("vision_provider") or data.get("provider") or target_cfg.get("vision_provider") or target_cfg.get("provider") or "auto")
+                    reply, err = await ask_multimodal_vision(
+                        vision_system, p, img_bytes, mime_type=mime, history=channel_ctx,
+                        model_override=v_model, provider_override=r_prov,
+                        audio_bytes=audio_bytes, audio_mime=audio_mime,
+                        max_tokens=tok_override, temperature=temp_override
+                    )
+                    if not err and reply:
+                        reply = clean_llm_output(reply) or reply
+                        with state_lock:
+                            if channel_id not in contexts:
+                                contexts[channel_id] = []
+                            tag = "[Image & Audio Attached]" if (img_bytes and audio_bytes) else ("[Image Attached]" if img_bytes else "[Audio Attached]")
+                            user_summary = prompt if (prompt and not prompt.startswith("[LIVE THEATER") and not prompt.startswith("[CO-WATCHING")) else f"Watching video scene {tag}"
+                            contexts[channel_id].append({"role": "user", "content": f"{user_name}: {user_summary}"})
+                            contexts[channel_id].append({"role": "assistant", "content": reply})
+                        try:
+                            m_type = "video" if (img_bytes and audio_bytes) else ("image" if img_bytes else "voice")
+                            record_media_memory(
+                                uid=user_id,
+                                media_type=m_type,
+                                summary=reply[:300] if reply else "Shared media",
+                                caption=prompt or "",
+                                bot_id=bot_id
+                            )
+                        except Exception as _e_med:
+                            print(f"[API CHAT VISION MEMORY ERROR] {_e_med}")
+                        return reply, False
+                except Exception as e:
+                    print(f"\033[91m[{time.strftime('%H:%M:%S')}] [THEATER MULTIMODAL ERROR] {e}\033[0m")
+                    return f"Error processing media: {e}", True
 
-                return await ask_ai(
-                    channel_id, prompt,
-                    user_id=user_id,
-                    user_name=user_name,
-                    is_dm=True,
-                    system_msg_override=effective_system,
-                    bot_id=bot_id,
-                    custom_model=(req_custom_model or mod_override) if req_use_custom else None,
-                    custom_base_url=req_custom_base_url if req_use_custom else "",
-                    custom_key=req_custom_key if req_use_custom else ""
-                )
-            finally:
-                if system_prompt and old_p is not None:
-                    config["personality"] = old_p
-                if old_t is not None: config["temperature"] = old_t
-                if old_tok is not None: config["max_tokens"] = old_tok
-                if old_topp is not None: config["top_p"] = old_topp
-                if old_freq is not None: config["frequency_penalty"] = old_freq
-                if old_pres is not None: config["presence_penalty"] = old_pres
-                if old_prov is not None: config["provider"] = old_prov
-                if old_gmod is not None: config["gemini_model"] = old_gmod
-                if old_mod is not None: config["model"] = old_mod
-                if old_cmod is not None: config["custom_model"] = old_cmod
-                if old_curl is not None: config["custom_base_url"] = old_curl
-                if old_ckey is not None: config["custom_key"] = old_ckey
-                if old_ucm is not None: config["use_custom_model"] = old_ucm
-                if old_search is not None: config["auto_search"] = old_search
-                if old_split is not None: config["message_split_enabled"] = old_split
+            is_group_transcript = any(tag in prompt for tag in ("[GROUP CONVERSATION", "Recent messages in ", "Participants in room:", "[SPEAKER ATTRIBUTION"))
+            if scoped_cfg.get("user_memory_enabled", True) and prompt and not is_group_transcript:
+                class _WebDuckUser:
+                    def __init__(self, u_id, u_name):
+                        self.id = int(u_id) if str(u_id).isdigit() else u_id
+                        self.display_name = str(u_name or "User")
+                        self.name = self.display_name
+                        self.global_name = self.display_name
+                        self.avatar = None
+                        self.banner = None
+                try:
+                    await update_user_profile(_WebDuckUser(user_id, user_name), prompt)
+                except Exception as pe:
+                    print(f"[THEATER USER PROFILE ERROR] {pe}")
+
+            if data.get("media_type") and data.get("media_summary"):
+                try:
+                    record_media_memory(
+                        uid=user_id,
+                        media_type=data.get("media_type"),
+                        summary=data.get("media_summary"),
+                        caption=data.get("media_caption") or prompt or "",
+                        filename=data.get("media_filename"),
+                        bot_id=bot_id
+                    )
+                except Exception as _e_med:
+                    print(f"[API CHAT MEDIA MEMORY ERROR] {_e_med}")
+
+            return await ask_ai(
+                channel_id, prompt,
+                user_id=user_id,
+                user_name=user_name,
+                guild=guild_obj,
+                is_dm=is_dm_effective,
+                system_msg_override=effective_system,
+                bot_id=bot_id,
+                custom_model=(req_custom_model or mod_override) if req_use_custom else None,
+                custom_base_url=req_custom_base_url if req_use_custom else "",
+                custom_key=req_custom_key if req_use_custom else "",
+                reply_to_user_id=reply_to_user_id,
+                participants=participants_data,
+                target_config=scoped_cfg,
+                provider_override=prov_override,
+                model_override=mod_override
+            )
 
         loop = None
         try:
@@ -13456,14 +17236,14 @@ def api_web_chat():
         try:
             if loop and loop.is_running():
                 future = asyncio.run_coroutine_threadsafe(_do_chat(), loop)
-                reply, err = future.result(timeout=25)
+                reply, err = future.result(timeout=30)
             else:
                 async def _timed_do_chat():
-                    return await asyncio.wait_for(_do_chat(), timeout=25.0)
+                    return await asyncio.wait_for(_do_chat(), timeout=30.0)
                 reply, err = asyncio.run(_timed_do_chat())
         except (TimeoutError, asyncio.TimeoutError):
-            print(f"\033[93m[{time.strftime('%H:%M:%S')}] [THEATER TIMEOUT ERROR] AI response generation exceeded 25s timeout!\033[0m")
-            return jsonify({"ok": False, "error": "AI request timed out after 25 seconds", "timeout": True}), 504
+            print(f"\033[93m[{time.strftime('%H:%M:%S')}] [THEATER TIMEOUT ERROR] AI response generation exceeded 30s timeout!\033[0m")
+            return jsonify({"ok": False, "error": "AI request timed out after 30 seconds", "timeout": True}), 504
 
         dur_sec = round(time.time() - t_start, 2)
         if err:
@@ -13488,10 +17268,8 @@ def api_test(provider):
             return await ask_mistral([], "Say 'Model is working' and nothing else.")
         elif provider == "openrouter":
             return await ask_openrouter([], "Say 'Model is working' and nothing else.")
-        elif provider == "openai":
-            return await ask_openai([], "Say 'Model is working' and nothing else.")
-        elif provider == "deepseek":
-            return await ask_deepseek([], "Say 'Model is working' and nothing else.")
+        elif provider == "nvidia":
+            return await ask_nvidia([], "Say 'Model is working' and nothing else.")
         elif provider == "custom":
             return await ask_custom_endpoint([], "Say 'Model is working' and nothing else.")
         else:
@@ -13569,7 +17347,8 @@ def api_tts_route():
                 res = await speak_edge(text, voice=voice)
             elif provider == "fish":
                 if voice:
-                    res = await speak_fish(text, voice_id=voice)
+                    fish_k = bot_cfg.get("fish_key") or None
+                    res = await speak_fish(text, voice_id=voice, model=model, api_key=fish_k)
             else:
                 res = await speak(text, force=True, bot_id=bot_id)
             
@@ -13622,7 +17401,23 @@ def api_refresh_index():
                     count += 1
         return jsonify({"ok": True, "count": count})
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)})
+@app.route("/api/restart", methods=["POST"])
+def api_server_restart():
+    data = request.get_json(silent=True) or {}
+    service = data.get("service", "full")
+    req_paths = [
+        os.path.join(SCRIPT_DIR, "data", "restart_request.json"),
+        os.path.join(SCRIPT_DIR, "restart_request.json")
+    ]
+    for p in req_paths:
+        try:
+            os.makedirs(os.path.dirname(p), exist_ok=True)
+            with open(p, "w", encoding="utf-8") as f:
+                json.dump({"service": service, "timestamp": time.time()}, f)
+            return jsonify({"ok": True, "service": service, "message": f"Restart signal sent for {service}"})
+        except Exception:
+            continue
+    return jsonify({"ok": False, "error": "Could not write restart flag"}), 500
 
 @app.route("/api/bots/<bot_id>/start", methods=["POST"])
 def api_bot_start(bot_id):
@@ -13653,8 +17448,7 @@ def api_clear_all():
 
 @app.route("/api/clear/<channel_id>", methods=["POST"])
 def api_clear_channel(channel_id):
-    with state_lock:
-        contexts.pop(channel_id, None)
+    clear_context(channel_id)
     return jsonify({"ok": True})
 
 # ─── MINECRAFT REST API ───────────────────────────────
@@ -13853,52 +17647,6 @@ def api_showdown_stop():
         _fire_and_forget_async(sd.stop())
     return jsonify({"ok": True, "message": "Showdown stopped."})
 
-# ─── DOODLE REST API ──────────────────────────────────
-@app.route("/api/doodle/generate", methods=["POST"])
-def api_doodle_generate():
-    if not DOODLE_ENGINE_AVAILABLE:
-        return jsonify({"ok": False, "error": "Doodle engine not available"}), 503
-    data = request.get_json(silent=True) or {}
-    prompt = data.get("prompt", "cute cat")
-    active_bot = get_active_bot(bots_state)
-    b_name = active_bot.get("name", "Bot") if active_bot else "Bot"
-    b_pers = active_bot.get("config", {}).get("personality", "") if active_bot else ""
-    try:
-        img_bytes, comment = _exec_async_flask(generate_doodle(prompt, b_name, b_pers), timeout=25)
-        b64 = base64.b64encode(img_bytes).decode("utf-8") if img_bytes else ""
-        return jsonify({"ok": True, "image": f"data:image/png;base64,{b64}", "comment": comment})
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
-
-@app.route("/api/doodle/along", methods=["POST"])
-def api_doodle_along():
-    if not DOODLE_ENGINE_AVAILABLE:
-        return jsonify({"ok": False, "error": "Doodle engine not available"}), 503
-    data = request.get_json(silent=True) or {}
-    raw_img = data.get("image", "")
-    prompt = data.get("prompt", "")
-    if not raw_img:
-        return jsonify({"ok": False, "error": "No image data provided"}), 400
-    if "," in raw_img:
-        raw_img = raw_img.split(",", 1)[1]
-    img_bytes = base64.b64decode(raw_img)
-    active_bot = get_active_bot(bots_state)
-    b_name = active_bot.get("name", "Bot") if active_bot else "Bot"
-    b_pers = active_bot.get("config", {}).get("personality", "") if active_bot else ""
-    try:
-        res_bytes, comment = _exec_async_flask(doodle_along(img_bytes, prompt, b_name, b_pers), timeout=25)
-        b64 = base64.b64encode(res_bytes).decode("utf-8")
-        return jsonify({"ok": True, "image": f"data:image/png;base64,{b64}", "comment": comment})
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
-
-@app.route("/api/doodle/blueprint", methods=["GET", "POST"])
-def api_doodle_blueprint():
-    prompt = request.args.get("prompt") or (request.get_json(silent=True) or {}).get("prompt", "cat")
-    if DOODLE_ENGINE_AVAILABLE and get_vector_doodle_blueprint:
-        bp = get_vector_doodle_blueprint(prompt)
-        return jsonify({"ok": True, "blueprint": bp})
-    return jsonify({"ok": False, "error": "Blueprint generator unavailable"}), 503
 
 @app.route("/neww.vrm")
 @app.route("/yuna.vrm")
@@ -14010,9 +17758,8 @@ if __name__ == "__main__":
         def restart_child_bots():
             print("[SUPERVISOR] Reloading child bot processes...")
             try:
-                bots_f = os.path.join(SCRIPT_DIR, "data", "bots.json")
-                if os.path.exists(bots_f):
-                    with open(bots_f, "r", encoding="utf-8") as f:
+                if os.path.exists(BOTS_FILE):
+                    with open(BOTS_FILE, "r", encoding="utf-8") as f:
                         fresh_state = json.load(f)
                 else:
                     fresh_state = bots_state
@@ -14060,6 +17807,7 @@ if __name__ == "__main__":
                         print(f"[SUPERVISOR] Received restart trigger for '{target_svc}'")
                         if target_svc in ["supervisor", "hard_restart", "full"]:
                             print("[SUPERVISOR] Executing full process re-exec...")
+                            save_user_profiles(sync=True)
                             for pid_key in list(bot_processes.keys()):
                                 stop_bot_process(pid_key)
                             os.environ.pop("IS_BOT_CHILD", None)
