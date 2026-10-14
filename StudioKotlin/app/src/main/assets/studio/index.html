@@ -2501,7 +2501,7 @@ body {
   gap: 20px;
   max-width: 960px;
   margin: 0 auto;
-  padding: 70px 16px 110px 16px;
+  padding: 60px 16px 40px 16px;
   position: relative;
   z-index: 10;
 }
@@ -2872,8 +2872,8 @@ body.sidebar-hidden .main-viewport {
   padding: 16px 20px;
   margin: 60px 16px 20px 16px;
 }
-#view-profile .profile-grid, #view-control .control-view-container {
-  padding: 0 16px 110px 16px;
+#view-profile .profile-grid, #view-brain .profile-grid, #view-control .control-view-container {
+  padding: 12px 16px 40px 16px;
 }
 .profile-card {
   background: var(--glass-surface) !important;
@@ -2906,7 +2906,7 @@ body.sidebar-hidden .main-viewport {
   background: transparent !important;
 }
 .chat-messages {
-  padding-bottom: 120px !important;
+  padding-bottom: 24px !important;
 }
 .msg-bubble {
   padding: 12px 18px !important;
@@ -2935,7 +2935,7 @@ body.sidebar-hidden .main-viewport {
 }
 
 .composer {
-  padding: 12px 18px 84px !important;
+  padding: 12px 18px 20px !important;
   background: transparent !important;
   border-top: none !important;
   box-shadow: none !important;
@@ -2976,6 +2976,183 @@ body.sidebar-hidden .main-viewport {
   color: #fff !important;
   border-radius: 50% !important;
   box-shadow: 0 4px 14px rgba(255, 121, 198, 0.4) !important;
+}
+
+
+/* HIDE LEGACY SIDEBAR AND BOTTOM BUTTON DOCK COMPLETELY */
+.sidebar, .liquid-dock {
+  display: none !important;
+}
+.main-viewport {
+  margin-left: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  padding: 0 !important;
+}
+
+/* PAGE HEADER BACK BUTTON */
+.page-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 20px;
+  padding: 8px 16px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.25s var(--ios-spring);
+  user-select: none;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  text-decoration: none;
+}
+.page-back-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: var(--yuna-pink);
+  transform: translateX(-3px);
+}
+.page-back-btn:active {
+  transform: scale(0.92);
+}
+
+/* BENTO SQUARE BUTTON GRID */
+.yuni-bento-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  max-width: 580px;
+  margin: 18px auto 0 auto;
+  width: 100%;
+}
+
+.bento-square-btn {
+  aspect-ratio: 1 / 1;
+  min-height: 140px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%);
+  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 26px;
+  padding: 18px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 16px 36px -8px rgba(0, 0, 0, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.3);
+  transition: transform 0.28s var(--ios-spring), box-shadow 0.28s ease, border-color 0.28s ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.bento-square-btn:hover {
+  transform: translateY(-4px) scale(1.02);
+  border-color: rgba(255, 255, 255, 0.35);
+  box-shadow: 0 22px 48px -10px rgba(0, 0, 0, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.45);
+}
+.bento-square-btn:active {
+  transform: scale(0.92);
+  transition: transform 0.1s var(--ios-press);
+}
+
+.bento-chat:hover { border-color: rgba(255, 121, 198, 0.6); box-shadow: 0 20px 48px rgba(255, 121, 198, 0.25); }
+.bento-call:hover { border-color: rgba(97, 175, 239, 0.6); box-shadow: 0 20px 48px rgba(97, 175, 239, 0.25); }
+.bento-control:hover { border-color: rgba(46, 204, 113, 0.6); box-shadow: 0 20px 48px rgba(46, 204, 113, 0.25); }
+.bento-soul:hover { border-color: rgba(189, 147, 249, 0.6); box-shadow: 0 20px 48px rgba(189, 147, 249, 0.25); }
+
+.bento-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+.bento-icon-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.3);
+}
+.bento-icon-box svg {
+  width: 22px;
+  height: 22px;
+}
+.bento-icon-box.pink {
+  background: linear-gradient(135deg, #ff79c6, #ff5390);
+  box-shadow: 0 8px 18px rgba(255, 121, 198, 0.35);
+}
+.bento-icon-box.blue {
+  background: linear-gradient(135deg, #3a7bd5, #00d2ff);
+  box-shadow: 0 8px 18px rgba(58, 123, 213, 0.35);
+}
+.bento-icon-box.green {
+  background: linear-gradient(135deg, #2ecc71, #27ae60);
+  box-shadow: 0 8px 18px rgba(46, 204, 113, 0.35);
+}
+.bento-icon-box.purple {
+  background: linear-gradient(135deg, #bd93f9, #7952b3);
+  box-shadow: 0 8px 18px rgba(189, 147, 249, 0.35);
+}
+.bento-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 4px 9px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-secondary);
+}
+.bento-badge.pulse {
+  color: #ff79c6;
+  background: rgba(255, 121, 198, 0.12);
+  border-color: rgba(255, 121, 198, 0.28);
+}
+.bento-badge.live {
+  color: #00d2ff;
+  background: rgba(0, 210, 255, 0.12);
+  border-color: rgba(0, 210, 255, 0.28);
+}
+.bento-bottom {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+}
+.bento-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.3px;
+}
+.bento-sub {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.3;
+}
+
+/* BUTTERY SMOOTH BOUNCY SPRING ANIMATION */
+.page-enter-active {
+  animation: iosPageSpring 0.36s cubic-bezier(0.34, 1.56, 0.64, 1) forwards !important;
+  will-change: transform, opacity;
+}
+@keyframes iosPageSpring {
+  0% {
+    opacity: 0;
+    transform: scale(0.95) translateY(16px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 </style>
@@ -3582,58 +3759,86 @@ body.sidebar-hidden .main-viewport {
   <!-- PAGE 1: 🌸 YUNI COMPANION SANCTUARY & HERO PRESENCE -->
   <div class="view-panel" id="view-deck">
     <div class="deck-container">
-      <!-- YUNI HERO GLASS CARD -->
-      <div class="yuna-hero-card">
+      <!-- YUNI HERO PRESENCE CARD -->
+      <div class="yuna-hero-card" style="padding: 24px 28px; gap: 14px; width:100%; max-width:580px; margin:0 auto;">
         <div class="yuna-hero-header">
-          <div class="yuna-hero-avatar-wrap">
+          <div class="yuna-hero-avatar-wrap" style="width:72px; height:72px;">
             <div class="yuna-hero-avatar">🌸</div>
             <div class="yuna-aura-ring"></div>
           </div>
           <div class="yuna-hero-info">
-            <div class="yuna-hero-title">
+            <div class="yuna-hero-title" style="font-size:24px;">
               <span>Yuni</span>
               <span class="yuni-primary-badge">Primary AI Soul</span>
             </div>
-            <div class="yuna-hero-sub">Autonomous digital companion, guardian &amp; cluster leader</div>
+            <div class="yuna-hero-sub" style="font-size:12px;">Autonomous digital companion &amp; cluster leader</div>
             <div class="yuna-mood-capsule" id="deckMoodCapsule">
-              <span>✨</span> <span id="deckMoodText">Affectionate &amp; Attentive</span>
+              <span>✨</span> <span id="deckMoodText">Focused on you</span>
             </div>
           </div>
         </div>
 
         <!-- Yuni Thought Bubble -->
-        <div class="yuna-thought-bubble" id="deckThoughtBubble">
-          "I'm right here with you! Whether you want to talk, start a voice call, or manage the server cluster, I'm ready~ ✨"
+        <div class="yuna-thought-bubble" id="deckThoughtBubble" style="font-size:13px; padding:12px 18px; margin-top:4px;">
+          "I'm right here with you! Choose an action below to begin~ ✨"
+        </div>
+      </div>
+
+      <!-- LARGE SQUARE BENTO BUTTON NAVIGATION -->
+      <div class="yuni-bento-grid">
+        <!-- 1. CHAT SQUARE BUTTON -->
+        <div class="bento-square-btn bento-chat" onclick="switchView('chat')">
+          <div class="bento-top">
+            <div class="bento-icon-box pink">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+            </div>
+            <span class="bento-badge pulse">Chat</span>
+          </div>
+          <div class="bento-bottom">
+            <div class="bento-title">Chat</div>
+            <div class="bento-sub">Text &amp; Talk with Yuni</div>
+          </div>
         </div>
 
-        <!-- Bouncy Primary Action Buttons -->
-        <div class="yuna-hero-actions">
-          <button class="hero-spring-btn primary" onclick="switchView('chat')">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-            <span>Chat with Yuni</span>
-          </button>
-
-          <button class="hero-spring-btn call" onclick="startVoiceCall()">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-            <span>3D Live Call</span>
-          </button>
+        <!-- 2. CALL SQUARE BUTTON -->
+        <div class="bento-square-btn bento-call" onclick="startVoiceCall()">
+          <div class="bento-top">
+            <div class="bento-icon-box blue">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+            </div>
+            <span class="bento-badge live">3D Live</span>
+          </div>
+          <div class="bento-bottom">
+            <div class="bento-title">Voice Call</div>
+            <div class="bento-sub">Real-Time 3D Stage</div>
+          </div>
         </div>
 
-        <!-- Single Slim Metrics Capsule -->
-        <div class="yuni-metrics-capsule">
-          <div class="yuni-metric-pill" onclick="switchView('brain')" title="View Soul & Bond Affinity">
-            <span style="color:var(--yuna-pink);">💖</span>
-            <span id="deckBondLevel">Bond Level 42</span>
+        <!-- 3. CONTROL SQUARE BUTTON -->
+        <div class="bento-square-btn bento-control" onclick="switchView('control')">
+          <div class="bento-top">
+            <div class="bento-icon-box green">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+            </div>
+            <span class="bento-badge" id="bentoControlBadge">Online</span>
           </div>
-          <div class="yuni-metric-divider"></div>
-          <div class="yuni-metric-pill" onclick="openMemoryTreeModal()" title="Open Interactive Memory Tree">
-            <span style="color:var(--yuna-purple);">🧠</span>
-            <span id="deckContextsVal">269 Memories</span>
+          <div class="bento-bottom">
+            <div class="bento-title">Control</div>
+            <div class="bento-sub">Cluster &amp; Servers</div>
           </div>
-          <div class="yuni-metric-divider"></div>
-          <div class="yuni-metric-pill" onclick="switchView('control')" title="Open Cluster Control Center">
-            <span class="capsule-live-dot"></span>
-            <span id="deckGatewayStatus">127.0.0.1:5000</span>
+        </div>
+
+        <!-- 4. SOUL SQUARE BUTTON -->
+        <div class="bento-square-btn bento-soul" onclick="switchView('brain')">
+          <div class="bento-top">
+            <div class="bento-icon-box purple">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            </div>
+            <span class="bento-badge" id="bentoSoulBadge">Soul</span>
+          </div>
+          <div class="bento-bottom">
+            <div class="bento-title">Soul</div>
+            <div class="bento-sub">Memories &amp; Persona</div>
           </div>
         </div>
       </div>
@@ -3641,7 +3846,7 @@ body.sidebar-hidden .main-viewport {
   </div>
 
   
-  <!-- VIEW 1: CHARACTERS MATRIX -->
+    <!-- VIEW 1: CHARACTERS MATRIX -->
   <div class="view-panel" id="view-characters" style="display:none;">
     <div class="top-action-bar">
       <div>
@@ -4047,11 +4252,11 @@ body.sidebar-hidden .main-viewport {
   <div class="chat-arena-view" id="view-chat" style="display:none;">
     <div class="chat-top">
       <div class="chat-top-left">
-        <button class="chat-top-btn" onclick="switchView('deck')" title="Back to Yuni Sanctuary">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-          <span>🌸 Yuni</span>
+        <button class="page-back-btn" onclick="switchView('deck')" title="Back to Home">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
+          <span>Home</span>
         </button>
-        <span class="chat-top-name" id="charName">Yuni</span>
+        <span class="chat-top-name" id="charName">🌸 Yuni</span>
       </div>
       
       <div class="chat-top-right">
@@ -4626,9 +4831,15 @@ body.sidebar-hidden .main-viewport {
   <!-- PAGE 5: 🧠 SOUL & PROFILE -->
   <div class="view-panel" id="view-brain" style="display:none;">
     <div class="top-action-bar">
-      <div>
-        <div class="section-title">Soul &amp; Identity</div>
-        <div class="section-sub">Yuni Companion OS • Memory Tree, Neural Intelligence &amp; Personalization</div>
+      <div style="display:flex; align-items:center; gap:12px;">
+        <button class="page-back-btn" onclick="switchView('deck')" title="Back to Home">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
+          <span>Home</span>
+        </button>
+        <div>
+          <div class="section-title">Soul &amp; Identity</div>
+          <div class="section-sub">Memory Tree &amp; Personality Tuning</div>
+        </div>
       </div>
       <div style="display:flex; align-items:center; gap:8px;">
         <button class="hero-spring-btn glass" onclick="openMemoryTreeModal()" style="font-size:12px; padding:8px 14px;">
@@ -4757,9 +4968,15 @@ body.sidebar-hidden .main-viewport {
   <!-- VIEW 7: SERVER & BOT CONTROL CENTER -->
   <div class="view-panel" id="view-control" style="display:none;">
     <div class="top-action-bar">
-      <div>
-        <div class="section-title">Server &amp; Bot Control Center</div>
-        <div class="section-sub">Cluster Management • Host 127.0.0.1:5000 • Process &amp; Engine Operations</div>
+      <div style="display:flex; align-items:center; gap:12px;">
+        <button class="page-back-btn" onclick="switchView('deck')" title="Back to Home">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
+          <span>Home</span>
+        </button>
+        <div>
+          <div class="section-title">Cluster Control</div>
+          <div class="section-sub">Cluster Management • Host 127.0.0.1:5000</div>
+        </div>
       </div>
       
       <div style="display:flex; align-items:center; gap:8px;">
@@ -5989,20 +6206,22 @@ function switchView(viewName) {
   views.forEach(v => {
     const el = document.getElementById('view-' + v);
     if (el) {
-      el.style.display = (v === viewName ? (v === 'chat' ? 'flex' : 'block') : 'none');
+      if (v === viewName) {
+        el.style.display = (v === 'chat' ? 'flex' : 'block');
+        el.classList.remove('page-enter-active');
+        void el.offsetWidth; // Force CSS reflow so animation re-triggers
+        el.classList.add('page-enter-active');
+      } else {
+        el.style.display = 'none';
+        el.classList.remove('page-enter-active');
+      }
     }
     const navBtn = document.getElementById('nav-' + v);
     if (navBtn) {
       navBtn.classList.toggle('active', v === viewName);
     }
-
-    // Update liquid floating dock button
-    const dockBtn = $('dock-' + v);
-    if (dockBtn) {
-      dockBtn.classList.toggle('active', v === viewName);
-    }
-
   });
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 
   activeHeldMsgIndex = null;
   if (viewName === 'characters') renderGrid();
@@ -6051,7 +6270,9 @@ function updateDeckPresence() {
     
     // Update deck elements
     if ($('deckUptimeVal')) $('deckUptimeVal').innerText = uptime;
-    if ($('deckContextsVal')) $('deckContextsVal').innerText = ctx + ' Contexts';
+        if ($('deckContextsVal')) $('deckContextsVal').innerText = ctx + ' Contexts';
+    if ($('bentoControlBadge')) $('bentoControlBadge').innerText = uptime;
+    if ($('bentoSoulBadge')) $('bentoSoulBadge').innerText = ctx + ' ctx';
     if ($('islandUptimeBadge')) $('islandUptimeBadge').innerText = uptime;
     if ($('islandHudUptime')) $('islandHudUptime').innerText = uptime;
     if ($('islandHudContexts')) $('islandHudContexts').innerText = ctx + ' Contexts';
