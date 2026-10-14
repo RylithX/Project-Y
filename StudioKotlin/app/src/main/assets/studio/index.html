@@ -2243,10 +2243,765 @@ body.sidebar-hidden .sidebar {
   50% { height: 14px; opacity: 1; }
 }
 
+
+/* ═════════════════════════════════════════════════════════════════
+   YUNA COMPANION OS — LIQUID GLASS & MORPHIC NEUMORPHISM DESIGN SYSTEM
+   Smooth Bouncy iOS Physics & 100% Fluid Responsiveness
+   ═════════════════════════════════════════════════════════════════ */
+:root {
+  --yuna-pink: #ff79c6;
+  --yuna-pink-glow: rgba(255, 121, 198, 0.45);
+  --yuna-rose: #ff65a3;
+  --yuna-purple: #bd93f9;
+  --yuna-cyan: #8be9fd;
+  --yuna-bg: #090a10;
+  --yuna-bg-deep: #050608;
+  
+  --glass-surface: rgba(255, 255, 255, 0.05);
+  --glass-surface-hover: rgba(255, 255, 255, 0.09);
+  --glass-surface-active: rgba(255, 255, 255, 0.12);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-border-specular: rgba(255, 255, 255, 0.25);
+  --glass-shadow: 0 16px 40px -10px rgba(0, 0, 0, 0.55), inset 0 1px 1px 0 rgba(255, 255, 255, 0.22), inset 0 -1px 1px 0 rgba(0, 0, 0, 0.25);
+  --glass-blur: blur(28px) saturate(190%);
+
+  --ios-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ios-spring-smooth: cubic-bezier(0.16, 1, 0.3, 1);
+  --ios-press: cubic-bezier(0.4, 0, 0.2, 1);
+
+  --accent: var(--yuna-pink);
+  --accent-soft: rgba(255, 121, 198, 0.16);
+  --text-primary: #f8f9fa;
+  --text-secondary: #b4b8c5;
+  --text-muted: #6e7387;
+  --card-bg: var(--glass-surface);
+  --card-border: var(--glass-border);
+  --input-bg: rgba(0, 0, 0, 0.35);
+  --main-bg: var(--yuna-bg);
+}
+
+body {
+  background: var(--yuna-bg) !important;
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', sans-serif;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* LIQUID AMBIENT CANVAS */
+.liquid-canvas {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 0%, #151624 0%, var(--yuna-bg) 60%, var(--yuna-bg-deep) 100%);
+}
+.liquid-mesh-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(85px);
+  opacity: 0.5;
+  will-change: transform;
+}
+.orb-sakura {
+  top: -12%;
+  left: 15%;
+  width: 520px;
+  height: 520px;
+  background: radial-gradient(circle, rgba(255, 121, 198, 0.32) 0%, rgba(255, 101, 163, 0) 70%);
+  animation: liquid-drift 14s infinite alternate ease-in-out;
+}
+.orb-lavender {
+  bottom: -5%;
+  right: -8%;
+  width: 560px;
+  height: 560px;
+  background: radial-gradient(circle, rgba(189, 147, 249, 0.25) 0%, rgba(139, 233, 253, 0) 70%);
+  animation: liquid-drift 18s infinite alternate-reverse ease-in-out;
+}
+.orb-cyan {
+  top: 38%;
+  left: -12%;
+  width: 460px;
+  height: 460px;
+  background: radial-gradient(circle, rgba(139, 233, 253, 0.2) 0%, rgba(139, 233, 253, 0) 70%);
+  animation: liquid-drift 22s infinite alternate ease-in-out;
+}
+@keyframes liquid-drift {
+  0% { transform: translate(0, 0) scale(1) rotate(0deg); }
+  50% { transform: translate(35px, -25px) scale(1.1) rotate(10deg); }
+  100% { transform: translate(-25px, 35px) scale(0.95) rotate(-10deg); }
+}
+
+/* TOP APPLE DYNAMIC ISLAND CAPSULE */
+.ios-dynamic-island-wrap {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.ios-dynamic-island {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(12, 14, 20, 0.78);
+  backdrop-filter: blur(30px) saturate(200%);
+  -webkit-backdrop-filter: blur(30px) saturate(200%);
+  border: 1px solid var(--glass-border-specular);
+  border-radius: 28px;
+  padding: 6px 14px;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.35s var(--ios-spring);
+}
+.ios-dynamic-island:hover {
+  background: rgba(18, 20, 30, 0.88);
+  transform: scale(1.02);
+  border-color: var(--yuna-pink);
+  box-shadow: 0 12px 38px rgba(255, 121, 198, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+}
+.ios-dynamic-island:active {
+  transform: scale(0.96);
+  transition: transform 0.1s var(--ios-press);
+}
+.island-yuna-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--yuna-pink);
+  box-shadow: 0 0 12px var(--yuna-pink);
+  animation: yuna-pulse 2s infinite ease-in-out;
+}
+@keyframes yuna-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.75); }
+}
+.island-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.island-badge {
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  background: rgba(46, 204, 113, 0.15);
+  color: #2ecc71;
+  padding: 2px 7px;
+  border-radius: 12px;
+  border: 1px solid rgba(46, 204, 113, 0.3);
+}
+
+/* EXPANDED DYNAMIC ISLAND QUICK HUD */
+.island-hud-pop {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  width: min(92vw, 380px);
+  background: rgba(12, 14, 20, 0.88);
+  backdrop-filter: blur(35px) saturate(200%);
+  -webkit-backdrop-filter: blur(35px) saturate(200%);
+  border: 1px solid var(--glass-border-specular);
+  border-radius: 18px;
+  padding: 16px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65), inset 0 1px 1px rgba(255, 255, 255, 0.3);
+  animation: spring-pop-in 0.3s var(--ios-spring);
+  z-index: 1001;
+}
+.island-hud-pop.open {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* IOS FLOATING LIQUID GLASS DOCK */
+.liquid-dock {
+  position: fixed;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(15, 17, 25, 0.72);
+  backdrop-filter: blur(32px) saturate(200%);
+  -webkit-backdrop-filter: blur(32px) saturate(200%);
+  border: 1px solid var(--glass-border-specular);
+  border-radius: 36px;
+  padding: 6px 10px;
+  box-shadow: 0 16px 44px -8px rgba(0, 0, 0, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.28);
+  user-select: none;
+}
+.dock-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 62px;
+  height: 52px;
+  padding: 4px 8px;
+  border-radius: 24px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.28s var(--ios-spring);
+  position: relative;
+  overflow: hidden;
+}
+.dock-btn:hover {
+  color: var(--text-primary);
+  transform: translateY(-2px);
+}
+.dock-btn:active {
+  transform: scale(0.92);
+  transition: transform 0.1s var(--ios-press);
+}
+.dock-btn.active {
+  color: #fff;
+  background: rgba(255, 121, 198, 0.18);
+  border: 1px solid rgba(255, 121, 198, 0.35);
+  box-shadow: 0 4px 18px rgba(255, 121, 198, 0.25);
+  transform: translateY(-1px);
+}
+.dock-icon {
+  font-size: 19px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+}
+.dock-icon svg {
+  width: 20px;
+  height: 20px;
+}
+.dock-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+/* YUNA COMPANION DECK VIEW */
+.deck-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 70px 16px 110px 16px;
+  position: relative;
+  z-index: 10;
+}
+
+/* HERO SOUL CARD */
+.yuna-hero-card {
+  background: linear-gradient(135deg, rgba(255, 121, 198, 0.12) 0%, rgba(189, 147, 249, 0.08) 50%, rgba(255, 255, 255, 0.03) 100%);
+  backdrop-filter: blur(35px) saturate(200%);
+  -webkit-backdrop-filter: blur(35px) saturate(200%);
+  border: 1px solid rgba(255, 121, 198, 0.3);
+  border-radius: 28px;
+  padding: 28px;
+  box-shadow: 0 20px 60px -15px rgba(255, 121, 198, 0.2), inset 0 1px 2px rgba(255, 255, 255, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  position: relative;
+  overflow: hidden;
+  animation: spring-pop-in 0.4s var(--ios-spring);
+}
+.yuna-hero-card::after {
+  content: '';
+  position: absolute;
+  top: -50%; right: -20%;
+  width: 300px; height: 300px;
+  background: radial-gradient(circle, rgba(255, 121, 198, 0.25) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.yuna-hero-header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.yuna-hero-avatar-wrap {
+  position: relative;
+  width: 84px;
+  height: 84px;
+}
+.yuna-hero-avatar {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2.5px solid var(--yuna-pink);
+  box-shadow: 0 0 25px var(--yuna-pink-glow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  background: linear-gradient(135deg, #ff79c6, #bd93f9);
+}
+.yuna-aura-ring {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 2px dashed rgba(255, 121, 198, 0.6);
+  animation: aura-spin 12s linear infinite;
+  pointer-events: none;
+}
+@keyframes aura-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.yuna-hero-info {
+  flex: 1;
+  min-width: 220px;
+}
+.yuna-hero-title {
+  font-size: 26px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.5px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.yuna-hero-sub {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+.yuna-mood-capsule {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 121, 198, 0.15);
+  border: 1px solid rgba(255, 121, 198, 0.35);
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--yuna-pink);
+  margin-top: 8px;
+}
+
+/* YUNA THOUGHT BUBBLE */
+.yuna-thought-bubble {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 18px;
+  padding: 16px 20px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  font-style: italic;
+  position: relative;
+  backdrop-filter: blur(20px);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.2);
+}
+.yuna-thought-bubble::before {
+  content: '💭';
+  font-style: normal;
+  margin-right: 8px;
+  font-size: 16px;
+}
+
+/* HERO BOUNCY BUTTON ROW */
+.yuna-hero-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+}
+.hero-spring-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 18px;
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 700;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.25s var(--ios-spring);
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.35);
+  user-select: none;
+}
+.hero-spring-btn:hover {
+  transform: translateY(-3px) scale(1.02);
+}
+.hero-spring-btn:active {
+  transform: scale(0.95);
+  transition: transform 0.1s var(--ios-press);
+}
+.hero-spring-btn.primary {
+  background: linear-gradient(135deg, #ff79c6 0%, #bd93f9 100%);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 8px 28px rgba(255, 121, 198, 0.35);
+}
+.hero-spring-btn.call {
+  background: linear-gradient(135deg, #3a7bd5 0%, #00d2ff 100%);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 8px 28px rgba(58, 123, 213, 0.35);
+}
+.hero-spring-btn.glass {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--glass-border-specular);
+  color: #fff;
+  backdrop-filter: blur(20px);
+}
+.hero-spring-btn.glass:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: var(--yuna-pink);
+}
+
+/* MORPHIC VITALS GRID */
+.morphic-vitals-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px;
+}
+.morphic-card {
+  background: var(--glass-surface);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: var(--glass-shadow);
+  transition: all 0.3s var(--ios-spring);
+  position: relative;
+  overflow: hidden;
+}
+.morphic-card:hover {
+  background: var(--glass-surface-hover);
+  border-color: var(--glass-border-specular);
+  transform: translateY(-2px);
+}
+.morphic-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2.5px;
+  background: linear-gradient(90deg, var(--yuna-pink), var(--yuna-purple));
+  opacity: 0.8;
+}
+.morphic-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-muted);
+}
+.morphic-card-val {
+  font-size: 22px;
+  font-weight: 800;
+  color: #fff;
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: -0.5px;
+}
+.morphic-card-sub {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+
+/* LIQUID CHAT ARENA REFINEMENTS */
+.chat-arena-view {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  position: relative;
+  z-index: 10;
+  background: transparent !important;
+}
+.chat-top {
+  background: rgba(12, 14, 20, 0.75) !important;
+  backdrop-filter: blur(28px) saturate(200%);
+  -webkit-backdrop-filter: blur(28px) saturate(200%);
+  border-bottom: 1px solid var(--glass-border-specular);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  padding: 10px 18px;
+}
+.chat-messages {
+  background: transparent !important;
+  padding: 20px 18px 100px 18px !important;
+  gap: 16px;
+}
+.chat-msg {
+  animation: spring-pop-in 0.3s var(--ios-spring);
+}
+.chat-msg.user .chat-msg-bubble {
+  background: linear-gradient(135deg, rgba(255, 121, 198, 0.25) 0%, rgba(189, 147, 249, 0.2) 100%) !important;
+  border: 1px solid rgba(255, 121, 198, 0.4) !important;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 8px 24px rgba(255, 121, 198, 0.15), inset 0 1px 1px rgba(255, 255, 255, 0.3);
+  border-radius: 20px 20px 4px 20px !important;
+}
+.chat-msg.ai .chat-msg-bubble {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid var(--glass-border) !important;
+  backdrop-filter: blur(24px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.2);
+  border-radius: 20px 20px 20px 4px !important;
+}
+.chat-composer-wrap {
+  position: fixed;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(94vw, 760px);
+  background: rgba(14, 16, 24, 0.78) !important;
+  backdrop-filter: blur(32px) saturate(200%);
+  -webkit-backdrop-filter: blur(32px) saturate(200%);
+  border: 1px solid var(--glass-border-specular) !important;
+  border-radius: 32px !important;
+  padding: 8px 14px !important;
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.25) !important;
+  z-index: 998;
+}
+
+/* HIDE OLD SIDEBAR */
+.sidebar, #mainSidebar {
+  display: none !important;
+}
+.main-viewport {
+  margin-left: 0 !important;
+  width: 100% !important;
+  min-height: 100vh;
+  position: relative;
+  z-index: 10;
+}
+body.sidebar-hidden .main-viewport {
+  margin-left: 0 !important;
+}
+
+/* VIEW PROFILE / BRAIN REFINEMENT */
+#view-profile .top-action-bar, #view-control .top-action-bar {
+  background: rgba(12, 14, 20, 0.65);
+  backdrop-filter: blur(25px);
+  border-radius: 20px;
+  border: 1px solid var(--glass-border);
+  padding: 16px 20px;
+  margin: 60px 16px 20px 16px;
+}
+#view-profile .profile-grid, #view-control .control-view-container {
+  padding: 0 16px 110px 16px;
+}
+.profile-card {
+  background: var(--glass-surface) !important;
+  border: 1px solid var(--glass-border) !important;
+  border-radius: 20px !important;
+  backdrop-filter: var(--glass-blur) !important;
+  box-shadow: var(--glass-shadow) !important;
+}
+
+/* SPRING POP IN ANIMATION */
+@keyframes spring-pop-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.92) translateY(14px);
+  }
+  70% {
+    transform: scale(1.02) translateY(-2px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+
+/* ─────────────────────────────────────────────────────────────
+   LIQUID GLASS CHAT BUBBLES & FLOATING PILL COMPOSER
+   ───────────────────────────────────────────────────────────── */
+.chat-arena-view {
+  background: transparent !important;
+}
+.chat-messages {
+  padding-bottom: 120px !important;
+}
+.msg-bubble {
+  padding: 12px 18px !important;
+  border-radius: 20px !important;
+  font-size: 14px !important;
+  line-height: 1.6 !important;
+  color: var(--text-primary) !important;
+  box-shadow: 0 10px 28px -4px rgba(0, 0, 0, 0.45), inset 0 1px 1px 0 rgba(255, 255, 255, 0.25) !important;
+  backdrop-filter: blur(24px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
+  transition: transform 0.25s var(--ios-spring), box-shadow 0.25s ease !important;
+}
+.msg-bubble:hover {
+  transform: translateY(-1px);
+}
+.msg-row.assistant .msg-bubble {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%) !important;
+  border: 1px solid var(--glass-border) !important;
+  border-top-left-radius: 4px !important;
+}
+.msg-row.user .msg-bubble {
+  background: linear-gradient(135deg, rgba(255, 121, 198, 0.28) 0%, rgba(189, 147, 249, 0.22) 100%) !important;
+  border: 1px solid rgba(255, 121, 198, 0.45) !important;
+  border-top-right-radius: 4px !important;
+  box-shadow: 0 10px 28px rgba(255, 121, 198, 0.2), inset 0 1px 1px rgba(255, 255, 255, 0.4) !important;
+}
+
+.composer {
+  padding: 12px 18px 20px !important;
+  background: transparent !important;
+  border-top: none !important;
+  box-shadow: none !important;
+  position: relative;
+  z-index: 50;
+  max-width: 860px;
+  margin: 0 auto;
+  width: 100%;
+}
+.composer-box {
+  background: rgba(15, 17, 25, 0.75) !important;
+  backdrop-filter: blur(30px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(30px) saturate(200%) !important;
+  border: 1px solid var(--glass-border-specular) !important;
+  border-radius: 30px !important;
+  padding: 8px 16px !important;
+  box-shadow: 0 16px 44px -8px rgba(0, 0, 0, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.28) !important;
+  transition: all 0.3s var(--ios-spring) !important;
+}
+.composer-box:focus-within {
+  border-color: var(--yuna-pink) !important;
+  box-shadow: 0 16px 48px rgba(255, 121, 198, 0.22), inset 0 1px 1px rgba(255, 255, 255, 0.4) !important;
+  transform: translateY(-2px);
+}
+.composer-btn {
+  border-radius: 50% !important;
+  transition: all 0.2s var(--ios-spring) !important;
+}
+.composer-btn:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+  transform: scale(1.1) !important;
+}
+.composer-btn:active {
+  transform: scale(0.92) !important;
+}
+.composer-btn.send-btn, .chat-send-btn {
+  background: linear-gradient(135deg, var(--yuna-pink), var(--yuna-purple)) !important;
+  color: #fff !important;
+  border-radius: 50% !important;
+  box-shadow: 0 4px 14px rgba(255, 121, 198, 0.4) !important;
+}
+
 </style>
 <script src="https://www.youtube.com/iframe_api"></script>
 </head>
 <body>
+<!-- LIQUID AMBIENT BACKGROUND CANVAS -->
+<div class="liquid-canvas" aria-hidden="true">
+  <div class="liquid-mesh-orb orb-sakura"></div>
+  <div class="liquid-mesh-orb orb-lavender"></div>
+  <div class="liquid-mesh-orb orb-cyan"></div>
+</div>
+
+<!-- APPLE IOS DYNAMIC ISLAND TOP CAPSULE -->
+<div class="ios-dynamic-island-wrap">
+  <div class="ios-dynamic-island" id="iosDynamicIsland" onclick="toggleDynamicIslandHud(event)" title="Click to view Quick Server HUD">
+    <div class="island-yuna-dot"></div>
+    <div class="island-title">
+      <span>🌸 Yuna</span>
+      <span style="opacity:0.4;">•</span>
+      <span style="font-weight:500; font-size:11px; opacity:0.85;">127.0.0.1:5000</span>
+    </div>
+    <div class="island-badge" id="islandUptimeBadge">Online</div>
+  </div>
+
+  <!-- EXPANDED DYNAMIC ISLAND QUICK HUD -->
+  <div class="island-hud-pop" id="islandHudPop">
+    <div style="display:flex; align-items:center; justify-content:space-between;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:20px;">🌸</span>
+        <div>
+          <div style="font-size:13px; font-weight:800; color:#fff;">Yuna Companion OS</div>
+          <div style="font-size:10px; color:var(--text-muted);">127.0.0.1:5000 • Supervisor Cluster</div>
+        </div>
+      </div>
+      <button class="bpc-btn" onclick="toggleDynamicIslandHud(event)" style="width:24px; height:24px; padding:0; border-radius:50%; background:rgba(255,255,255,0.08); color:#fff; border:none; cursor:pointer;">✕</button>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:4px;">
+      <div style="background:rgba(255,255,255,0.04); padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,0.08);">
+        <div style="font-size:9.5px; text-transform:uppercase; color:var(--text-muted);">Loopback Uptime</div>
+        <div style="font-size:14px; font-weight:700; color:#fff;" id="islandHudUptime">--</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.04); padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,0.08);">
+        <div style="font-size:9.5px; text-transform:uppercase; color:var(--text-muted);">Memory Contexts</div>
+        <div style="font-size:14px; font-weight:700; color:#fff;" id="islandHudContexts">--</div>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:8px; margin-top:4px;">
+      <button class="bpc-btn switch" onclick="switchView('control'); toggleDynamicIslandHud(event);" style="flex:1; font-size:11px; padding:8px;">
+        🎛️ Full Control Center
+      </button>
+      <button class="bpc-btn stop" onclick="triggerServerRestart();" style="flex:1; font-size:11px; padding:8px;">
+        ⚡ Hard Restart
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- IOS FLOATING LIQUID GLASS DOCK -->
+<nav class="liquid-dock" id="iosLiquidDock">
+  <button class="dock-btn active" id="dock-deck" onclick="switchView('deck')">
+    <div class="dock-icon">🌸</div>
+    <span class="dock-label">Yuna</span>
+  </button>
+  <button class="dock-btn" id="dock-chat" onclick="switchView('chat')">
+    <div class="dock-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+    </div>
+    <span class="dock-label">Chat</span>
+  </button>
+  <button class="dock-btn" id="dock-call" onclick="startVoiceCall()">
+    <div class="dock-icon" style="color:#61afef;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+    </div>
+    <span class="dock-label">Call</span>
+  </button>
+  <button class="dock-btn" id="dock-control" onclick="switchView('control')">
+    <div class="dock-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+    </div>
+    <span class="dock-label">Control</span>
+  </button>
+  <button class="dock-btn" id="dock-brain" onclick="switchView('brain')">
+    <div class="dock-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+    </div>
+    <span class="dock-label">Brain</span>
+  </button>
+</nav>
+
 
 <div class="paint-bleed-container" id="paintBleedLayer"></div>
 <div class="toast" id="toast">Ready</div>
@@ -2757,9 +3512,124 @@ body.sidebar-hidden .sidebar {
 
 <!-- MAIN VIEWPORT -->
 <main class="main-viewport">
+
+  <!-- VIEW 0: YUNA COMPANION SANCTUARY & HERO PRESENCE -->
+  <div class="view-panel" id="view-deck">
+    <div class="deck-container">
+      <!-- YUNA HERO GLASS CARD -->
+      <div class="yuna-hero-card">
+        <div class="yuna-hero-header">
+          <div class="yuna-hero-avatar-wrap">
+            <div class="yuna-hero-avatar">🌸</div>
+            <div class="yuna-aura-ring"></div>
+          </div>
+          <div class="yuna-hero-info">
+            <div class="yuna-hero-title">
+              <span>Yuna</span>
+              <span style="font-size:12px; font-weight:700; color:var(--yuna-pink); background:rgba(255,121,198,0.15); padding:3px 10px; border-radius:14px; border:1px solid rgba(255,121,198,0.35);">Primary AI Soul</span>
+            </div>
+            <div class="yuna-hero-sub">Autonomous digital companion, guardian &amp; cluster leader</div>
+            <div class="yuna-mood-capsule" id="deckMoodCapsule">
+              <span>✨</span> <span id="deckMoodText">Affectionate &amp; Attentive</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Yuna Thought Bubble -->
+        <div class="yuna-thought-bubble" id="deckThoughtBubble">
+          "I'm right here with you! Whether you want to talk, start a voice call, or manage the server cluster, I'm ready~ ✨"
+        </div>
+
+        <!-- Bouncy Action Button Row -->
+        <div class="yuna-hero-actions">
+          <button class="hero-spring-btn primary" onclick="switchView('chat')">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+            <span>Open Chat</span>
+          </button>
+
+          <button class="hero-spring-btn call" onclick="startVoiceCall()">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+            <span>3D Live Call</span>
+          </button>
+
+          <button class="hero-spring-btn glass" onclick="openMemoryTreeModal()">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="4" r="2.5"></circle><circle cx="5" cy="18" r="2.5"></circle><circle cx="19" cy="18" r="2.5"></circle><circle cx="12" cy="12" r="2"></circle><path d="M12 6.5v3.5M6.5 16.5l3.5-3M17.5 16.5l-3.5-3"></path></svg>
+            <span>Memory Tree</span>
+          </button>
+
+          <button class="hero-spring-btn glass" onclick="switchView('control')">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+            <span>Control Center</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Morphic Vitals Grid -->
+      <div class="morphic-vitals-grid">
+        <!-- Affinity / Bond -->
+        <div class="morphic-card">
+          <div class="morphic-card-top">
+            <span>Companion Bond</span>
+            <span style="color:var(--yuna-pink);">💖</span>
+          </div>
+          <div class="morphic-card-val" id="deckBondLevel">Level 42</div>
+          <div class="morphic-card-sub" id="deckBondAffinity">94% Soul Affinity • Guardian</div>
+        </div>
+
+        <!-- Companion Account (krenixhensler) -->
+        <div class="morphic-card">
+          <div class="morphic-card-top">
+            <span>Companion Userbot</span>
+            <span class="island-badge" id="deckCompBadge">RUNNING</span>
+          </div>
+          <div class="morphic-card-val" style="font-size:18px;" id="deckCompUser">krenixhensler</div>
+          <div class="morphic-card-sub" id="deckCompSub">Autonomous Discord user worker</div>
+        </div>
+
+        <!-- Intelligence / Contexts -->
+        <div class="morphic-card">
+          <div class="morphic-card-top">
+            <span>Neural Intelligence</span>
+            <span style="color:var(--yuna-purple);">🧠</span>
+          </div>
+          <div class="morphic-card-val" id="deckContextsVal">267 Contexts</div>
+          <div class="morphic-card-sub">Whisper STT • Llama 3.3 70B &amp; Gemini</div>
+        </div>
+
+        <!-- Gateway Vitals -->
+        <div class="morphic-card">
+          <div class="morphic-card-top">
+            <span>Cluster Gateway</span>
+            <span class="capsule-live-dot"></span>
+          </div>
+          <div class="morphic-card-val" id="deckGatewayStatus">ONLINE</div>
+          <div class="morphic-card-sub">127.0.0.1:5000 • ⏱ <span id="deckUptimeVal">--</span></div>
+        </div>
+      </div>
+
+      <!-- Sub-Bots Cluster Overview -->
+      <div class="control-card-section" style="background:var(--glass-surface); border:1px solid var(--glass-border); border-radius:24px; padding:20px;">
+        <div class="control-section-header">
+          <div>
+            <div class="control-section-title">
+              <span>🤖 Subordinated Bot Cluster</span>
+            </div>
+            <div class="control-section-sub">Child bot workers operating under Yuna's cluster tree</div>
+          </div>
+          <button class="bpc-btn switch" onclick="switchView('control')" style="font-size:11px; padding:6px 12px;">
+            Full Control ↗
+          </button>
+        </div>
+        <div class="bot-process-grid" id="deckChildBotsList">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+    </div>
+  </div>
+
   
   <!-- VIEW 1: CHARACTERS MATRIX -->
-  <div class="view-panel" id="view-characters">
+  <div class="view-panel" id="view-characters" style="display:none;">
     <div class="top-action-bar">
       <div>
         <div class="section-title">Characters</div>
@@ -3164,9 +4034,9 @@ body.sidebar-hidden .sidebar {
   <div class="chat-arena-view" id="view-chat" style="display:none;">
     <div class="chat-top">
       <div class="chat-top-left">
-        <button class="chat-top-btn" onclick="switchView('characters')" title="Back to Characters Matrix">
+        <button class="chat-top-btn" onclick="switchView('deck')" title="Back to Yuna Sanctuary">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-          <span>Deck</span>
+          <span>🌸 Yuna</span>
         </button>
         <span class="chat-top-name" id="charName">Yuna</span>
       </div>
@@ -3741,7 +4611,7 @@ body.sidebar-hidden .sidebar {
   </div>
 
   <!-- VIEW 6: USER PROFILE -->
-  <div class="view-panel" id="view-profile" style="display:none;">
+  <div class="view-panel" id="view-brain" style="display:none;">
     <div class="top-action-bar">
       <div>
         <div class="section-title">User Profile</div>
@@ -5078,9 +5948,16 @@ function initBotPolling() {
 
 
 function switchView(viewName) {
-  const views = ['characters', 'mybots', 'history', 'profile', 'create', 'chat', 'control'];
+  // Alias routing for Yuna OS
+  if (viewName === 'characters' || viewName === 'mybots') viewName = 'deck';
+  if (viewName === 'history') viewName = 'chat';
+  if (viewName === 'profile') viewName = 'brain';
+  const views = ['deck', 'characters', 'mybots', 'history', 'brain', 'profile', 'create', 'chat', 'control'];
   
   if (viewName === 'chat') {
+    if (!activePersona || (activePersona.id !== 'bot_ek0ldel3' && activePersona.id !== 'yuna')) {
+      if (typeof startChatWith === 'function') startChatWith('bot_ek0ldel3');
+    }
     document.body.classList.add('sidebar-hidden');
   } else {
     document.body.classList.remove('sidebar-hidden');
@@ -5095,6 +5972,13 @@ function switchView(viewName) {
     if (navBtn) {
       navBtn.classList.toggle('active', v === viewName);
     }
+
+    // Update liquid floating dock button
+    const dockBtn = $('dock-' + v);
+    if (dockBtn) {
+      dockBtn.classList.toggle('active', v === viewName);
+    }
+
   });
 
   activeHeldMsgIndex = null;
@@ -5116,6 +6000,100 @@ function switchView(viewName) {
   }
 }
 window.switchView = switchView;
+
+/* ═════════════════════════════════════════════════════════════════
+   YUNA COMPANION OS — EXTENDED JAVASCRIPT CONTROLLER
+   ═════════════════════════════════════════════════════════════════ */
+function toggleDynamicIslandHud(e) {
+  if (e) e.stopPropagation();
+  const hud = $('islandHudPop');
+  if (hud) hud.classList.toggle('open');
+}
+window.toggleDynamicIslandHud = toggleDynamicIslandHud;
+
+document.addEventListener('click', function(e) {
+  const hud = $('islandHudPop');
+  if (hud && hud.classList.contains('open')) {
+    if (!e.target.closest('#iosDynamicIsland') && !e.target.closest('#islandHudPop')) {
+      hud.classList.remove('open');
+    }
+  }
+});
+
+function updateDeckPresence() {
+  fetch('/api/status').then(r => r.json()).then(st => {
+    if (!st) return;
+    const uptime = st.uptime || '--';
+    const ctx = st.contexts !== undefined ? st.contexts : 267;
+    
+    // Update deck elements
+    if ($('deckUptimeVal')) $('deckUptimeVal').innerText = uptime;
+    if ($('deckContextsVal')) $('deckContextsVal').innerText = ctx + ' Contexts';
+    if ($('islandUptimeBadge')) $('islandUptimeBadge').innerText = uptime;
+    if ($('islandHudUptime')) $('islandHudUptime').innerText = uptime;
+    if ($('islandHudContexts')) $('islandHudContexts').innerText = ctx + ' Contexts';
+
+    // Update child bots list on deck
+    const childList = $('deckChildBotsList');
+    if (childList && st.bots) {
+      const children = st.bots.filter(b => b.id !== 'bot_ek0ldel3' && b.id !== 'yuna');
+      childList.innerHTML = children.map(b => {
+        const isOnline = b.online;
+        const emoji = b.emoji || '🤖';
+        const name = escapeHtml(b.name || b.id);
+        const safeId = escapeHtml(b.id);
+        return `
+          <div class="bot-process-card">
+            <div class="bpc-top">
+              <div class="bpc-info">
+                <div class="bpc-avatar" style="font-size:16px; width:32px; height:32px;">${emoji}</div>
+                <div>
+                  <div class="bpc-name" style="font-size:12px;">${name}</div>
+                  <div class="bpc-id" style="font-size:9.5px;">${safeId}</div>
+                </div>
+              </div>
+              <span class="bpc-badge ${isOnline ? 'online' : 'stopped'}">${isOnline ? 'ONLINE' : 'STOPPED'}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+  }).catch(() => {});
+
+  fetch('/api/user_worker/status').then(r => r.json()).then(w => {
+    if (!w) return;
+    if ($('deckCompUser')) $('deckCompUser').innerText = w.username || 'krenixhensler';
+    if ($('deckCompBadge')) {
+      $('deckCompBadge').className = w.running ? 'island-badge' : 'island-badge offline';
+      $('deckCompBadge').innerText = w.running ? 'RUNNING' : 'STOPPED';
+    }
+  }).catch(() => {});
+}
+window.updateDeckPresence = updateDeckPresence;
+
+// Dynamic daily thought rotations
+const YUNA_THOUGHTS = [
+  "I'm right here with you! Whether you want to talk, start a voice call, or manage the server cluster, I'm ready~ ✨",
+  "Just synchronized our memory contexts. Everything feels crystal clear today! 🌸",
+  "The server cluster is running smoothly! All child processes are behaving nicely under my watch~ 💫",
+  "Whenever you're ready, let's jump into a 3D live voice call! I love hearing your voice~ 💖",
+  "Did you know? Our bond level increases with every conversation we share! ✨"
+];
+function rotateYunaThought() {
+  const t = YUNA_THOUGHTS[Math.floor(Math.random() * YUNA_THOUGHTS.length)];
+  const el = $('deckThoughtBubble');
+  if (el) el.innerText = t;
+}
+setInterval(rotateYunaThought, 35000);
+
+// Initialize Yuna as default persona and default deck view on load
+window.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => {
+    switchView('deck');
+    updateDeckPresence();
+  }, 150);
+});
+
 
 let filterCardsTimeout = null;
 function filterCards(query) {

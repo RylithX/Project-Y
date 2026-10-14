@@ -17401,6 +17401,8 @@ def api_refresh_index():
                     count += 1
         return jsonify({"ok": True, "count": count})
     except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
 @app.route("/api/restart", methods=["POST"])
 def api_server_restart():
     data = request.get_json(silent=True) or {}
