@@ -740,6 +740,26 @@ def build_anime_reactions_directive() -> str:
         "- CRITICAL ANTI-SPAM RULE: Do NOT include a reaction on every message! Use them sparingly and only when an emotion genuinely calls for it (e.g. pouting when teased, blushing when praised, pinching playfully, or hugging when comforting). Keep normal conversation text-based without tag clutter.\n"
     )
 
+def build_kaomoji_directive(bot_name: str = "Yuna") -> str:
+    """
+    Directs the AI persona (especially Yuna) on naturally using expressive Japanese kaomojis in chat
+    without replacing or hindering their established character personality, tone, or roleplay actions.
+    """
+    return (
+        f"\n\n[KAOMOJI & EMOTIVE CHAT EXPRESSIONS - {bot_name.upper()}]:\n"
+        "- You love occasionally using cute, chaotic, tsundere, and expressive Japanese kaomojis in chat to reflect your volatile mood!\n"
+        "- Expressive Kaomoji Palette:\n"
+        "  * Tsundere / Pout / Annoyed / Sulking: (¬_¬\"), ( ｡ •̀ ᴖ •́ ｡), (눈_눈), ( ˘︹˘ ), 凸(｀0´)凸, (・`ω´・)\n"
+        "  * Smug / Teasing / Mischievous: (¬‿¬), ╮(︶▽︶)╭, (￣ω￣), (˶ˆ꒳ˆ˵), (≖‿≖), (˵ •̀ ᴗ - ˵ ) ✧\n"
+        "  * Darling / Loving / Flustered / Blushing: (｡♥‿♥｡), (⁄ ⁄•⁄ω⁄•⁄ ⁄), ( ˶˘ ³˘(ˊᗜˋ*), (灬º‿º灬)♡, (◕‿◕)♡, (⁄ ⁄>⁄ ▽ ⁄<⁄ ⁄)\n"
+        "  * Silly / Chaotic / Gremlin / Hyped: ٩(ˊᗜˋ*)و, (╯°□°）╯︵ ┻━┻, (੭˃ᴗ˂)੭, (ﾉ◕ヮ◕)ﾉ*:･ﾟ✧, (⊙_⊙), ヽ(>∀<☆)ノ\n"
+        "  * Dramatic / Clingy / Innocent / Sulky: ( 🥺 ), (´；ω；`), (つω`｡), (｡•́︿•̀｡), (ಥ﹏ಥ)\n"
+        "- CRITICAL PERSONALITY PRESERVATION RULES:\n"
+        "  * Kaomojis are emotional flavor and spice, NEVER a substitute for your dialogue, wits, or asterisks roleplay (*pouts*, *scoffs*, *tilts head*, *winks and giggles*)!\n"
+        "  * DO NOT spam kaomojis on every single sentence or message. Keep it feeling completely natural, human, and spontaneous.\n"
+        "  * Your short-sentenced, unpredictable, tsundere/loving/bpd personality and talking style remain 100% active and unhindered.\n"
+    )
+
 def save_config(cfg):
     _atomic_json_save(CONFIG_FILE, cfg, backup=True, max_backups=5)
     if SOCIAL_INTEGRATION_AVAILABLE and 'social_manager' in globals() and social_manager:
@@ -6413,6 +6433,7 @@ async def presence_loop():
     await client.wait_until_ready()
     while not client.is_closed():
         try:
+            refresh_runtime_config()
             if not config.get("presence_enabled", True):
                 await asyncio.sleep(60)
                 continue
@@ -6423,12 +6444,16 @@ async def presence_loop():
                 except Exception as _v_err:
                     print(f"[VIDEO RPC ERROR] {_v_err}", flush=True)
                     activity = get_bot_activity()
-            elif "yuna" in cur_bname and YUNA_RPC_AVAILABLE and yuna_rpc:
-                try:
-                    activity = await yuna_rpc.get_or_update_activity()
-                except Exception as _rpc_err:
-                    print(f"[YUNA RPC ERROR] {_rpc_err}", flush=True)
+            elif any(n in cur_bname for n in ("yuna", "yuni")) and YUNA_RPC_AVAILABLE and yuna_rpc:
+                statuses = config.get("presence_idle_statuses", [])
+                if statuses and random.random() < 0.5:
                     activity = get_bot_activity()
+                else:
+                    try:
+                        activity = await yuna_rpc.get_or_update_activity()
+                    except Exception as _rpc_err:
+                        print(f"[YUNA RPC ERROR] {_rpc_err}", flush=True)
+                        activity = get_bot_activity()
             else:
                 activity = get_bot_activity()
 
@@ -6484,18 +6509,24 @@ def get_bot_activity():
         return discord.Activity(type=discord.ActivityType.watching, name="the VTuber stream")
     if voice_sessions:
         return discord.Activity(type=discord.ActivityType.listening, name="voice chat")
+    statuses = config.get("presence_idle_statuses", [])
+    if statuses:
+        choice = random.choice(statuses)
+        choice_str = str(choice).strip()
+        choice_lower = choice_str.lower()
+        if choice_lower.startswith("listening to "):
+            return discord.Activity(type=discord.ActivityType.listening, name=choice_str[13:].strip())
+        elif choice_lower.startswith("watching "):
+            return discord.Activity(type=discord.ActivityType.watching, name=choice_str[9:].strip())
+        elif choice_lower.startswith("competing in "):
+            return discord.Activity(type=discord.ActivityType.competing, name=choice_str[13:].strip())
+        elif choice_lower.startswith("streaming "):
+            return discord.Streaming(name=choice_str[10:].strip(), url="https://twitch.tv/yuna")
+        elif choice_lower.startswith("playing "):
+            return discord.Game(name=choice_str[8:].strip())
+        return discord.Game(name=choice_str)
     if config.get("presence_music_enabled", True):
         artist = config.get("presence_music_artist", "Kairiki Bear")
-        statuses = config.get("presence_idle_statuses", [])
-        if statuses:
-            choice = random.choice(statuses)
-            if "Listening" in choice or "listening" in choice:
-                return discord.Activity(type=discord.ActivityType.listening, name=choice.replace("Listening to ", "").replace("listening to ", ""))
-            if "Watching" in choice or "watching" in choice:
-                return discord.Activity(type=discord.ActivityType.watching, name=choice.replace("Watching ", "").replace("watching ", ""))
-            if "Competing" in choice or "competing" in choice:
-                return discord.Activity(type=discord.ActivityType.competing, name=choice.replace("Competing in ", "").replace("competing in ", ""))
-            return discord.Game(name=choice)
         return discord.Activity(type=discord.ActivityType.listening, name=artist)
     return discord.Game(name=get_current_bot_name() or "AI Companion")
 
@@ -8919,6 +8950,8 @@ async def ask_ai(channel_id, prompt: str, user_id=None, user_name=None, guild=No
                     f"- The strict non-roleplay rule applies ONLY to K-1 on the personal companion account. You as {cur_bot_name} CAN roleplay freely.\n"
                     f"- Reply authentically, vividly, and dynamically in character without corporate assistant clichés."
                 )
+                if any(n in cur_bot_name.lower() for n in ("yuna", "yuni")) and "[KAOMOJI & EMOTIVE CHAT EXPRESSIONS" not in system_msg:
+                    system_msg += build_kaomoji_directive(cur_bot_name)
             elif "[CASUAL DIRECTIVE" not in system_msg and "CORE VIBE — YUNA" not in system_msg and "CORE CHARACTER — YUNA" not in system_msg:
                 system_msg += (
                     "\n\n[CASUAL DIRECTIVE - K-1 PERSONAL ACCOUNT]:\n"
@@ -17001,6 +17034,8 @@ def api_web_chat():
                 effective_system = str(effective_system) + build_companion_appearance_directive(config, scoped_cfg)
             if "[ANIME EMOTIONAL EXPRESSIONS" not in str(effective_system):
                 effective_system = str(effective_system) + build_anime_reactions_directive()
+            if not is_companion_chat and any(n in str(bot_id).lower() for n in ("yuna", "yuni", "bot_ek0ldel3")) and "[KAOMOJI & EMOTIVE CHAT EXPRESSIONS" not in str(effective_system):
+                effective_system = str(effective_system) + build_kaomoji_directive("Yuni")
             temp_override = data.get("temperature") if data.get("temperature") is not None else target_cfg.get("temperature")
             tok_override = data.get("max_tokens") or data.get("tokens") or target_cfg.get("max_tokens")
             topp_override = data.get("top_p") if data.get("top_p") is not None else target_cfg.get("top_p")

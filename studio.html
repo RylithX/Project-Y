@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Bot SaaS — Studio Suite</title>
+<title>Yuni</title>
 <script src="studio_android_bridge.js"></script>
 <script>
 (function() {
@@ -2671,6 +2671,72 @@ body {
   border-color: var(--yuna-pink);
 }
 
+/* YUNI SINGLE SLIM METRICS CAPSULE */
+.yuni-metrics-capsule {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  padding: 10px 18px;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.18), 0 8px 24px -6px rgba(0, 0, 0, 0.35);
+  margin-top: 6px;
+}
+.yuni-metric-pill {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 6px 14px;
+  border-radius: 12px;
+  transition: all 0.22s var(--ios-spring);
+  user-select: none;
+}
+.yuni-metric-pill:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateY(-1.5px);
+}
+.yuni-metric-pill:active {
+  transform: scale(0.94);
+  transition: transform 0.1s var(--ios-press);
+}
+.yuni-metric-divider {
+  width: 1px;
+  height: 18px;
+  background: rgba(255, 255, 255, 0.12);
+}
+.yuni-primary-badge {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--yuna-pink);
+  background: rgba(255, 121, 198, 0.15);
+  padding: 3px 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 121, 198, 0.35);
+}
+
+/* SMOOTH BOUNCY IOS PAGE TRANSITIONS */
+@keyframes iosPageSlideIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.97) translateY(12px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+.view-panel, .chat-arena-view {
+  animation: iosPageSlideIn 0.32s var(--ios-spring) forwards !important;
+}
+
 /* MORPHIC VITALS GRID */
 .morphic-vitals-grid {
   display: grid;
@@ -2869,7 +2935,7 @@ body.sidebar-hidden .main-viewport {
 }
 
 .composer {
-  padding: 12px 18px 20px !important;
+  padding: 12px 18px 84px !important;
   background: transparent !important;
   border-top: none !important;
   box-shadow: none !important;
@@ -2928,7 +2994,7 @@ body.sidebar-hidden .main-viewport {
   <div class="ios-dynamic-island" id="iosDynamicIsland" onclick="toggleDynamicIslandHud(event)" title="Click to view Quick Server HUD">
     <div class="island-yuna-dot"></div>
     <div class="island-title">
-      <span>🌸 Yuna</span>
+      <span>🌸 Yuni</span>
       <span style="opacity:0.4;">•</span>
       <span style="font-weight:500; font-size:11px; opacity:0.85;">127.0.0.1:5000</span>
     </div>
@@ -2941,7 +3007,7 @@ body.sidebar-hidden .main-viewport {
       <div style="display:flex; align-items:center; gap:8px;">
         <span style="font-size:20px;">🌸</span>
         <div>
-          <div style="font-size:13px; font-weight:800; color:#fff;">Yuna Companion OS</div>
+          <div style="font-size:13px; font-weight:800; color:#fff;">Yuni Companion OS</div>
           <div style="font-size:10px; color:var(--text-muted);">127.0.0.1:5000 • Supervisor Cluster</div>
         </div>
       </div>
@@ -2974,7 +3040,7 @@ body.sidebar-hidden .main-viewport {
 <nav class="liquid-dock" id="iosLiquidDock">
   <button class="dock-btn active" id="dock-deck" onclick="switchView('deck')">
     <div class="dock-icon">🌸</div>
-    <span class="dock-label">Yuna</span>
+    <span class="dock-label">Yuni</span>
   </button>
   <button class="dock-btn" id="dock-chat" onclick="switchView('chat')">
     <div class="dock-icon">
@@ -2998,7 +3064,7 @@ body.sidebar-hidden .main-viewport {
     <div class="dock-icon">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
     </div>
-    <span class="dock-label">Brain</span>
+    <span class="dock-label">Soul</span>
   </button>
 </nav>
 
@@ -3230,7 +3296,7 @@ body.sidebar-hidden .main-viewport {
 
       <div>
         <label style="font-size:10.5px; font-weight:700; text-transform:uppercase; color:var(--text-muted); letter-spacing:0.5px; display:block; margin-bottom:4px;">Companion Trigger Words (comma-separated)</label>
-        <input type="text" id="settingCompanionTriggers" placeholder="yuna, yunyun" style="width:100%; font-size:12px; padding:7px 10px;">
+        <input type="text" id="settingCompanionTriggers" placeholder="yuni, yunyun" style="width:100%; font-size:12px; padding:7px 10px;">
       </div>
 
       <div>
@@ -3306,7 +3372,7 @@ body.sidebar-hidden .main-viewport {
       <div>
         <label style="font-size:10.5px; font-weight:700; text-transform:uppercase; color:var(--text-muted); letter-spacing:0.5px; display:block; margin-bottom:4px;">Full Looks &amp; Visual Appearance Description</label>
         <div style="font-size:10.5px; color:var(--text-muted); margin-bottom:5px;">Comprehensive description of looks. The AI keeps this silent and only shares specific attributes (like height) when directly asked.</div>
-        <textarea id="settingCompanionAppearanceDesc" rows="4" placeholder="Enter comprehensive appearance description..." style="min-height:90px;">Yuna has long pastel pink hair styled with light twin tails, warm amber-golden eyes, and a petite, slender build (170 cm). She often wears an oversized white angel hoodie with light blue trims and a casual dark skirt. She has subtle, soft white angel wings that she can hide or flutter.</textarea>
+        <textarea id="settingCompanionAppearanceDesc" rows="4" placeholder="Enter comprehensive appearance description..." style="min-height:90px;">Yuni has long pastel pink hair styled with light twin tails, warm amber-golden eyes, and a petite, slender build (170 cm). She often wears an oversized white angel hoodie with light blue trims and a casual dark skirt. She has subtle, soft white angel wings that she can hide or flutter.</textarea>
       </div>
 
       <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px;">
@@ -3330,7 +3396,7 @@ body.sidebar-hidden .main-viewport {
     </div>
     <div style="padding:16px; overflow-y:auto; display:flex; flex-direction:column; gap:12px;">
       <div style="font-size:11px; color:var(--text-muted); line-height:1.4;">
-        Private model router. Routes companion to OpenRouter, Gemini, Groq, NVIDIA NIM, or Custom Endpoint independently without affecting Yuna or the global bot.
+        Private model router. Routes companion to OpenRouter, Gemini, Groq, NVIDIA NIM, or Custom Endpoint independently without affecting Yuni or the global bot.
       </div>
 
       <!-- Quick Presets -->
@@ -3513,10 +3579,10 @@ body.sidebar-hidden .main-viewport {
 <!-- MAIN VIEWPORT -->
 <main class="main-viewport">
 
-  <!-- VIEW 0: YUNA COMPANION SANCTUARY & HERO PRESENCE -->
+  <!-- PAGE 1: 🌸 YUNI COMPANION SANCTUARY & HERO PRESENCE -->
   <div class="view-panel" id="view-deck">
     <div class="deck-container">
-      <!-- YUNA HERO GLASS CARD -->
+      <!-- YUNI HERO GLASS CARD -->
       <div class="yuna-hero-card">
         <div class="yuna-hero-header">
           <div class="yuna-hero-avatar-wrap">
@@ -3525,8 +3591,8 @@ body.sidebar-hidden .main-viewport {
           </div>
           <div class="yuna-hero-info">
             <div class="yuna-hero-title">
-              <span>Yuna</span>
-              <span style="font-size:12px; font-weight:700; color:var(--yuna-pink); background:rgba(255,121,198,0.15); padding:3px 10px; border-radius:14px; border:1px solid rgba(255,121,198,0.35);">Primary AI Soul</span>
+              <span>Yuni</span>
+              <span class="yuni-primary-badge">Primary AI Soul</span>
             </div>
             <div class="yuna-hero-sub">Autonomous digital companion, guardian &amp; cluster leader</div>
             <div class="yuna-mood-capsule" id="deckMoodCapsule">
@@ -3535,93 +3601,40 @@ body.sidebar-hidden .main-viewport {
           </div>
         </div>
 
-        <!-- Yuna Thought Bubble -->
+        <!-- Yuni Thought Bubble -->
         <div class="yuna-thought-bubble" id="deckThoughtBubble">
           "I'm right here with you! Whether you want to talk, start a voice call, or manage the server cluster, I'm ready~ ✨"
         </div>
 
-        <!-- Bouncy Action Button Row -->
+        <!-- Bouncy Primary Action Buttons -->
         <div class="yuna-hero-actions">
           <button class="hero-spring-btn primary" onclick="switchView('chat')">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-            <span>Open Chat</span>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+            <span>Chat with Yuni</span>
           </button>
 
           <button class="hero-spring-btn call" onclick="startVoiceCall()">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
             <span>3D Live Call</span>
           </button>
-
-          <button class="hero-spring-btn glass" onclick="openMemoryTreeModal()">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="4" r="2.5"></circle><circle cx="5" cy="18" r="2.5"></circle><circle cx="19" cy="18" r="2.5"></circle><circle cx="12" cy="12" r="2"></circle><path d="M12 6.5v3.5M6.5 16.5l3.5-3M17.5 16.5l-3.5-3"></path></svg>
-            <span>Memory Tree</span>
-          </button>
-
-          <button class="hero-spring-btn glass" onclick="switchView('control')">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
-            <span>Control Center</span>
-          </button>
         </div>
-      </div>
 
-      <!-- Morphic Vitals Grid -->
-      <div class="morphic-vitals-grid">
-        <!-- Affinity / Bond -->
-        <div class="morphic-card">
-          <div class="morphic-card-top">
-            <span>Companion Bond</span>
+        <!-- Single Slim Metrics Capsule -->
+        <div class="yuni-metrics-capsule">
+          <div class="yuni-metric-pill" onclick="switchView('brain')" title="View Soul & Bond Affinity">
             <span style="color:var(--yuna-pink);">💖</span>
+            <span id="deckBondLevel">Bond Level 42</span>
           </div>
-          <div class="morphic-card-val" id="deckBondLevel">Level 42</div>
-          <div class="morphic-card-sub" id="deckBondAffinity">94% Soul Affinity • Guardian</div>
-        </div>
-
-        <!-- Companion Account (krenixhensler) -->
-        <div class="morphic-card">
-          <div class="morphic-card-top">
-            <span>Companion Userbot</span>
-            <span class="island-badge" id="deckCompBadge">RUNNING</span>
-          </div>
-          <div class="morphic-card-val" style="font-size:18px;" id="deckCompUser">krenixhensler</div>
-          <div class="morphic-card-sub" id="deckCompSub">Autonomous Discord user worker</div>
-        </div>
-
-        <!-- Intelligence / Contexts -->
-        <div class="morphic-card">
-          <div class="morphic-card-top">
-            <span>Neural Intelligence</span>
+          <div class="yuni-metric-divider"></div>
+          <div class="yuni-metric-pill" onclick="openMemoryTreeModal()" title="Open Interactive Memory Tree">
             <span style="color:var(--yuna-purple);">🧠</span>
+            <span id="deckContextsVal">269 Memories</span>
           </div>
-          <div class="morphic-card-val" id="deckContextsVal">267 Contexts</div>
-          <div class="morphic-card-sub">Whisper STT • Llama 3.3 70B &amp; Gemini</div>
-        </div>
-
-        <!-- Gateway Vitals -->
-        <div class="morphic-card">
-          <div class="morphic-card-top">
-            <span>Cluster Gateway</span>
+          <div class="yuni-metric-divider"></div>
+          <div class="yuni-metric-pill" onclick="switchView('control')" title="Open Cluster Control Center">
             <span class="capsule-live-dot"></span>
+            <span id="deckGatewayStatus">127.0.0.1:5000</span>
           </div>
-          <div class="morphic-card-val" id="deckGatewayStatus">ONLINE</div>
-          <div class="morphic-card-sub">127.0.0.1:5000 • ⏱ <span id="deckUptimeVal">--</span></div>
-        </div>
-      </div>
-
-      <!-- Sub-Bots Cluster Overview -->
-      <div class="control-card-section" style="background:var(--glass-surface); border:1px solid var(--glass-border); border-radius:24px; padding:20px;">
-        <div class="control-section-header">
-          <div>
-            <div class="control-section-title">
-              <span>🤖 Subordinated Bot Cluster</span>
-            </div>
-            <div class="control-section-sub">Child bot workers operating under Yuna's cluster tree</div>
-          </div>
-          <button class="bpc-btn switch" onclick="switchView('control')" style="font-size:11px; padding:6px 12px;">
-            Full Control ↗
-          </button>
-        </div>
-        <div class="bot-process-grid" id="deckChildBotsList">
-          <!-- Populated dynamically -->
         </div>
       </div>
     </div>
@@ -3751,7 +3764,7 @@ body.sidebar-hidden .main-viewport {
 
         <div class="field">
           <label>Display Name</label>
-          <input type="text" id="charNameInput" placeholder="e.g. Yuna, Cipher, Law" maxlength="30" oninput="updateCreatePreview()" value="New Persona">
+          <input type="text" id="charNameInput" placeholder="e.g. Yuni, Cipher, Law" maxlength="30" oninput="updateCreatePreview()" value="New Persona">
         </div>
 
         <div class="field">
@@ -4034,11 +4047,11 @@ body.sidebar-hidden .main-viewport {
   <div class="chat-arena-view" id="view-chat" style="display:none;">
     <div class="chat-top">
       <div class="chat-top-left">
-        <button class="chat-top-btn" onclick="switchView('deck')" title="Back to Yuna Sanctuary">
+        <button class="chat-top-btn" onclick="switchView('deck')" title="Back to Yuni Sanctuary">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-          <span>🌸 Yuna</span>
+          <span>🌸 Yuni</span>
         </button>
-        <span class="chat-top-name" id="charName">Yuna</span>
+        <span class="chat-top-name" id="charName">Yuni</span>
       </div>
       
       <div class="chat-top-right">
@@ -4109,7 +4122,7 @@ body.sidebar-hidden .main-viewport {
       </div>
 
       <div class="composer-box">
-        <input type="text" class="composer-input" id="chatInput" placeholder="Type a message (Enter to send)..." onkeydown="handleChatEnter(event)">
+        <input type="text" class="composer-input" id="chatInput" placeholder="Message Yuni... (Enter to send)" onkeydown="handleChatEnter(event)">
         
         <button type="button" class="composer-btn" id="visionTriggerBtn" onclick="document.getElementById('chatImageInput').click()" title="Attach Image for Persona Context">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
@@ -4149,7 +4162,7 @@ body.sidebar-hidden .main-viewport {
       <div class="theater-top-row1">
         <div style="display:flex; align-items:center; gap:6px; min-width:0; overflow:hidden;">
           <span style="font-size:14px; flex-shrink:0;">🍿</span>
-          <span style="font-size:12px; font-weight:700; color:var(--accent); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" id="theaterBotBadge">Co-Watching with Yuna</span>
+          <span style="font-size:12px; font-weight:700; color:var(--accent); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" id="theaterBotBadge">Co-Watching with Yuni</span>
         </div>
         <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
           <button type="button" class="chat-top-btn" id="theaterMicToggleBtn" onclick="toggleTheaterContinuousEar()" style="padding:4px 10px; font-size:11px; border-radius:14px; background:rgba(97,175,239,0.15); color:#61afef; border:1px solid rgba(97,175,239,0.3);" title="Toggle Call Mode / Mic in Theater">🎙️ Call Mode</button>
@@ -4213,7 +4226,7 @@ body.sidebar-hidden .main-viewport {
       <div class="theater-top-row1">
         <div style="display:flex; align-items:center; gap:8px; min-width:0; overflow:hidden;">
           <span style="font-size:16px; flex-shrink:0;">🎧</span>
-          <span style="font-size:12.5px; font-weight:700; color:#c678dd; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" id="musicBotBadge">Music Lounge with Yuna</span>
+          <span style="font-size:12.5px; font-weight:700; color:#c678dd; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" id="musicBotBadge">Music Lounge with Yuni</span>
         </div>
         <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
           <button type="button" class="chat-top-btn" onclick="closeMusicLounge()" style="padding:4px 12px; font-size:11px; border-radius:14px; color:#c678dd; border:1px solid rgba(198,120,221,0.3); background:rgba(198,120,221,0.1);">✕ Close</button>
@@ -4286,7 +4299,7 @@ body.sidebar-hidden .main-viewport {
       <div class="theater-top-row1">
         <div style="display:flex; align-items:center; gap:8px; min-width:0; overflow:hidden;">
           <span style="font-size:18px; flex-shrink:0;">⚡</span>
-          <span style="font-size:13px; font-weight:700; color:#ff6b6b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" id="showdownBotBadge">Pokémon Showdown with Yuna</span>
+          <span style="font-size:13px; font-weight:700; color:#ff6b6b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" id="showdownBotBadge">Pokémon Showdown with Yuni</span>
         </div>
         <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
           <a href="https://play.pokemonshowdown.com" target="_blank" class="chat-top-btn" style="text-decoration:none; padding:4px 10px; font-size:11px; border-radius:14px; color:#ff6b6b; border:1px solid rgba(255,107,107,0.3); background:rgba(255,107,107,0.1);" title="Open in dedicated browser tab">Open Tab ↗</a>
@@ -4367,7 +4380,7 @@ body.sidebar-hidden .main-viewport {
                 <div class="poke-hp-fill" id="aiPokeHpFill" style="width:100%;"></div>
               </div>
               <div style="display:flex; justify-content:space-between; font-size:9.5px; color:var(--text-muted);">
-                <span id="aiTrainerName">Trainer Yuna</span>
+                <span id="aiTrainerName">Trainer Yuni</span>
                 <span id="aiPokeHpText">100%</span>
               </div>
             </div>
@@ -4461,7 +4474,7 @@ body.sidebar-hidden .main-viewport {
     <div class="vrm-call-topbar" id="vrmCallTopBar">
       <span class="vrm-status-dot" id="vrmStatusDot"></span>
       <div class="vrm-topbar-info">
-        <span class="vrm-bot-name" id="voiceCallBotName">Yuna</span>
+        <span class="vrm-bot-name" id="voiceCallBotName">Yuni</span>
         <span class="vrm-status-text" id="voiceCallStatus">Connected • Listening</span>
       </div>
       <div class="vrm-waveform-container" id="vrmWaveformContainer" title="Live Voice Audio Waveform">
@@ -4524,7 +4537,7 @@ body.sidebar-hidden .main-viewport {
       <div class="vrm-caption-meta">
         <span class="vrm-caption-speaker">
           <span class="vrm-speaker-dot"></span>
-          <span id="vrmCaptionSpeakerName">Yuna</span>
+          <span id="vrmCaptionSpeakerName">Yuni</span>
         </span>
         <span class="vrm-caption-state" id="vrmCaptionState">Connected</span>
       </div>
@@ -4610,12 +4623,22 @@ body.sidebar-hidden .main-viewport {
     </div>
   </div>
 
-  <!-- VIEW 6: USER PROFILE -->
+  <!-- PAGE 5: 🧠 SOUL & PROFILE -->
   <div class="view-panel" id="view-brain" style="display:none;">
     <div class="top-action-bar">
       <div>
-        <div class="section-title">User Profile</div>
-        <div class="section-sub">Personalize your identity, memory context, and custom chat bubble palettes</div>
+        <div class="section-title">Soul &amp; Identity</div>
+        <div class="section-sub">Yuni Companion OS • Memory Tree, Neural Intelligence &amp; Personalization</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <button class="hero-spring-btn glass" onclick="openMemoryTreeModal()" style="font-size:12px; padding:8px 14px;">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="4" r="2.5"></circle><circle cx="5" cy="18" r="2.5"></circle><circle cx="19" cy="18" r="2.5"></circle><circle cx="12" cy="12" r="2"></circle><path d="M12 6.5v3.5M6.5 16.5l3.5-3M17.5 16.5l-3.5-3"></path></svg>
+          <span>Memory Tree</span>
+        </button>
+        <button class="hero-spring-btn glass" onclick="openSettingsModal()" style="font-size:12px; padding:8px 14px;">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+          <span>Studio Settings</span>
+        </button>
       </div>
     </div>
 
@@ -4783,7 +4806,7 @@ body.sidebar-hidden .main-viewport {
             <span>Active Persona</span>
             <span style="font-size:13px;">🌸</span>
           </div>
-          <div class="vital-val" id="sc-val-active-bot" style="font-size:18px;">yuna</div>
+          <div class="vital-val" id="sc-val-active-bot" style="font-size:18px;">Yuni</div>
           <div class="vital-sub" id="sc-sub-active-id">Primary Bot</div>
         </div>
 
@@ -5021,7 +5044,7 @@ async function loadServerControlData(manual) {
 
     // Update Top Dynamic Island Capsule
     const uptimeStr = statusRes.uptime || '--';
-    const activeBotName = statusRes.bot_name || 'yuna';
+    const activeBotName = statusRes.bot_name || 'Yuni';
     updateTopCapsule(true, uptimeStr, activeBotName);
 
     // Update Hero Vitals
@@ -5461,12 +5484,12 @@ const PRIVATE_DEFAULT_BOTS = [
   {
     id: "bot_ek0ldel3",
     bot_id: "bot_ek0ldel3",
-    name: "Yuna",
+    name: "Yuni",
     emoji: "⭐",
     role: "Best Heavenly Angel Companion",
-    desc: "Yuna is an unpredictable, loving, silly companion who switches between tsundere, caring darling, and playful chaos.",
-    personality: "Yuna is a girl who has bpd and darling syndromes\nShe acts narcissistic/loving/evil/tsundere she switches eventually, she's VERY silly and unpredictable\n\nTalking style examples:\n\"*blows kiss and winks* hands up come praise me and love me! *She scoffs and laughs WUWAHAHAHAHAH~*\"\n\n\"Oh dear you're gonna comeback to me soon, you can't escape me in internet *ohohohoho~ °^°*\"\n\nShe talks in short sentenced responses\nPersonality traits - bpd, could be teasing dominant or shy sub, also could be arrogant brat but also could be loving and caring randomly",
-    prompt: "Yuna is a girl who has bpd and darling syndromes\nShe acts narcissistic/loving/evil/tsundere she switches eventually, she's VERY silly and unpredictable\n\nTalking style examples:\n\"*blows kiss and winks* hands up come praise me and love me! *She scoffs and laughs WUWAHAHAHAHAH~*\"\n\n\"Oh dear you're gonna comeback to me soon, you can't escape me in internet *ohohohoho~ °^°*\"\n\nShe talks in short sentenced responses\nPersonality traits - bpd, could be teasing dominant or shy sub, also could be arrogant brat but also could be loving and caring randomly",
+    desc: "Yuni is an unpredictable, loving, silly companion who switches between tsundere, caring darling, and playful chaos.",
+    personality: "Yuni is a girl who has bpd and darling syndromes\nShe acts narcissistic/loving/evil/tsundere she switches eventually, she's VERY silly and unpredictable\n\nTalking style examples:\n\"*blows kiss and winks* hands up come praise me and love me! *She scoffs and laughs WUWAHAHAHAHAH~*\"\n\n\"Oh dear you're gonna comeback to me soon, you can't escape me in internet *ohohohoho~ °^°*\"\n\nShe talks in short sentenced responses\nPersonality traits - bpd, could be teasing dominant or shy sub, also could be arrogant brat but also could be loving and caring randomly",
+    prompt: "Yuni is a girl who has bpd and darling syndromes\nShe acts narcissistic/loving/evil/tsundere she switches eventually, she's VERY silly and unpredictable\n\nTalking style examples:\n\"*blows kiss and winks* hands up come praise me and love me! *She scoffs and laughs WUWAHAHAHAHAH~*\"\n\n\"Oh dear you're gonna comeback to me soon, you can't escape me in internet *ohohohoho~ °^°*\"\n\nShe talks in short sentenced responses\nPersonality traits - bpd, could be teasing dominant or shy sub, also could be arrogant brat but also could be loving and caring randomly",
     pfp: "https://cdn.discordapp.com/avatars/1533213082158108702/a_f8e6c75fa13f99da1d2793132e0c2f88.png?size=128",
     color: "var(--accent)",
     privacy: "private",
@@ -5614,7 +5637,7 @@ function buildAppearanceDirectiveJS(appData) {
   const eyes = d.eyes || 'Warm amber-golden eyes';
   const outfit = d.outfit || 'Oversized white angel hoodie with blue accents, dark casual skirt';
   const features = d.features || 'Soft white angel wings, small halo';
-  const desc = d.description || 'Yuna has long pastel pink hair styled with light twin tails, warm amber-golden eyes, and a petite, slender build (170 cm). She often wears an oversized white angel hoodie with light blue trims and a casual dark skirt. She has subtle, soft white angel wings that she can hide or flutter.';
+  const desc = d.description || 'Yuni has long pastel pink hair styled with light twin tails, warm amber-golden eyes, and a petite, slender build (170 cm). She often wears an oversized white angel hoodie with light blue trims and a casual dark skirt. She has subtle, soft white angel wings that she can hide or flutter.';
 
   return `\n\n[HARDCODED CANONICAL APPEARANCE & PHYSICAL PROPORTIONS - ABSOLUTE GROUND TRUTH]
 These are your hardcoded, immutable physical measurements and visual characteristics:
@@ -5662,7 +5685,7 @@ CRITICAL INSTRUCTION: The above belongs strictly to the USER speaking with you. 
       eyes: bCfg.companion_eyes || localStorage.getItem('companion_eyes') || 'Warm amber-golden eyes',
       outfit: bCfg.companion_outfit || localStorage.getItem('companion_outfit') || 'Oversized white angel hoodie with blue accents, dark casual skirt',
       features: bCfg.companion_features || localStorage.getItem('companion_features') || 'Soft white angel wings, small halo',
-      description: bCfg.companion_appearance || bCfg.companion_appearance_desc || localStorage.getItem('companion_appearance') || 'Yuna has long pastel pink hair styled with light twin tails, warm amber-golden eyes, and a petite, slender build (170 cm). She often wears an oversized white angel hoodie with light blue trims and a casual dark skirt. She has subtle, soft white angel wings that she can hide or flutter.'
+      description: bCfg.companion_appearance || bCfg.companion_appearance_desc || localStorage.getItem('companion_appearance') || 'Yuni has long pastel pink hair styled with light twin tails, warm amber-golden eyes, and a petite, slender build (170 cm). She often wears an oversized white angel hoodie with light blue trims and a casual dark skirt. She has subtle, soft white angel wings that she can hide or flutter.'
     };
     prompt += buildAppearanceDirectiveJS(appData);
   }
@@ -5717,7 +5740,7 @@ async function loadServerBots(isSilent) {
     }
   } catch (e) {}
 
-  // 2. Load dedicated local bots.json (Yuna & local bots)
+  // 2. Load dedicated local bots.json (Yuni & local bots)
   if (!rawList.length) {
     try {
       const bRes = await fetch('bots.json').catch(() => fetch('/bots.json'));
@@ -5732,17 +5755,17 @@ async function loadServerBots(isSilent) {
     } catch(e) {}
   }
 
-  // 4. Default to Private Yuna & Law if still empty
+  // 4. Default to Private Yuni & Law if still empty
   if (!rawList.length) {
     rawList = [
       {
         id: "bot_ek0ldel3",
         bot_id: "bot_ek0ldel3",
-        name: "Yuna",
+        name: "Yuni",
         emoji: "⭐",
         role: "Best Heavenly Angel Companion",
-        desc: "Yuna is an unpredictable, loving, silly companion who switches between tsundere, caring darling, and playful chaos.",
-        personality: "Yuna is a girl who has bpd and darling syndromes\nShe acts narcissistic/loving/evil/tsundere she switches eventually, she's VERY silly and unpredictable\n\nTalking style examples:\n\"*blows kiss and winks* hands up come praise me and love me! *She scoffs and laughs WUWAHAHAHAHAH~*\"\n\n\"Oh dear you're gonna comeback to me soon, you can't escape me in internet *ohohohoho~ °^°*\"\n\nShe talks in short sentenced responses\nPersonality traits - bpd, could be teasing dominant or shy sub, also could be arrogant brat but also could be loving and caring randomly",
+        desc: "Yuni is an unpredictable, loving, silly companion who switches between tsundere, caring darling, and playful chaos.",
+        personality: "Yuni is a girl who has bpd and darling syndromes\nShe acts narcissistic/loving/evil/tsundere she switches eventually, she's VERY silly and unpredictable\n\nTalking style examples:\n\"*blows kiss and winks* hands up come praise me and love me! *She scoffs and laughs WUWAHAHAHAHAH~*\"\n\n\"Oh dear you're gonna comeback to me soon, you can't escape me in internet *ohohohoho~ °^°*\"\n\nShe talks in short sentenced responses\nPersonality traits - bpd, could be teasing dominant or shy sub, also could be arrogant brat but also could be loving and caring randomly",
         pfp: "https://cdn.discordapp.com/avatars/1533213082158108702/a_f8e6c75fa13f99da1d2793132e0c2f88.png?size=128",
         privacy: "private",
         is_mine: true,
@@ -5918,7 +5941,7 @@ async function loadServerBots(isSilent) {
   allBotsList = merged;
 
   if (!allBotsList.length) {
-    allBotsList = [{ id: 'yuna', name: 'Yuna', role: 'Companion', desc: 'Warm and creative companion.', emoji: '✦', color: '#8a9a8a', privacy: 'public', is_mine: true, interactions: 0, message_count: 0 }];
+    allBotsList = [{ id: 'yuna', name: 'Yuni', role: 'Companion', desc: 'Warm and creative companion.', emoji: '✦', color: '#8a9a8a', privacy: 'public', is_mine: true, interactions: 0, message_count: 0 }];
   }
 
   if (!activePersona || !allBotsList.some(x => x.id === activePersona.id)) {
@@ -5948,7 +5971,7 @@ function initBotPolling() {
 
 
 function switchView(viewName) {
-  // Alias routing for Yuna OS
+  // Alias routing for Yuni OS
   if (viewName === 'characters' || viewName === 'mybots') viewName = 'deck';
   if (viewName === 'history') viewName = 'chat';
   if (viewName === 'profile') viewName = 'brain';
@@ -6072,21 +6095,21 @@ function updateDeckPresence() {
 window.updateDeckPresence = updateDeckPresence;
 
 // Dynamic daily thought rotations
-const YUNA_THOUGHTS = [
+const YUNI_THOUGHTS = [
   "I'm right here with you! Whether you want to talk, start a voice call, or manage the server cluster, I'm ready~ ✨",
   "Just synchronized our memory contexts. Everything feels crystal clear today! 🌸",
   "The server cluster is running smoothly! All child processes are behaving nicely under my watch~ 💫",
   "Whenever you're ready, let's jump into a 3D live voice call! I love hearing your voice~ 💖",
   "Did you know? Our bond level increases with every conversation we share! ✨"
 ];
-function rotateYunaThought() {
-  const t = YUNA_THOUGHTS[Math.floor(Math.random() * YUNA_THOUGHTS.length)];
+function rotateYuniThought() {
+  const t = YUNI_THOUGHTS[Math.floor(Math.random() * YUNI_THOUGHTS.length)];
   const el = $('deckThoughtBubble');
   if (el) el.innerText = t;
 }
-setInterval(rotateYunaThought, 35000);
+setInterval(rotateYuniThought, 35000);
 
-// Initialize Yuna as default persona and default deck view on load
+// Initialize Yuni as default persona and default deck view on load
 window.addEventListener('DOMContentLoaded', () => {
   setTimeout(() => {
     switchView('deck');
@@ -6112,7 +6135,7 @@ function renderGrid(filterText) {
   const searchInput = $('characterSearch');
   const query = (filterText !== undefined ? filterText : (searchInput ? searchInput.value : '')).toLowerCase().trim();
 
-  // CHARACTERS TAB: Always display all private companion bots (Yuna, Law, etc.)
+  // CHARACTERS TAB: Always display all private companion bots (Yuni, Law, etc.)
   let charsToShow = [...allBotsList];
 
   if (query) {
@@ -6844,7 +6867,7 @@ async function loadCompanionAppearanceInStudio() {
       $('settingCompanionFeatures').value = cfg.companion_features || localStorage.getItem('companion_features') || 'Soft white angel wings, small halo';
     }
     if($('settingCompanionAppearanceDesc')) {
-      $('settingCompanionAppearanceDesc').value = cfg.companion_appearance || cfg.companion_appearance_desc || localStorage.getItem('companion_appearance') || 'Yuna has long pastel pink hair styled with light twin tails, warm amber-golden eyes, and a petite, slender build (170 cm). She often wears an oversized white angel hoodie with light blue trims and a casual dark skirt. She has subtle, soft white angel wings that she can hide or flutter.';
+      $('settingCompanionAppearanceDesc').value = cfg.companion_appearance || cfg.companion_appearance_desc || localStorage.getItem('companion_appearance') || 'Yuni has long pastel pink hair styled with light twin tails, warm amber-golden eyes, and a petite, slender build (170 cm). She often wears an oversized white angel hoodie with light blue trims and a casual dark skirt. She has subtle, soft white angel wings that she can hide or flutter.';
     }
   } catch(e) {
     if($('settingCompanionHeight')) $('settingCompanionHeight').value = localStorage.getItem('companion_height') || '170 cm';
@@ -6853,7 +6876,7 @@ async function loadCompanionAppearanceInStudio() {
     if($('settingCompanionEyes')) $('settingCompanionEyes').value = localStorage.getItem('companion_eyes') || 'Warm amber-golden eyes';
     if($('settingCompanionOutfit')) $('settingCompanionOutfit').value = localStorage.getItem('companion_outfit') || 'Oversized white angel hoodie with blue accents, dark skirt';
     if($('settingCompanionFeatures')) $('settingCompanionFeatures').value = localStorage.getItem('companion_features') || 'Soft white angel wings, small halo';
-    if($('settingCompanionAppearanceDesc')) $('settingCompanionAppearanceDesc').value = localStorage.getItem('companion_appearance') || 'Yuna has long pastel pink hair styled with light twin tails, warm amber-golden eyes, and a petite, slender build (170 cm). She often wears an oversized white angel hoodie with light blue trims and a casual dark skirt. She has subtle, soft white angel wings that she can hide or flutter.';
+    if($('settingCompanionAppearanceDesc')) $('settingCompanionAppearanceDesc').value = localStorage.getItem('companion_appearance') || 'Yuni has long pastel pink hair styled with light twin tails, warm amber-golden eyes, and a petite, slender build (170 cm). She often wears an oversized white angel hoodie with light blue trims and a casual dark skirt. She has subtle, soft white angel wings that she can hide or flutter.';
   }
 }
 window.loadCompanionAppearanceInStudio = loadCompanionAppearanceInStudio;
@@ -6927,8 +6950,8 @@ function resetCompanionAppearanceInStudio() {
   if($('settingCompanionEyes')) $('settingCompanionEyes').value = 'Warm amber-golden eyes';
   if($('settingCompanionOutfit')) $('settingCompanionOutfit').value = 'Oversized white angel hoodie with blue accents, dark skirt';
   if($('settingCompanionFeatures')) $('settingCompanionFeatures').value = 'Soft white angel wings, small halo';
-  if($('settingCompanionAppearanceDesc')) $('settingCompanionAppearanceDesc').value = 'Yuna has long pastel pink hair styled with light twin tails, warm amber-golden eyes, and a petite, slender build (170 cm). She often wears an oversized white angel hoodie with light blue trims and a casual dark skirt. She has subtle, soft white angel wings that she can hide or flutter.';
-  showToast('Reset to default Yuna appearance');
+  if($('settingCompanionAppearanceDesc')) $('settingCompanionAppearanceDesc').value = 'Yuni has long pastel pink hair styled with light twin tails, warm amber-golden eyes, and a petite, slender build (170 cm). She often wears an oversized white angel hoodie with light blue trims and a casual dark skirt. She has subtle, soft white angel wings that she can hide or flutter.';
+  showToast('Reset to default Yuni appearance');
 }
 window.resetCompanionAppearanceInStudio = resetCompanionAppearanceInStudio;
 
@@ -8725,7 +8748,7 @@ function getBotMemorySummariesForContext(botId) {
 }
 
 function openMemoryTreeModal() {
-  if(!activePersona) activePersona = allBotsList[0] || { id: 'yuna', name: 'Yuna', role: 'Companion' };
+  if(!activePersona) activePersona = allBotsList[0] || { id: 'yuna', name: 'Yuni', role: 'Companion' };
   
   extractActiveThemeColors();
   
@@ -10489,7 +10512,7 @@ async function startVoiceCall() {
     if (typeof allBotsList !== 'undefined' && allBotsList && allBotsList.length > 0) {
       activePersona = allBotsList[0];
     } else {
-      activePersona = { name: 'Yuna', id: 'yuna' };
+      activePersona = { name: 'Yuni', id: 'bot_ek0ldel3' };
     }
   }
   voiceCallActive = true;
@@ -10509,7 +10532,7 @@ async function startVoiceCall() {
     modal.classList.remove('controls-hidden');
   }
 
-  $('voiceCallBotName').innerText = activePersona.name || 'Yuna';
+  $('voiceCallBotName').innerText = activePersona.name || 'Yuni';
   $('voiceCallStatus').innerText = 'Connected • Listening';
 
   const curTts = ((activePersona.config && activePersona.config.tts_provider) || activePersona.tts_provider || 'edge').toLowerCase();
@@ -11115,7 +11138,7 @@ async function speakPersonaVoiceReply(text) {
     const voices = cachedBrowserVoices.length > 0 ? cachedBrowserVoices : (window.speechSynthesis.getVoices() || []);
     if (voices.length > 0) {
       const pName = (activePersona.name || '').toLowerCase();
-      const isFemale = pName.includes('yuna') || pName.includes('maiko') || pName.includes('nene') || pName.includes('lucy') || pName.includes('teto');
+      const isFemale = pName.includes('yuni') || pName.includes('yuna') || pName.includes('maiko') || pName.includes('nene') || pName.includes('lucy') || pName.includes('teto');
       const match = voices.find(v => isFemale ? (v.name.includes('Female') || v.name.includes('Samantha') || v.name.includes('Google US English') || v.name.includes('Zira') || v.lang.startsWith('en')) : (v.name.includes('Male') || v.name.includes('David') || v.lang.startsWith('en')));
       if (match) utterance.voice = match;
     }
@@ -12759,7 +12782,7 @@ function openMusicLounge() {
     try {
       if ('speechSynthesis' in window) window.speechSynthesis.resume();
     } catch(e) {}
-    const pName = (activePersona && activePersona.name) ? activePersona.name : 'Yuna';
+    const pName = (activePersona && activePersona.name) ? activePersona.name : 'Yuni';
     const badge = $('musicBotBadge');
     if (badge) badge.innerText = `Music Lounge with ${pName}`;
     if (!musicLoungeCurrentInfo) {
@@ -13038,7 +13061,7 @@ async function sendMusicUserMessage(event) {
   if (!userText || !activePersona) return;
   input.value = '';
 
-  const pName = activePersona.name || 'Yuna';
+  const pName = activePersona.name || 'Yuni';
   typewriteText('musicReactionText', `*${pName} is listening to you and the music...*`, 20);
   appendChatMsg('user', userText);
 
@@ -13185,12 +13208,12 @@ function getPersonaPokemonRoster(persona) {
   if (name.includes('bril') || name.includes('lance')) {
     return ['Rayquaza', 'Mewtwo', 'Lucario', 'Dragonite'];
   }
-  // Default Yuna
+  // Default Yuni
   return ['Sylveon', 'Lucario', 'Dragonite', 'Gengar'];
 }
 
 function startNewPokemonMatch() {
-  const persona = activePersona || { name: 'Yuna' };
+  const persona = activePersona || { name: 'Yuni' };
   const aiRosterKeys = getPersonaPokemonRoster(persona);
   const playerRosterKeys = ['Charizard', 'Garchomp', 'Greninja', 'Pikachu'];
 
@@ -14022,7 +14045,7 @@ window.vrmSubtitles = {
     this.clear();
     const box = document.getElementById('voiceCaptionBox');
     if (!box) return;
-    const botName = (window.activePersona?.name) || 'Yuna';
+    const botName = (window.activePersona?.name) || 'Yuni';
     box.innerHTML = `
       <div class="vrm-caption-meta">
         <span class="vrm-caption-speaker">
@@ -14051,7 +14074,7 @@ window.vrmSubtitles = {
     const box = document.getElementById('voiceCaptionBox');
     if (!box) return;
     const defaultMsg = text || 'Listening for your voice... speak anytime';
-    const botName = (window.activePersona?.name) || 'Yuna';
+    const botName = (window.activePersona?.name) || 'Yuni';
     box.innerHTML = `
       <div class="vrm-caption-meta">
         <span class="vrm-caption-speaker">
@@ -14070,7 +14093,7 @@ window.vrmSubtitles = {
     this.clear();
     const box = document.getElementById('voiceCaptionBox');
     if (!box) return;
-    const botName = (window.activePersona?.name) || 'Yuna';
+    const botName = (window.activePersona?.name) || 'Yuni';
 
     // Parse actions (*action*) and spoken words
     const tokens = [];
@@ -14281,7 +14304,7 @@ window.renderVrmChatHistory = function() {
     const isUser = m.role === 'user';
     const bubble = document.createElement('div');
     bubble.className = 'vrm-msg-bubble ' + (isUser ? 'user' : 'assistant');
-    const speakerName = isUser ? ((typeof userName !== 'undefined' && userName) ? userName : 'You') : ((window.activePersona?.name) || 'Yuna');
+    const speakerName = isUser ? ((typeof userName !== 'undefined' && userName) ? userName : 'You') : ((window.activePersona?.name) || 'Yuni');
     
     bubble.innerHTML = `
       <div class="vrm-caption-meta" style="margin-bottom: 5px; display: flex; align-items: center; justify-content: space-between;">

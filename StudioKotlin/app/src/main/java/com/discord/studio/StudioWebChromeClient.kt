@@ -104,7 +104,7 @@ class StudioWebChromeClient(
 
     override fun onJsAlert(view: WebView?, url: String?, message: String?, result: JsResult?): Boolean {
         MaterialAlertDialogBuilder(activity)
-            .setTitle("Studio Suite")
+            .setTitle("Yuni")
             .setMessage(message ?: "")
             .setPositiveButton("OK") { _, _ -> result?.confirm() }
             .setOnCancelListener { result?.cancel() }
@@ -114,7 +114,7 @@ class StudioWebChromeClient(
 
     override fun onJsConfirm(view: WebView?, url: String?, message: String?, result: JsResult?): Boolean {
         MaterialAlertDialogBuilder(activity)
-            .setTitle("Studio Suite")
+            .setTitle("Yuni")
             .setMessage(message ?: "")
             .setPositiveButton("Confirm") { _, _ -> result?.confirm() }
             .setNegativeButton("Cancel") { _, _ -> result?.cancel() }

@@ -47,3 +47,4 @@ StudioKotlin/.gradle/
 StudioKotlin/app/build/
 StudioKotlin/build/
 .gradle/
+build_apk/

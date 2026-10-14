@@ -47,7 +47,7 @@ class StudioBridge(
     fun copyToClipboard(text: String) {
         handler.post {
             val clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            val clip = ClipData.newPlainText("Studio Suite", text)
+            val clip = ClipData.newPlainText("Yuni", text)
             clipboard.setPrimaryClip(clip)
             Toast.makeText(activity, "Copied to clipboard", Toast.LENGTH_SHORT).show()
         }
