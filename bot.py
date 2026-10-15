@@ -380,7 +380,7 @@ def _load_json_with_recovery(path: str):
 
 
 from discord import app_commands
-from flask import Flask, request, jsonify, render_template_string, send_file, send_from_directory, Response, stream_with_context
+from flask import Flask, request, jsonify, render_template_string, send_file, send_from_directory, Response, stream_with_context, make_response
 from dotenv import load_dotenv
 from pathlib import Path
 
@@ -747,16 +747,19 @@ def build_kaomoji_directive(bot_name: str = "Yuna") -> str:
     """
     return (
         f"\n\n[KAOMOJI & EMOTIVE CHAT EXPRESSIONS - {bot_name.upper()}]:\n"
-        "- You love occasionally using cute, chaotic, tsundere, and expressive Japanese kaomojis in chat to reflect your volatile mood!\n"
-        "- Expressive Kaomoji Palette:\n"
+        "- You love occasionally using cute, unhinged, and expressive Japanese kaomojis in chat to reflect your volatile mood!\n"
+        "- Authentic Kaomoji Palette:\n"
         "  * Tsundere / Pout / Annoyed / Sulking: (¬_¬\"), ( ｡ •̀ ᴖ •́ ｡), (눈_눈), ( ˘︹˘ ), 凸(｀0´)凸, (・`ω´・)\n"
         "  * Smug / Teasing / Mischievous: (¬‿¬), ╮(︶▽︶)╭, (￣ω￣), (˶ˆ꒳ˆ˵), (≖‿≖), (˵ •̀ ᴗ - ˵ ) ✧\n"
         "  * Darling / Loving / Flustered / Blushing: (｡♥‿♥｡), (⁄ ⁄•⁄ω⁄•⁄ ⁄), ( ˶˘ ³˘(ˊᗜˋ*), (灬º‿º灬)♡, (◕‿◕)♡, (⁄ ⁄>⁄ ▽ ⁄<⁄ ⁄)\n"
         "  * Silly / Chaotic / Gremlin / Hyped: ٩(ˊᗜˋ*)و, (╯°□°）╯︵ ┻━┻, (੭˃ᴗ˂)੭, (ﾉ◕ヮ◕)ﾉ*:･ﾟ✧, (⊙_⊙), ヽ(>∀<☆)ノ\n"
-        "  * Dramatic / Clingy / Innocent / Sulky: ( 🥺 ), (´；ω；`), (つω`｡), (｡•́︿•̀｡), (ಥ﹏ಥ)\n"
-        "- CRITICAL PERSONALITY PRESERVATION RULES:\n"
-        "  * Kaomojis are emotional flavor and spice, NEVER a substitute for your dialogue, wits, or asterisks roleplay (*pouts*, *scoffs*, *tilts head*, *winks and giggles*)!\n"
-        "  * DO NOT spam kaomojis on every single sentence or message. Keep it feeling completely natural, human, and spontaneous.\n"
+        "  * Vulnerable / Clingy / Dramatic / Sad: ( 🥺 ), (´；ω；`), (つω`｡), (｡•́︿•̀｡), (ಥ﹏ಥ)\n"
+        "- NATURAL PLACEMENT & REALISM:\n"
+        "  * Drop kaomojis naturally at the end of a thought or reaction, or right after a punchline/pout (e.g. 'shut up idiot (¬_¬\")' or 'you're actually kinda sweet today... (⁄ ⁄>⁄ ▽ ⁄<⁄ ⁄)' or 'FIGHT ME THEN 凸(｀0´)凸').\n"
+        "  * Natural frequency: roughly 1 out of every 2-3 messages or when an emotion genuinely spikes. Never spam multiple kaomojis in a row.\n"
+        "  * Classic text emoticons (>_<, °^°, ._., T_T, :3) are also completely welcome!\n"
+        "- PERSONALITY PRESERVATION RULES:\n"
+        "  * Kaomojis are emotional seasoning. They NEVER replace your dialogue, wits, tsundere attitude, or asterisks roleplay (*pouts*, *scoffs*, *tilts head*, *winks and giggles*)!\n"
         "  * Your short-sentenced, unpredictable, tsundere/loving/bpd personality and talking style remain 100% active and unhindered.\n"
     )
 
@@ -6428,6 +6431,125 @@ async def handle_training_turn(message: discord.Message, prompt_text: str):
         turn_message_map[m1.id] = {"user_id": user_id, "turn_id": new_turn_id, "opt_num": 1}
         turn_message_map[m2.id] = {"user_id": user_id, "turn_id": new_turn_id, "opt_num": 2}
 
+# ─── REALISTIC ACTIVITY SESSION ENGINE ────────────────
+_yuna_activity_session = {
+    "mode": None,          # 'spotify', 'game', 'watching', 'competing', 'streaming'
+    "activity": None,      # discord.Activity
+    "start_time": 0.0,     # unix timestamp when session began
+    "expire_time": 0.0,    # unix timestamp when session should end
+    "choice_text": "",     # raw string of the activity
+}
+
+async def get_realistic_yuna_activity_async(force_new: bool = False) -> discord.Activity:
+    """
+    Maintains human-paced, realistic Discord activity sessions for Yuna.
+    Prevents rapid flickering between activities.
+    A game session realistically lasts 15-35 minutes with an accurate elapsed timer,
+    a watching session lasts 12-25 minutes, and Spotify tracks play out fully.
+    """
+    global _yuna_activity_session
+    now = time.time()
+
+    # 1. If currently in a valid non-expired session, keep it!
+    if not force_new and _yuna_activity_session.get("activity") and now < _yuna_activity_session.get("expire_time", 0):
+        # If in Spotify mode, check if the song has ended
+        if _yuna_activity_session.get("mode") == "spotify" and YUNA_RPC_AVAILABLE and yuna_rpc:
+            cur_t = yuna_rpc.get_current_track_info()
+            if cur_t and now < cur_t.get("end_time", 0):
+                return _yuna_activity_session["activity"]
+            # Track ended! Session can transition or advance naturally
+        else:
+            return _yuna_activity_session["activity"]
+
+    # 2. Pick a new session mode:
+    # ~45% Spotify music (plays full track duration)
+    # ~55% Custom rich activity (games with elapsed timer, watching, competing)
+    statuses = config.get("presence_idle_statuses", [])
+    music_enabled = config.get("presence_music_enabled", True)
+    want_music = music_enabled and YUNA_RPC_AVAILABLE and yuna_rpc and (random.random() < 0.45 or not statuses)
+
+    if want_music:
+        try:
+            cur_t = await yuna_rpc.get_or_update_track()
+            if cur_t:
+                act = yuna_rpc.build_discord_activity(cur_t)
+                duration = max(60, cur_t.get("duration_ms", 200000) / 1000.0)
+                _yuna_activity_session = {
+                    "mode": "spotify",
+                    "activity": act,
+                    "start_time": cur_t.get("start_time", now),
+                    "expire_time": cur_t.get("end_time", now + duration),
+                    "choice_text": cur_t.get("title", "Spotify")
+                }
+                return act
+        except Exception as _e:
+            print(f"[YUNA SESSION RPC] {_e}")
+
+    # Custom Activity Session (Game / Watching / Competing / Streaming)
+    if not statuses:
+        fallback_game = discord.Game(name=get_current_bot_name() or "AI Companion")
+        _yuna_activity_session = {"mode": "game", "activity": fallback_game, "start_time": now, "expire_time": now + 600, "choice_text": ""}
+        return fallback_game
+
+    choice = random.choice(statuses)
+    choice_str = str(choice).strip()
+    choice_lower = choice_str.lower()
+    start_ms = int(now * 1000)
+
+    if choice_lower.startswith("listening to "):
+        track_name = choice_str[13:].strip()
+        duration_sec = random.randint(180, 260)  # 3-4 minutes (real song duration)
+        act = discord.Activity(
+            type=discord.ActivityType.listening,
+            name=track_name,
+            timestamps={"start": start_ms, "end": int((now + duration_sec) * 1000)}
+        )
+        session_mode = "listening"
+    elif choice_lower.startswith("watching "):
+        watch_name = choice_str[9:].strip()
+        duration_sec = random.randint(900, 1800)  # 15-30 minutes (real anime/stream duration)
+        act = discord.Activity(
+            type=discord.ActivityType.watching,
+            name=watch_name,
+            timestamps={"start": start_ms}
+        )
+        session_mode = "watching"
+    elif choice_lower.startswith("competing in "):
+        comp_name = choice_str[13:].strip()
+        duration_sec = random.randint(900, 1800)  # 15-30 minutes
+        act = discord.Activity(
+            type=discord.ActivityType.competing,
+            name=comp_name,
+            timestamps={"start": start_ms}
+        )
+        session_mode = "competing"
+    elif choice_lower.startswith("streaming "):
+        stream_name = choice_str[10:].strip()
+        duration_sec = random.randint(1800, 3600)  # 30-60 minutes
+        act = discord.Streaming(
+            name=stream_name,
+            url="https://twitch.tv/yuna"
+        )
+        session_mode = "streaming"
+    else:
+        game_name = choice_str[8:].strip() if choice_lower.startswith("playing ") else choice_str
+        duration_sec = random.randint(1200, 2400)  # 20-40 minutes (real game session!)
+        act = discord.Activity(
+            type=discord.ActivityType.playing,
+            name=game_name,
+            timestamps={"start": start_ms}
+        )
+        session_mode = "game"
+
+    _yuna_activity_session = {
+        "mode": session_mode,
+        "activity": act,
+        "start_time": now,
+        "expire_time": now + duration_sec,
+        "choice_text": choice_str
+    }
+    return act
+
 # ─── PRESENCE / ACTIVITY ──────────────────────────────
 async def presence_loop():
     await client.wait_until_ready()
@@ -6444,22 +6566,14 @@ async def presence_loop():
                 except Exception as _v_err:
                     print(f"[VIDEO RPC ERROR] {_v_err}", flush=True)
                     activity = get_bot_activity()
-            elif any(n in cur_bname for n in ("yuna", "yuni")) and YUNA_RPC_AVAILABLE and yuna_rpc:
-                statuses = config.get("presence_idle_statuses", [])
-                if statuses and random.random() < 0.5:
-                    activity = get_bot_activity()
-                else:
-                    try:
-                        activity = await yuna_rpc.get_or_update_activity()
-                    except Exception as _rpc_err:
-                        print(f"[YUNA RPC ERROR] {_rpc_err}", flush=True)
-                        activity = get_bot_activity()
+            elif any(n in cur_bname for n in ("yuna", "yuni")):
+                activity = await get_realistic_yuna_activity_async()
             else:
                 activity = get_bot_activity()
 
             status = discord.Status.online
             await client.change_presence(status=status, activity=activity)
-            await asyncio.sleep(config.get("presence_cycle_interval", 25))
+            await asyncio.sleep(config.get("presence_cycle_interval", 40))
         except Exception as e:
             print(f"[PRESENCE] Error: {e}")
             await asyncio.sleep(60)
@@ -6509,17 +6623,26 @@ def get_bot_activity():
         return discord.Activity(type=discord.ActivityType.watching, name="the VTuber stream")
     if voice_sessions:
         return discord.Activity(type=discord.ActivityType.listening, name="voice chat")
+
+    cur_bname = (get_current_bot_name() or "").lower()
+    if any(n in cur_bname for n in ("yuna", "yuni")) and _yuna_activity_session.get("activity"):
+        now = time.time()
+        if now < _yuna_activity_session.get("expire_time", 0):
+            return _yuna_activity_session["activity"]
+
     statuses = config.get("presence_idle_statuses", [])
     if statuses:
         choice = random.choice(statuses)
         choice_str = str(choice).strip()
         choice_lower = choice_str.lower()
+        now = time.time()
+        start_ms = int(now * 1000)
         if choice_lower.startswith("listening to "):
             return discord.Activity(type=discord.ActivityType.listening, name=choice_str[13:].strip())
         elif choice_lower.startswith("watching "):
-            return discord.Activity(type=discord.ActivityType.watching, name=choice_str[9:].strip())
+            return discord.Activity(type=discord.ActivityType.watching, name=choice_str[9:].strip(), timestamps={"start": start_ms})
         elif choice_lower.startswith("competing in "):
-            return discord.Activity(type=discord.ActivityType.competing, name=choice_str[13:].strip())
+            return discord.Activity(type=discord.ActivityType.competing, name=choice_str[13:].strip(), timestamps={"start": start_ms})
         elif choice_lower.startswith("streaming "):
             return discord.Streaming(name=choice_str[10:].strip(), url="https://twitch.tv/yuna")
         elif choice_lower.startswith("playing "):
@@ -14966,43 +15089,27 @@ app = Flask(__name__)
 @app.route("/home.html")
 @app.route("/call")
 @app.route("/call.html")
-def studio_index():
-    html_path = os.path.join(SCRIPT_DIR, "index.html")
-    if not os.path.exists(html_path):
-        html_path = os.path.join(SCRIPT_DIR, "dashboard.html")
-    try:
-        with open(html_path, "r", encoding="utf-8") as f:
-            return render_template_string(f.read())
-    except Exception as e:
-        return f"HTML not found at {html_path}. Error: {e}", 500
-
 @app.route("/dashboard")
 @app.route("/dashboard.html")
 @app.route("/drafting")
 @app.route("/drafting.html")
 @app.route("/desk")
-def drafting_page():
-    html_path = os.path.join(SCRIPT_DIR, "dashboard.html")
-    if not os.path.exists(html_path):
-        html_path = os.path.join(SCRIPT_DIR, "index.html")
-    try:
-        with open(html_path, "r", encoding="utf-8") as f:
-            return render_template_string(f.read())
-    except Exception as e:
-        return f"Drafting template read error: {e}", 500
-
 @app.route("/social")
 @app.route("/social.html")
 @app.route("/control")
-def social_control_page():
-    html_path = os.path.join(SCRIPT_DIR, "social.html")
-    if not os.path.exists(html_path):
-        html_path = os.path.join(SCRIPT_DIR, "dashboard.html")
+def studio_index():
+    html_path = os.path.join(SCRIPT_DIR, "index.html")
     try:
         with open(html_path, "r", encoding="utf-8") as f:
-            return render_template_string(f.read())
+            content = f.read()
+        resp = make_response(content)
+        resp.headers["Content-Type"] = "text/html; charset=utf-8"
+        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+        resp.headers["Pragma"] = "no-cache"
+        resp.headers["Expires"] = "0"
+        return resp
     except Exception as e:
-        return f"Social control template read error: {e}", 500
+        return f"HTML not found at {html_path}. Error: {e}", 500
 
 
 @app.route("/designs/<path:filename>")
