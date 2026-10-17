@@ -3361,6 +3361,25 @@ def build_scene_context(channel_id, primary_user_id=None, user_name=None, guild=
             else:
                 parts.append("\n- DO NOT mention music, headphones, or Spotify unless the user explicitly asks about it.")
 
+    # Situational DM Context Injection (Target DM response context & Origin outcome context)
+    if YUNA_SITUATIONAL_DM_AVAILABLE and yuna_situational_dm:
+        try:
+            sys_ovr = str(kwargs.get("system_msg_override") or "")
+            if is_dm and "[ACTIVE SITUATIONAL DM" not in sys_ovr:
+                target_sdm_ctx = yuna_situational_dm.get_target_dm_context(primary_uid_str, channel_id)
+                if target_sdm_ctx:
+                    parts.append(target_sdm_ctx)
+            if "[REAL-TIME SITUATIONAL DM STATUS" not in sys_ovr:
+                origin_sdm_ctx = yuna_situational_dm.get_origin_situational_context(
+                    channel_id=channel_id,
+                    author_id=primary_uid_str,
+                    current_prompt=current_prompt
+                )
+                if origin_sdm_ctx:
+                    parts.append(origin_sdm_ctx)
+        except Exception as _sdm_ctx_err:
+            pass
+
     return "\n".join(parts)
 
 
@@ -14041,11 +14060,23 @@ async def on_message(message):
 
     # ─── @MENTION & PREFIX CONFIGURATION COMMANDS ─────────
     is_mentioned = client.user in message.mentions if client.user else False
-    is_dm = isinstance(message.channel, discord.DMChannel)
+    is_dm = isinstance(message.channel, discord.DMChannel) or (message.guild is None)
     content_raw = message.content.strip()
     clean_text = content_raw
     if client.user:
         clean_text = re.sub(r'<@!?\d+>', '', clean_text).strip()
+
+    # Situational DM: If user replies in DM, register reply and context immediately
+    if is_dm and YUNA_SITUATIONAL_DM_AVAILABLE and yuna_situational_dm:
+        try:
+            yuna_situational_dm.on_target_dm_message(
+                user_id=message.author.id,
+                channel_id=message.channel.id,
+                message_text=content_raw,
+                bot_id=get_current_bot_id()
+            )
+        except Exception as _sdm_onmsg_err:
+            pass
 
     # Check for invite in mention / command: e.g. "@Bot invite", "!invite"
     clean_low = clean_text.lower()
@@ -15081,6 +15112,25 @@ async def on_error(event_method, *args, **kwargs):
 app = Flask(__name__)
 
 @app.route("/")
+@app.route("/dashboard")
+@app.route("/dashboard.html")
+@app.route("/drafting")
+@app.route("/drafting.html")
+@app.route("/desk")
+def drafting_page():
+    html_path = os.path.join(SCRIPT_DIR, "dashboard.html")
+    if not os.path.exists(html_path):
+        html_path = os.path.join(SCRIPT_DIR, "index.html")
+    try:
+        with open(html_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        resp = make_response(content)
+        resp.headers["Content-Type"] = "text/html; charset=utf-8"
+        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+        return resp
+    except Exception as e:
+        return f"Drafting template read error: {e}", 500
+
 @app.route("/studio")
 @app.route("/studio.html")
 @app.route("/chat")
@@ -15089,27 +15139,55 @@ app = Flask(__name__)
 @app.route("/home.html")
 @app.route("/call")
 @app.route("/call.html")
-@app.route("/dashboard")
-@app.route("/dashboard.html")
-@app.route("/drafting")
-@app.route("/drafting.html")
-@app.route("/desk")
-@app.route("/social")
-@app.route("/social.html")
-@app.route("/control")
 def studio_index():
     html_path = os.path.join(SCRIPT_DIR, "index.html")
+    if not os.path.exists(html_path):
+        html_path = os.path.join(SCRIPT_DIR, "dashboard.html")
     try:
         with open(html_path, "r", encoding="utf-8") as f:
             content = f.read()
         resp = make_response(content)
         resp.headers["Content-Type"] = "text/html; charset=utf-8"
         resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
-        resp.headers["Pragma"] = "no-cache"
-        resp.headers["Expires"] = "0"
         return resp
     except Exception as e:
         return f"HTML not found at {html_path}. Error: {e}", 500
+
+@app.route("/yuna")
+@app.route("/yuna.html")
+@app.route("/yuna_app")
+@app.route("/app")
+@app.route("/app.html")
+def yuna_app_page():
+    html_path = os.path.join(SCRIPT_DIR, "yuna.html")
+    if not os.path.exists(html_path):
+        html_path = os.path.join(SCRIPT_DIR, "index.html")
+    try:
+        with open(html_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        resp = make_response(content)
+        resp.headers["Content-Type"] = "text/html; charset=utf-8"
+        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+        return resp
+    except Exception as e:
+        return f"Yuna app read error: {e}", 500
+
+@app.route("/social")
+@app.route("/social.html")
+@app.route("/control")
+def social_control_page():
+    html_path = os.path.join(SCRIPT_DIR, "social.html")
+    if not os.path.exists(html_path):
+        html_path = os.path.join(SCRIPT_DIR, "dashboard.html")
+    try:
+        with open(html_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        resp = make_response(content)
+        resp.headers["Content-Type"] = "text/html; charset=utf-8"
+        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+        return resp
+    except Exception as e:
+        return f"Social control template read error: {e}", 500
 
 
 @app.route("/designs/<path:filename>")

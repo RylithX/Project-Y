@@ -2244,7 +2244,7 @@ body.sidebar-hidden .sidebar {
 }
 
 </style>
-<script src="https://www.youtube.com/iframe_api"></script>
+<script async defer src="https://www.youtube.com/iframe_api"></script>
 </head>
 <body>
 
@@ -12750,9 +12750,23 @@ async function sendShowdownCoachMessage(e) {
 }
 window.sendShowdownCoachMessage = sendShowdownCoachMessage;
 
+// Immediate Bootstrap of Studio Suite & Characters Matrix
+function bootstrapStudioSuite() {
+  try {
+    loadServerBots();
+    loadServerControlData(false);
+    switchView('characters');
+    initBotPolling();
+  } catch(e) {
+    console.warn('[Studio] Bootstrap warning:', e);
+  }
+}
 
-
-initBotPolling();
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', bootstrapStudioSuite);
+} else {
+  bootstrapStudioSuite();
+}
 </script>
 
 <!-- 3D VRM APPLE CALL SUITE ENGINE -->

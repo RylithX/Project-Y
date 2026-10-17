@@ -1,12 +1,18 @@
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Bot Control — Drafting Desk</title>
     <script>
     (function() {
+      // Early Theme Bootstrap to prevent light mode flash
+      try {
+        const savedTheme = localStorage.getItem('desk_theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+      } catch(e) {}
+
       const isAndroidApp = window.location.hostname === 'appassets.androidplatform.net' || window.location.protocol === 'file:';
       if (isAndroidApp) {
         const originalFetch = window.fetch;
@@ -30,67 +36,80 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        :root {
-            --bg: #e8e8e4; --bg-warm: #e2e2dc; --paper: rgba(252, 252, 248, 0.78); --paper-solid: #fafaf6;
-            --ink: #2a2a2a; --ink-muted: #6b6b6b; --ink-faint: #9a9a9a; --accent-sage: #8a9a8a;
-            --accent-steel: #7a8a9a; --accent-clay: #b8a898; --accent-gold: #c4a882;
-            --grid: rgba(100, 130, 100, 0.08); --shadow-soft: rgba(0,0,0,0.06);
-            --shadow-medium: rgba(0,0,0,0.10); --shadow-deep: rgba(0,0,0,0.18);
+        :root, :root[data-theme="light"] {
+            --bg: #e8e8e4; --bg-warm: #e2e2dc; --paper: rgba(252, 252, 248, 0.96); --paper-solid: #fafaf6;
+            --paper-header: #f5f5f0; --paper-sidebar: #f0f0ea; --paper-code: #fdfdf9;
+            --paper-border: rgba(0, 0, 0, 0.08); --input-bg: rgba(0, 0, 0, 0.03); --input-border: rgba(0, 0, 0, 0.12);
+            --ink: #2a2a2a; --ink-muted: #6b6b6b; --ink-faint: #9a9a9a; --accent-sage: #6b8a6b;
+            --accent-steel: #506a85; --accent-clay: #966e52; --accent-gold: #a67c38;
+            --grid: rgba(100, 130, 100, 0.10); --shadow-soft: rgba(0,0,0,0.08);
+            --shadow-medium: rgba(0,0,0,0.14); --shadow-deep: rgba(0,0,0,0.22);
+            --backdrop-bg: rgba(230, 230, 224, 0.7);
             --transition-smooth: cubic-bezier(0.25, 0.46, 0.45, 0.94);
             --transition-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
             --transition-dramatic: cubic-bezier(0.16, 1, 0.3, 1);
         }
-        body { width: 100vw; height: 100vh; overflow: hidden; background: var(--bg); font-family: 'Inter', system-ui, sans-serif; position: relative; touch-action: none; will-change: auto; }
-        .desk-surface { position: fixed; inset: 0; pointer-events: none; z-index: 1; opacity: 0.3; background-image: linear-gradient(90deg, var(--grid) 1px, transparent 1px), linear-gradient(0deg, var(--grid) 1px, transparent 1px); background-size: 40px 40px; }
+        :root[data-theme="dark"] {
+            --bg: #0d1117; --bg-warm: #131722; --paper: rgba(22, 27, 39, 0.96); --paper-solid: #161b26;
+            --paper-header: #1c2230; --paper-sidebar: #131822; --paper-code: #141824;
+            --paper-border: rgba(255, 255, 255, 0.10); --input-bg: rgba(255, 255, 255, 0.04); --input-border: rgba(255, 255, 255, 0.14);
+            --ink: #f0f3f8; --ink-muted: #a5b0c2; --ink-faint: #737f94; --accent-sage: #56d364;
+            --accent-steel: #58a6ff; --accent-clay: #bc8cff; --accent-gold: #e3b341;
+            --grid: rgba(255, 255, 255, 0.06); --shadow-soft: rgba(0,0,0,0.35);
+            --shadow-medium: rgba(0,0,0,0.55); --shadow-deep: rgba(0,0,0,0.85);
+            --backdrop-bg: rgba(5, 8, 15, 0.78);
+        }
+        body { width: 100vw; height: 100vh; overflow: hidden; background: var(--bg); color: var(--ink); font-family: 'Inter', -apple-system, system-ui, sans-serif; position: relative; will-change: auto; transition: background 0.25s ease, color 0.25s ease; }
+        .desk-surface { position: fixed; inset: 0; pointer-events: none; z-index: 1; opacity: 0.4; background-image: linear-gradient(90deg, var(--grid) 1px, transparent 1px), linear-gradient(0deg, var(--grid) 1px, transparent 1px); background-size: 40px 40px; }
         .desk-vignette { position: fixed; inset: 0; pointer-events: none; z-index: 2; }
-        .editor-desk { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(82vw, 960px); height: min(72vh, 640px); background: var(--paper-solid); border-radius: 6px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); z-index: 10; display: flex; flex-direction: column; overflow: hidden; transition: transform 0.35s ease, box-shadow 0.35s ease; border: 1px solid rgba(0,0,0,0.06); will-change: transform; }
-        .editor-desk.pushed { transform: translate(-50%, -50%) scale(0.95); box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
-        .editor-header { height: 44px; background: #f5f5f0; display: flex; align-items: center; padding: 0 18px; gap: 10px; border-bottom: 1px solid rgba(0,0,0,0.06); }
+        .editor-desk { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(82vw, 960px); height: min(72vh, 640px); background: var(--paper-solid); border-radius: 8px; box-shadow: 0 8px 32px var(--shadow-medium); z-index: 10; display: flex; flex-direction: column; overflow: hidden; transition: transform 0.35s ease, box-shadow 0.35s ease, background 0.25s ease; border: 1px solid var(--paper-border); will-change: transform; }
+        .editor-desk.pushed { transform: translate(-50%, -50%) scale(0.95); box-shadow: 0 2px 8px var(--shadow-soft); }
+        .editor-header { height: 44px; background: var(--paper-header); display: flex; align-items: center; padding: 0 16px; gap: 10px; border-bottom: 1px solid var(--paper-border); transition: background 0.25s ease; flex-shrink: 0; }
         .editor-dot { width: 10px; height: 10px; border-radius: 50%; }
-        .dot-red { background: #d4a5a5; } .dot-yellow { background: #d4c4a5; } .dot-green { background: #a5c4a5; }
-        .editor-title { margin-left: 10px; color: var(--ink-muted); font-size: 12px; font-weight: 500; letter-spacing: 0.3px; font-family: 'JetBrains Mono', monospace; }
+        .dot-red { background: #e06c75; } .dot-yellow { background: #e5c07b; } .dot-green { background: #98c379; }
+        .editor-title { margin-left: 6px; color: var(--ink-muted); font-size: 12px; font-weight: 600; letter-spacing: 0.3px; font-family: 'JetBrains Mono', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .editor-body { flex: 1; display: flex; overflow: hidden; }
-        .editor-sidebar { width: 48px; background: #f0f0ea; display: flex; flex-direction: column; align-items: center; padding-top: 14px; gap: 6px; border-right: 1px solid rgba(0,0,0,0.05); }
-        .sidebar-icon { width: 32px; height: 32px; border-radius: 7px; display: flex; align-items: center; justify-content: center; color: var(--ink-faint); font-size: 14px; cursor: pointer; transition: background 0.2s ease, transform 0.2s ease; position: relative; }
-        .sidebar-icon:hover, .sidebar-icon.active { background: rgba(138, 154, 138, 0.15); color: var(--accent-sage); }
+        .editor-sidebar { width: 48px; background: var(--paper-sidebar); display: flex; flex-direction: column; align-items: center; padding-top: 14px; gap: 6px; border-right: 1px solid var(--paper-border); transition: background 0.25s ease; flex-shrink: 0; }
+        .sidebar-icon { width: 32px; height: 32px; border-radius: 7px; display: flex; align-items: center; justify-content: center; color: var(--ink-faint); font-size: 14px; cursor: pointer; transition: background 0.2s ease, transform 0.2s ease, color 0.2s ease; position: relative; }
+        .sidebar-icon:hover, .sidebar-icon.active { background: rgba(138, 154, 138, 0.22); color: var(--accent-sage); }
         .sidebar-icon.active::before { content: ''; position: absolute; left: -8px; top: 50%; transform: translateY(-50%); width: 3px; height: 16px; background: var(--accent-sage); border-radius: 0 2px 2px 0; }
-        .editor-code { flex: 1; padding: 22px 24px; font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 13px; line-height: 1.7; color: var(--ink); overflow-y: auto; background: #fdfdf9; }
-        .paper { position: fixed; background: rgba(252, 252, 248, 0.96); border-radius: 6px; box-shadow: 0 4px 20px rgba(0,0,0,0.12); cursor: pointer; z-index: 20; transition: transform 0.3s ease, opacity 0.3s ease; overflow: hidden; user-select: none; border: 1px solid rgba(0,0,0,0.08); will-change: transform; }
-        .paper-header { height: 38px; background: #f2f2ec; border-bottom: 1px solid rgba(0,0,0,0.06); display: flex; align-items: center; padding: 0 16px; font-size: 11px; font-weight: 600; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 1.5px; position: relative; z-index: 2; font-family: 'Inter', sans-serif; }
-        .paper-body { padding: 16px; opacity: 0; transition: opacity 0.2s ease 0.1s; position: relative; z-index: 2; height: calc(100% - 38px); overflow-y: auto; overflow-x: hidden; }
+        .editor-code { flex: 1; padding: 20px 22px; font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 13px; line-height: 1.7; color: var(--ink); overflow-y: auto; background: var(--paper-code); transition: background 0.25s ease; }
+        .paper { position: fixed; background: var(--paper); border-radius: 8px; box-shadow: 0 6px 26px var(--shadow-medium); cursor: pointer; z-index: 20; transition: transform 0.3s ease, opacity 0.3s ease, background 0.25s ease; overflow: hidden; user-select: none; border: 1px solid var(--paper-border); will-change: transform; color: var(--ink); }
+        .paper-header { height: 38px; background: var(--paper-header); border-bottom: 1px solid var(--paper-border); display: flex; align-items: center; padding: 0 16px; font-size: 11px; font-weight: 600; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 1.5px; position: relative; z-index: 2; font-family: 'Inter', sans-serif; transition: background 0.25s ease; }
+        .paper-body { padding: 16px; opacity: 0; transition: opacity 0.2s ease 0.1s; position: relative; z-index: 2; height: calc(100% - 38px); overflow-y: auto; overflow-x: hidden; color: var(--ink); }
         .paper.open .paper-body { opacity: 1; }
         .paper-top { top: 0; left: 50%; transform: translateX(-50%) translateY(-75%); width: 320px; height: 340px; }
         .paper-top:hover { transform: translateX(-50%) translateY(-55%); }
         .paper-top.pulled { transform: translateX(-50%) translateY(-25%); }
-        .paper-top.open { transform: translateX(-50%) translateY(24px); box-shadow: 0 16px 48px rgba(0,0,0,0.2); z-index: 100; background: #fcfcf8; }
+        .paper-top.open { transform: translateX(-50%) translateY(24px); box-shadow: 0 16px 48px var(--shadow-deep); z-index: 100; }
         .paper-bottom { bottom: 0; left: 50%; transform: translateX(-50%) translateY(85%); width: 340px; height: 280px; }
         .paper-bottom:hover { transform: translateX(-50%) translateY(65%); }
         .paper-bottom.pulled { transform: translateX(-50%) translateY(35%); }
-        .paper-bottom.open { transform: translateX(-50%) translateY(-24px); box-shadow: 0 -16px 48px rgba(0,0,0,0.2); z-index: 100; background: #fcfcf8; }
+        .paper-bottom.open { transform: translateX(-50%) translateY(-24px); box-shadow: 0 -16px 48px rgba(0,0,0,0.2); z-index: 100; background: var(--paper-solid); }
         .paper-left { left: 0; top: 50%; transform: translateY(-50%) translateX(-88%); width: 290px; height: 420px; }
         .paper-left:hover { transform: translateY(-50%) translateX(-68%); }
         .paper-left.pulled { transform: translateY(-50%) translateX(-38%); }
-        .paper-left.open { transform: translateY(-50%) translateX(24px); box-shadow: 16px 8px 48px rgba(0,0,0,0.2); z-index: 100; background: #fcfcf8; }
+        .paper-left.open { transform: translateY(-50%) translateX(24px); box-shadow: 16px 8px 48px rgba(0,0,0,0.2); z-index: 100; background: var(--paper-solid); }
         .paper-right { right: 0; top: 50%; transform: translateY(-50%) translateX(88%); width: 310px; height: 530px; }
         .paper-right:hover { transform: translateY(-50%) translateX(68%); }
         .paper-right.pulled { transform: translateY(-50%) translateX(38%); }
-        .paper-right.open { transform: translateY(-50%) translateX(-24px); box-shadow: -16px 8px 48px rgba(0,0,0,0.2); z-index: 100; background: #fcfcf8; }
+        .paper-right.open { transform: translateY(-50%) translateX(-24px); box-shadow: -16px 8px 48px rgba(0,0,0,0.2); z-index: 100; background: var(--paper-solid); }
         .paper-tl { top: 0; left: 0; transform: translate(-72%, -72%); width: 240px; height: 240px; }
         .paper-tl:hover { transform: translate(-52%, -52%); }
         .paper-tl.pulled { transform: translate(-32%, -32%); }
-        .paper-tl.open { transform: translate(24px, 24px); box-shadow: 16px 16px 48px rgba(0,0,0,0.2); z-index: 100; background: #fcfcf8; }
+        .paper-tl.open { transform: translate(24px, 24px); box-shadow: 16px 16px 48px rgba(0,0,0,0.2); z-index: 100; background: var(--paper-solid); }
         .paper-tr { top: 0; right: 0; transform: translate(72%, -72%); width: 230px; height: 260px; }
         .paper-tr:hover { transform: translate(52%, -52%); }
         .paper-tr.pulled { transform: translate(32%, -32%); }
-        .paper-tr.open { transform: translate(-24px, 24px); box-shadow: -16px 16px 48px rgba(0,0,0,0.2); z-index: 100; background: #fcfcf8; }
+        .paper-tr.open { transform: translate(-24px, 24px); box-shadow: -16px 16px 48px rgba(0,0,0,0.2); z-index: 100; background: var(--paper-solid); }
         .paper-bl { bottom: 0; left: 0; transform: translate(-72%, 72%); width: 260px; height: 220px; }
         .paper-bl:hover { transform: translate(-52%, 52%); }
         .paper-bl.pulled { transform: translate(-32%, 32%); }
-        .paper-bl.open { transform: translate(24px, -24px); box-shadow: 16px -16px 48px rgba(0,0,0,0.2); z-index: 100; background: #fcfcf8; }
+        .paper-bl.open { transform: translate(24px, -24px); box-shadow: 16px -16px 48px rgba(0,0,0,0.2); z-index: 100; background: var(--paper-solid); }
         .paper-br { bottom: 0; right: 0; transform: translate(72%, 72%); width: 240px; height: 240px; }
         .paper-br:hover { transform: translate(52%, 52%); }
         .paper-br.pulled { transform: translate(32%, 32%); }
-        .paper-br.open { transform: translate(-24px, -24px); box-shadow: -16px -16px 48px rgba(0,0,0,0.2); z-index: 100; background: #fcfcf8; }
+        .paper-br.open { transform: translate(-24px, -24px); box-shadow: -16px -16px 48px rgba(0,0,0,0.2); z-index: 100; background: var(--paper-solid); }
         /* Centered overlay modal papers: Bot Manager, Social, Personality */
         .paper-bm, .paper-social, .paper-personality {
             top: 50%;
@@ -114,7 +133,7 @@
             transform: translate(-50%, -50%) scale(1);
             box-shadow: 0 24px 56px rgba(0,0,0,0.25);
             z-index: 100;
-            background: #fcfcf8;
+            background: var(--paper-solid);
         }
         .paper-bm { width: 380px; height: 520px; max-width: 92vw; max-height: 85vh; }
         .paper-social { width: 440px; height: 560px; max-width: 92vw; max-height: 85vh; }
@@ -171,12 +190,13 @@
         .glass-bridge { position: absolute; top: 7px; left: 30px; width: 12px; height: 1.5px; background: #777; }
         .glass-arm { position: absolute; top: 5px; width: 18px; height: 1.5px; background: #777; }
         .glass-arm.left { left: -16px; transform: rotate(-18deg); } .glass-arm.right { right: -16px; transform: rotate(18deg); }
-        .backdrop { position: fixed; inset: 0; background: rgba(230, 230, 224, 0.7); opacity: 0; pointer-events: none; transition: opacity 0.3s ease; z-index: 90; }
+        .backdrop { position: fixed; inset: 0; background: var(--backdrop-bg); opacity: 0; pointer-events: none; transition: opacity 0.3s ease; z-index: 90; }
         .backdrop.active { opacity: 1; pointer-events: all; }
         .toast { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%) translateY(16px); background: rgba(42, 42, 42, 0.9); color: #f0f0e8; padding: 12px 28px; border-radius: 6px; font-size: 12px; font-weight: 500; box-shadow: 0 8px 32px rgba(0,0,0,0.15); z-index: 200; opacity: 0; transition: opacity 0.3s ease, transform 0.3s ease; pointer-events: none; white-space: nowrap; letter-spacing: 0.3px; font-family: 'Inter', sans-serif; }
         @media (max-width: 768px) {
-            .editor-desk { width: 90vw; height: 58vh; }
-            .paper-top, .paper-bottom { width: 240px; height: 280px; } .paper-left, .paper-right { width: 220px; height: 320px; } .paper-tl, .paper-tr, .paper-bl, .paper-br { width: 160px; height: 160px; } .paper-bm, .paper-social, .paper-personality { width: 92vw; height: 82vh; }
+            .editor-desk { width: 95vw; height: 75vh; }
+            .mobile-desk-tabs { display: flex !important; }
+            .paper-top, .paper-bottom { width: 260px; height: 300px; } .paper-left, .paper-right { width: 240px; height: 340px; } .paper-tl, .paper-tr, .paper-bl, .paper-br { width: 180px; height: 180px; } .paper-bm, .paper-social, .paper-personality { width: 94vw; height: 86vh; }
             .pencil { width: 110px; } .pencil-body { width: 90px; } .ruler { width: 160px; } .ruler-body { width: 160px; } .compass { width: 55px; height: 75px; } .compass-leg { height: 55px; }
             .polaroid { display: none; }
         }
@@ -399,6 +419,21 @@
             background: linear-gradient(135deg, transparent 50%, #818cf8 50%);
             border-bottom-right-radius: 10px;
         }
+        /* ==========================================================================
+           COMPANION DEDICATED MODEL ROUTER MODAL
+           ========================================================================== */
+        .comp-router-modal {
+            position: fixed; inset: 0; z-index: 999999; display: none;
+            background: rgba(15, 23, 42, 0.72); backdrop-filter: blur(5px);
+            align-items: center; justify-content: center; font-family: 'Inter', system-ui, sans-serif;
+        }
+        .comp-router-modal.open { display: flex; animation: compModalFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes compModalFadeIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+        .comp-router-card {
+            background: #ffffff; width: 460px; max-width: 94vw; max-height: 90vh; overflow-y: auto;
+            border-radius: 12px; padding: 20px 22px; box-shadow: 0 24px 64px rgba(0,0,0,0.32);
+            border: 1px solid rgba(102,126,234,0.35); color: var(--ink);
+        }
     </style>
 </head>
 <body>
@@ -418,7 +453,21 @@
                 <button onclick="openMemoryTreeModal()" style="text-decoration:none; font-size:11px; font-weight:600; color:#4338ca; background:rgba(99,102,241,0.12); padding:4px 10px; border-radius:4px; border:1px solid rgba(99,102,241,0.3); display:inline-flex; align-items:center; gap:4px; cursor:pointer;" title="Organic Memory Tree (All Users)">🧠 Memory Tree</button>
                 <a href="/social" style="text-decoration:none; font-size:11px; font-weight:600; color:var(--accent-steel); background:rgba(122,138,154,0.14); padding:4px 10px; border-radius:4px; border:1px solid rgba(122,138,154,0.3); display:inline-flex; align-items:center; gap:4px;" title="Open Social Hub">Social Hub ↗</a>
                 <a href="/studio" style="text-decoration:none; font-size:11px; font-weight:600; color:var(--accent-sage); background:rgba(138,154,138,0.12); padding:4px 10px; border-radius:4px; border:1px solid rgba(138,154,138,0.3); display:inline-flex; align-items:center; gap:4px;" title="Open Persona Studio">Studio ↗</a>
+                <a href="/yuna" style="text-decoration:none; font-size:11px; font-weight:700; color:#ff79c6; background:rgba(255,121,198,0.14); padding:4px 10px; border-radius:4px; border:1px solid rgba(255,121,198,0.35); display:inline-flex; align-items:center; gap:4px;" title="Open Yuna Companion App">🌸 Yuna App ↗</a>
+                <button id="deskThemeBtn" onclick="toggleDeskTheme()" style="text-decoration:none; font-size:11px; font-weight:600; color:var(--ink-muted); background:var(--input-bg); padding:4px 8px; border-radius:4px; border:1px solid var(--paper-border); cursor:pointer;" title="Toggle Dark/Light Mode">🌓 Theme</button>
             </div>
+        </div>
+        <!-- MOBILE TOUCH QUICK BAR -->
+        <div class="mobile-desk-tabs" style="display:none; padding:6px 10px; gap:6px; background:var(--paper-header); border-bottom:1px solid var(--paper-border); overflow-x:auto; -webkit-overflow-scrolling:touch;">
+            <button onclick="openPaperByClass('paper-left')" style="font-size:11px; padding:4px 8px; background:var(--input-bg); border:1px solid var(--paper-border); border-radius:4px; color:var(--ink); white-space:nowrap; cursor:pointer;">📁 Status</button>
+            <button onclick="openPaperByClass('paper-bm')" style="font-size:11px; padding:4px 8px; background:var(--input-bg); border:1px solid var(--paper-border); border-radius:4px; color:var(--ink); white-space:nowrap; cursor:pointer;">🤖 Bots</button>
+            <button onclick="openMemoryTreeModal()" style="font-size:11px; padding:4px 8px; background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.3); border-radius:4px; color:var(--ink); white-space:nowrap; cursor:pointer;">🧠 Memory</button>
+            <button onclick="openPaperByClass('paper-personality')" style="font-size:11px; padding:4px 8px; background:var(--input-bg); border:1px solid var(--paper-border); border-radius:4px; color:var(--ink); white-space:nowrap; cursor:pointer;">🎭 Persona</button>
+            <button onclick="openPaperByClass('paper-social')" style="font-size:11px; padding:4px 8px; background:var(--input-bg); border:1px solid var(--paper-border); border-radius:4px; color:var(--ink); white-space:nowrap; cursor:pointer;">📸 Social</button>
+            <button onclick="openPaperByClass('paper-tr')" style="font-size:11px; padding:4px 8px; background:var(--input-bg); border:1px solid var(--paper-border); border-radius:4px; color:var(--ink); white-space:nowrap; cursor:pointer;">⚡ AI Status</button>
+            <button onclick="openPaperByClass('paper-right')" style="font-size:11px; padding:4px 8px; background:var(--input-bg); border:1px solid var(--paper-border); border-radius:4px; color:var(--ink); white-space:nowrap; cursor:pointer;">🔧 Config</button>
+            <a href="/yuna" style="font-size:11px; padding:4px 8px; background:rgba(255,121,198,0.15); border:1px solid rgba(255,121,198,0.35); border-radius:4px; color:#ff79c6; white-space:nowrap; text-decoration:none;">🌸 Yuna App ↗</a>
+            <a href="/studio" style="font-size:11px; padding:4px 8px; background:var(--input-bg); border:1px solid var(--paper-border); border-radius:4px; color:var(--ink); white-space:nowrap; text-decoration:none;">Studio ↗</a>
         </div>
         <div class="editor-body">
             <div class="editor-sidebar">
@@ -436,13 +485,15 @@
                     <div style="font-family:'Playfair Display',serif; font-size:32px; color:var(--ink); margin-bottom:10px; letter-spacing:-0.5px;">Bot Control</div>
                     <div style="width:100%; max-width:420px; margin-top:8px;">
                     <div style="font-size:10px; text-transform:uppercase; letter-spacing:1px; color:var(--ink-faint); margin-bottom:6px;">Running Bots</div>
-                    <div id="center-bots" style="display:flex; flex-direction:column; gap:6px;"></div>
+                    <div id="center-bots" style="display:flex; flex-direction:column; gap:6px;">
+                        <div style="color:var(--ink-muted); font-size:11.5px; padding:8px 12px; background:var(--input-bg); border-radius:6px; border:1px solid var(--paper-border);">⚡ Connecting to bot cluster...</div>
+                    </div>
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px;">
-                        <div style="background:rgba(0,0,0,0.02); border-radius:6px; padding:14px; border:1px solid rgba(0,0,0,0.04);">
+                        <div style="background:var(--input-bg); border-radius:6px; padding:12px; border:1px solid var(--paper-border);">
                             <div style="font-size:10px; text-transform:uppercase; letter-spacing:1px; color:var(--ink-faint); margin-bottom:4px;">Uptime</div>
                             <div style="font-size:17px; font-weight:600; color:var(--ink);" id="center-uptime">--</div>
                         </div>
-                        <div style="background:rgba(0,0,0,0.02); border-radius:6px; padding:14px; border:1px solid rgba(0,0,0,0.04);">
+                        <div style="background:var(--input-bg); border-radius:6px; padding:12px; border:1px solid var(--paper-border);">
                             <div style="font-size:10px; text-transform:uppercase; letter-spacing:1px; color:var(--ink-faint); margin-bottom:4px;">Contexts</div>
                             <div style="font-size:17px; font-weight:600; color:var(--ink);" id="center-contexts">0</div>
                         </div>
@@ -541,36 +592,151 @@
                 <h3>Personality</h3>
                 <textarea id="personality" placeholder="How should your bot behave?" style="width:100%; background:rgba(0,0,0,0.02); border:1px solid rgba(0,0,0,0.08); border-radius:4px; color:var(--ink); padding:6px 8px; font-size:11px; font-family:'Inter',sans-serif; outline:none; margin-top:4px; margin-bottom:6px; min-height:50px; resize:vertical;"></textarea>
 
+                <!-- COMPANION ACCOUNT PERSONA -->
+                <div style="background:rgba(102,126,234,0.07); border:1px solid rgba(102,126,234,0.22); border-radius:6px; padding:8px 10px; margin-top:6px; margin-bottom:8px;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+                        <span style="font-size:11px; font-weight:700; color:var(--ink);">👤 Companion Persona</span>
+                        <span style="font-size:9px; color:#667eea; font-weight:600; background:rgba(102,126,234,0.12); padding:1px 6px; border-radius:4px;">Real Account</span>
+                    </div>
+                    <div style="font-size:9.5px; color:var(--ink-muted); margin-bottom:6px; line-height:1.4;">
+                        Custom instructions for how companion talks in DMs and group chats (casual, punchy lowercase text, natural slang, no bot clichés).
+                    </div>
+                    <textarea id="companionPersonality" rows="3" placeholder="Enter custom personality for companion..." style="width:100%; background:#fff; border:1px solid rgba(0,0,0,0.12); border-radius:4px; color:var(--ink); padding:6px 8px; font-size:11px; font-family:'Inter',sans-serif; outline:none; margin-bottom:6px; resize:vertical;"></textarea>
+
+                    <label style="font-size:9.5px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint); display:block; margin-bottom:2px;">Trigger Words (comma-separated)</label>
+                    <input type="text" id="companionTriggers" placeholder="yuna, yunyun" style="width:100%; background:#fff; border:1px solid rgba(0,0,0,0.12); border-radius:4px; color:var(--ink); padding:5px 8px; font-size:11px; font-family:'Inter',sans-serif; outline:none; margin-bottom:6px;">
+
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
+                        <div style="display:flex; gap:6px;">
+                            <button type="button" onclick="event.stopPropagation(); resetCompanionPersonaPrompt()" style="font-size:9px; padding:3px 7px; background:transparent; border:1px dashed #aaa; color:var(--ink-muted); border-radius:3px; cursor:pointer;">Reset Default</button>
+                            <button type="button" id="compRouterMainBtn" onclick="openCompModelRouter(event)" style="font-size:9.5px; font-weight:700; padding:4px 10px; background:linear-gradient(135deg, #4338ca, #667eea); color:#fff; border:none; border-radius:4px; cursor:pointer; box-shadow:0 2px 8px rgba(67,56,202,0.25);">⚡ Dedicated Model Routing</button>
+                        </div>
+                        <button type="button" onclick="event.stopPropagation(); saveCompanionPersonaDirectly()" style="font-size:10px; font-weight:700; padding:4px 10px; background:#667eea; color:#fff; border:none; border-radius:4px; cursor:pointer;">✓ Save Krenix Persona</button>
+                    </div>
+
+                    <!-- COMPANION DEDICATED MODEL ROUTING INLINE DRAWER -->
+                    <div id="compRoutingDrawer" style="display:none; margin-top:8px; border-top:1px dashed rgba(102,126,234,0.35); padding-top:8px; background:rgba(255,255,255,0.85); border-radius:6px; padding:10px 12px; border:1px solid rgba(102,126,234,0.25);">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                            <span style="font-size:11px; font-weight:700; color:#3b4252; display:flex; align-items:center; gap:6px;">
+                                <span>⚡ Companion Dedicated AI Routing</span>
+                                <span id="compRoutingBadge" style="font-size:9px; background:rgba(102,126,234,0.18); color:#4338ca; padding:1px 6px; border-radius:4px; font-weight:700;">AUTO</span>
+                            </span>
+                            <button type="button" onclick="openCompModelRouterModal(event)" style="font-size:9px; font-weight:600; padding:2px 7px; background:transparent; border:1px solid #667eea; color:#667eea; border-radius:3px; cursor:pointer;">Pop out Modal ↗</button>
+                        </div>
+                        <div style="font-size:9.5px; color:var(--ink-muted); margin-bottom:8px; line-height:1.4;">
+                            Private model routing. Routes companion to an independent AI provider &amp; model without affecting main bot.
+                        </div>
+
+                        <label style="font-size:9.5px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint); display:block; margin-bottom:2px;">AI Provider</label>
+                        <select id="compProvider" style="width:100%; background:#fff; border:1px solid rgba(0,0,0,0.14); border-radius:4px; color:var(--ink); padding:5px 8px; font-size:11px; outline:none; margin-bottom:6px;">
+                            <option value="auto">Auto (Gemini -> Groq -> NVIDIA NIM -> OpenRouter -> Mistral)</option>
+                            <option value="gemini">Gemini Only (Google)</option>
+                            <option value="groq">Groq Only (Fast Qwen / Llama)</option>
+                            <option value="openrouter">OpenRouter Only (DeepSeek, Claude, Llama 3.3)</option>
+                            <option value="nvidia">NVIDIA NIM Only (Nemotron / Llama)</option>
+                            <option value="mistral">Mistral Only</option>
+                            <option value="custom">Custom Endpoint (LiteRouter / Ollama / Local)</option>
+                        </select>
+
+                        <div style="margin-bottom:6px;">
+                            <label style="font-size:9.5px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint); display:block; margin-bottom:2px;">Quick Presets</label>
+                            <div style="display:flex; flex-wrap:wrap; gap:5px;">
+                                <button type="button" onclick="selectCompModelPreset('gemini', 'gemini-3.1-flash-lite', event)" style="font-size:9.5px; font-weight:600; padding:3px 7px; border-radius:4px; border:1px solid rgba(66,133,244,0.4); background:rgba(66,133,244,0.12); color:#1a73e8; cursor:pointer;">⚡ Gemini 3.1 Flash Lite</button>
+                                <button type="button" onclick="selectCompModelPreset('openrouter', 'deepseek/deepseek-chat', event)" style="font-size:9.5px; font-weight:600; padding:3px 7px; border-radius:4px; border:1px solid rgba(14,165,233,0.4); background:rgba(14,165,233,0.12); color:#0284c7; cursor:pointer;">⚡ DeepSeek V3 (OR)</button>
+                                <button type="button" onclick="selectCompModelPreset('openrouter', 'anthropic/claude-3.5-sonnet', event)" style="font-size:9.5px; font-weight:600; padding:3px 7px; border-radius:4px; border:1px solid rgba(217,70,239,0.4); background:rgba(217,70,239,0.12); color:#a21caf; cursor:pointer;">⚡ Claude 3.5 (OR)</button>
+                                <button type="button" onclick="selectCompModelPreset('groq', 'qwen/qwen3.8-27b', event)" style="font-size:9.5px; font-weight:600; padding:3px 7px; border-radius:4px; border:1px solid rgba(245,158,11,0.4); background:rgba(245,158,11,0.12); color:#b45309; cursor:pointer;">⚡ Qwen 3.8 27B</button>
+                                <button type="button" onclick="selectCompModelPreset('nvidia', 'nvidia/nemotron-3-ultra-550b-a55b', event)" style="font-size:9.5px; font-weight:600; padding:3px 7px; border-radius:4px; border:1px solid rgba(118,185,0,0.4); background:rgba(118,185,0,0.12); color:#2e6b00; cursor:pointer;">⚡ Nemotron 550B</button>
+                            </div>
+                        </div>
+
+                        <label style="font-size:9.5px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint); display:block; margin-bottom:2px;">Primary Model</label>
+                        <input type="text" id="compModel" list="k1DashboardModelPresets" placeholder="e.g. deepseek/deepseek-chat or gemini-3.1-flash-lite" style="width:100%; background:#fff; border:1px solid rgba(0,0,0,0.14); border-radius:4px; color:var(--ink); padding:5px 8px; font-size:11px; outline:none; margin-bottom:6px;">
+                        <datalist id="k1DashboardModelPresets">
+                            <option value="deepseek/deepseek-chat">DeepSeek Chat V3</option>
+                            <option value="deepseek/deepseek-r1">DeepSeek R1 Reasoning</option>
+                            <option value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet</option>
+                            <option value="meta-llama/llama-3.3-70b-instruct">Llama 3.3 70B Instruct</option>
+                            <option value="google/gemini-2.0-flash-001">Gemini 2.0 Flash</option>
+                            <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite</option>
+                            <option value="qwen/qwen3.8-27b">Qwen 3.8 27B</option>
+                            <option value="nvidia/nemotron-3-ultra-550b-a55b">Nemotron 550B</option>
+                        </datalist>
+
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px; margin-bottom:6px;">
+                            <div>
+                                <label style="font-size:9.5px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint); display:block; margin-bottom:2px;">Max Tokens</label>
+                                <input type="number" id="compMaxTokens" value="350" style="width:100%; background:#fff; border:1px solid rgba(0,0,0,0.14); border-radius:4px; color:var(--ink); padding:5px 8px; font-size:11px; outline:none;">
+                            </div>
+                            <div>
+                                <label style="font-size:9.5px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint); display:block; margin-bottom:2px;">Temperature</label>
+                                <input type="number" step="0.05" id="compTemperature" value="0.75" style="width:100%; background:#fff; border:1px solid rgba(0,0,0,0.14); border-radius:4px; color:var(--ink); padding:5px 8px; font-size:11px; outline:none;">
+                            </div>
+                        </div>
+
+                        <details style="margin-bottom:8px;">
+                            <summary style="font-size:9.5px; font-weight:700; color:#667eea; cursor:pointer; outline:none;">+ OpenRouter Key / Custom Base URL</summary>
+                            <div style="margin-top:6px; display:flex; flex-direction:column; gap:4px; background:rgba(0,0,0,0.02); padding:6px 8px; border-radius:4px;">
+                                <label style="font-size:9px; text-transform:uppercase; color:var(--ink-faint);">OpenRouter API Key (Optional override)</label>
+                                <input type="password" id="compOpenRouterKey" placeholder="sk-or-v1-... (leave blank to use system key)" style="width:100%; background:#fff; border:1px solid rgba(0,0,0,0.12); border-radius:4px; padding:4px 6px; font-size:10px;">
+                                <label style="font-size:9px; text-transform:uppercase; color:var(--ink-faint);">Custom Base URL (LiteRouter / Ollama)</label>
+                                <input type="text" id="compCustomBaseUrl" placeholder="https://api.literouter.com/v1 or http://localhost:11434/v1" style="width:100%; background:#fff; border:1px solid rgba(0,0,0,0.12); border-radius:4px; padding:4px 6px; font-size:10px;">
+                                <label style="font-size:9px; text-transform:uppercase; color:var(--ink-faint);">Custom API Key</label>
+                                <input type="password" id="compCustomKey" placeholder="Custom API Key (optional)" style="width:100%; background:#fff; border:1px solid rgba(0,0,0,0.12); border-radius:4px; padding:4px 6px; font-size:10px;">
+                                <label style="font-size:9px; text-transform:uppercase; color:var(--ink-faint);">Custom Model Name</label>
+                                <input type="text" id="compCustomModel" placeholder="e.g. meta-llama/llama-3-70b-instruct" style="width:100%; background:#fff; border:1px solid rgba(0,0,0,0.12); border-radius:4px; padding:4px 6px; font-size:10px;">
+                            </div>
+                        </details>
+
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <button type="button" onclick="closeCompRoutingDrawer(event)" style="font-size:9.5px; padding:4px 8px; background:transparent; border:1px dashed #aaa; color:var(--ink-muted); border-radius:3px; cursor:pointer;">Collapse</button>
+                            <button type="button" onclick="saveCompDedicatedModelRouting(event)" style="font-size:10.5px; font-weight:700; padding:5px 14px; background:linear-gradient(135deg, #4338ca, #667eea); color:#fff; border:none; border-radius:4px; cursor:pointer; box-shadow:0 2px 8px rgba(67,56,202,0.3);">✓ Save Companion Dedicated Routing</button>
+                        </div>
+                    </div>
+                </div>
+
                 <h3>AI Provider</h3>
-                <select id="provider" style="width:100%; background:rgba(0,0,0,0.02); border:1px solid rgba(0,0,0,0.08); border-radius:4px; color:var(--ink); padding:6px 8px; font-size:11px; font-family:'Inter',sans-serif; outline:none; margin-top:4px; margin-bottom:6px;"><option value="auto">Auto (Gemini -> DeepSeek -> OpenAI -> Groq -> Mistral -> OpenRouter)</option><option value="gemini">Gemini Only</option><option value="deepseek">DeepSeek Only</option><option value="openai">OpenAI Only</option><option value="groq">Groq Only</option><option value="mistral">Mistral Only</option><option value="openrouter">OpenRouter Only</option></select>
+                <select id="provider" style="width:100%; background:rgba(0,0,0,0.02); border:1px solid rgba(0,0,0,0.08); border-radius:4px; color:var(--ink); padding:6px 8px; font-size:11px; font-family:'Inter',sans-serif; outline:none; margin-top:4px; margin-bottom:6px;"><option value="auto">Auto (Gemini -> Groq -> Mistral -> NVIDIA NIM -> OpenRouter)</option><option value="gemini">Gemini Only</option><option value="nvidia">NVIDIA NIM Only</option><option value="cloudflare">Cloudflare Workers AI Only</option><option value="groq">Groq Only</option><option value="mistral">Mistral Only</option><option value="openrouter">OpenRouter Only</option></select>
 
                 <h3>Models &amp; API Keys</h3>
-                <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint);">DeepSeek Model</label>
-                <input type="text" id="deepseekModel" list="deepseekModelList" placeholder="e.g. deepseek-chat (V3) or deepseek-reasoner (R1)" style="width:100%; background:rgba(0,0,0,0.02); border:1px solid rgba(0,0,0,0.08); border-radius:4px; color:var(--ink); padding:6px 8px; font-size:11px; font-family:'Inter',sans-serif; outline:none; margin-top:4px; margin-bottom:6px;">
-                <datalist id="deepseekModelList">
-                    <option value="deepseek-chat">DeepSeek Chat (V3 Flagship)</option>
-                    <option value="deepseek-reasoner">DeepSeek Reasoner (R1 Reasoning)</option>
+                <div style="margin-top:2px; margin-bottom:8px; display:flex; flex-wrap:wrap; gap:5px; align-items:center;">
+                    <span style="font-size:9px; text-transform:uppercase; color:var(--ink-faint); font-weight:700;">Quick Presets:</span>
+                    <button type="button" onclick="selectModelPreset('nvidia', 'nvidia/nemotron-3-ultra-550b-a55b')" style="font-size:9.5px; font-weight:600; padding:3px 7px; border-radius:4px; border:1px solid rgba(118,185,0,0.4); background:rgba(118,185,0,0.12); color:#2e6b00; cursor:pointer;">⚡ Nemotron 550B</button>
+                    <button type="button" onclick="selectModelPreset('gemini', 'gemini-3.1-flash-lite')" style="font-size:9.5px; font-weight:600; padding:3px 7px; border-radius:4px; border:1px solid rgba(66,133,244,0.4); background:rgba(66,133,244,0.12); color:#1a73e8; cursor:pointer;">⚡ Gemini 3.1 Flash Lite</button>
+                    <button type="button" onclick="selectModelPreset('gemini', 'gemini-3.5-flash-lite')" style="font-size:9.5px; font-weight:600; padding:3px 7px; border-radius:4px; border:1px solid rgba(66,133,244,0.4); background:rgba(66,133,244,0.12); color:#1a73e8; cursor:pointer;">⚡ Gemini 3.5 Flash Lite</button>
+                    <button type="button" onclick="selectModelPreset('groq', 'qwen/qwen3.8-27b')" style="font-size:9.5px; font-weight:600; padding:3px 7px; border-radius:4px; border:1px solid rgba(245,158,11,0.4); background:rgba(245,158,11,0.12); color:#b45309; cursor:pointer;">⚡ Qwen 3.8 27B</button>
+                </div>
+                <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint);">NVIDIA NIM Model</label>
+                <input type="text" id="nvidiaModel" list="nvidiaModelList" placeholder="e.g. nvidia/nemotron-3-ultra-550b-a55b (Recommended)" style="width:100%; background:rgba(0,0,0,0.02); border:1px solid rgba(0,0,0,0.08); border-radius:4px; color:var(--ink); padding:6px 8px; font-size:11px; font-family:'Inter',sans-serif; outline:none; margin-top:4px; margin-bottom:6px;">
+                <datalist id="nvidiaModelList">
+                    <option value="nvidia/nemotron-3-ultra-550b-a55b">Nemotron 3 Ultra 550B A55B (Ultra Flagship - Fast NIM - Recommended)</option>
+                    <option value="nvidia/nemotron-3-super-120b-a12b">Nemotron 3 Super 120B (High Intelligence)</option>
+                    <option value="nvidia/nemotron-3.5-lightning-30b-a3b">Nemotron 3.5 Lightning 30B (Fast Reasoning)</option>
+                    <option value="qwen/qwen3.8-27b">Qwen 3.8 27B (NVIDIA NIM)</option>
+                    <option value="meta/llama-3.2-11b-vision-instruct">Llama 3.2 11B Vision (Multimodal)</option>
                 </datalist>
-                <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint);">DeepSeek API Key</label>
-                <input type="password" id="deepseekApiKey" placeholder="sk-... (Overrides .env if set)" style="width:100%; background:rgba(0,0,0,0.02); border:1px solid rgba(0,0,0,0.08); border-radius:4px; color:var(--ink); padding:6px 8px; font-size:11px; font-family:'Inter',sans-serif; outline:none; margin-top:4px; margin-bottom:6px;">
+                <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint);">NVIDIA NIM API Key</label>
+                <input type="password" id="nvidiaKey" placeholder="nvapi-... (Overrides .env if set)" style="width:100%; background:rgba(0,0,0,0.02); border:1px solid rgba(0,0,0,0.08); border-radius:4px; color:var(--ink); padding:6px 8px; font-size:11px; font-family:'Inter',sans-serif; outline:none; margin-top:4px; margin-bottom:6px;">
 
-                <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint);">OpenAI Model</label>
-                <input type="text" id="openaiChatModel" list="openaiChatModelList" placeholder="e.g. gpt-4o-mini (Recommended)" style="width:100%; background:rgba(0,0,0,0.02); border:1px solid rgba(0,0,0,0.08); border-radius:4px; color:var(--ink); padding:6px 8px; font-size:11px; font-family:'Inter',sans-serif; outline:none; margin-top:4px; margin-bottom:6px;">
-                <datalist id="openaiChatModelList">
-                    <option value="gpt-4o-mini">GPT-4o Mini (Fast &amp; Cheap - Recommended)</option>
-                    <option value="gpt-4o">GPT-4o (Flagship Omni)</option>
-                    <option value="o3-mini">o3-mini (High-speed Reasoning)</option>
-                    <option value="o1">o1 (Deep Reasoning)</option>
-                    <option value="gpt-4.1-mini">GPT-4.1 Mini</option>
-                    <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint);">Cloudflare Workers AI Model</label>
+                <input type="text" id="cloudflareModel" list="cloudflareModelList" placeholder="e.g. @cf/meta/llama-3.1-8b-instruct (Recommended)" style="width:100%; background:rgba(0,0,0,0.02); border:1px solid rgba(0,0,0,0.08); border-radius:4px; color:var(--ink); padding:6px 8px; font-size:11px; font-family:'Inter',sans-serif; outline:none; margin-top:4px; margin-bottom:6px;">
+                <datalist id="cloudflareModelList">
+                    <option value="@cf/meta/llama-3.1-8b-instruct">Llama 3.1 8B Instruct (Fast - Recommended)</option>
+                    <option value="@cf/meta/llama-3.2-3b-instruct">Llama 3.2 3B Instruct (Ultra Fast)</option>
+                    <option value="@cf/meta/llama-3.2-11b-vision-instruct">Llama 3.2 11B Vision (Multimodal)</option>
+                    <option value="@cf/meta/llama-3-8b-instruct">Llama 3 8B Instruct</option>
+                    <option value="@cf/mistral/mistral-7b-instruct-v0.1">Mistral 7B Instruct</option>
+                    <option value="@cf/qwen/qwen1.5-14b-chat-awq">Qwen 1.5 14B Chat</option>
                 </datalist>
-                <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint);">OpenAI API Key</label>
-                <input type="password" id="openaiApiKey" placeholder="sk-proj-... (Overrides .env if set)" style="width:100%; background:rgba(0,0,0,0.02); border:1px solid rgba(0,0,0,0.08); border-radius:4px; color:var(--ink); padding:6px 8px; font-size:11px; font-family:'Inter',sans-serif; outline:none; margin-top:4px; margin-bottom:6px;">
+                <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint);">Cloudflare API Token</label>
+                <input type="password" id="cloudflareToken" placeholder="cfut_... (Overrides .env if set)" style="width:100%; background:rgba(0,0,0,0.02); border:1px solid rgba(0,0,0,0.08); border-radius:4px; color:var(--ink); padding:6px 8px; font-size:11px; font-family:'Inter',sans-serif; outline:none; margin-top:4px; margin-bottom:6px;">
+                <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint);">Cloudflare Account ID</label>
+                <input type="text" id="cloudflareAccountId" placeholder="32-character hex ID (from Cloudflare dashboard)" style="width:100%; background:rgba(0,0,0,0.02); border:1px solid rgba(0,0,0,0.08); border-radius:4px; color:var(--ink); padding:6px 8px; font-size:11px; font-family:'Inter',sans-serif; outline:none; margin-top:4px; margin-bottom:6px;">
 
                 <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint);">Gemini</label>
                 <input type="text" id="geminiModel" list="geminiModelList" placeholder="e.g. gemini-3.1-flash-lite (Recommended)" style="width:100%; background:rgba(0,0,0,0.02); border:1px solid rgba(0,0,0,0.08); border-radius:4px; color:var(--ink); padding:6px 8px; font-size:11px; font-family:'Inter',sans-serif; outline:none; margin-top:4px; margin-bottom:6px;">
                 <datalist id="geminiModelList">
-                    <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite (Fast &amp; Efficient - Recommended)</option>
+                    <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite (Fast &amp; High Quota - Recommended)</option>
+                    <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash Lite (Fast &amp; Smart)</option>
                     <option value="gemini-flash-latest">Gemini Flash Latest</option>
                     <option value="gemini-3.7-flash">Gemini 3.7 Flash</option>
                     <option value="gemini-3.6-flash">Gemini 3.6 Flash</option>
@@ -805,7 +971,7 @@
                 </div>
 
                 <div id="fishVoiceWrap">
-                    <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint);">Fish Voice ID</label>
+                    <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint);">🐟 Fish Audio Voice ID (2nd Field)</label>
                     <input type="text" id="fishVoiceId" placeholder="paste Fish Audio voice ID" style="width:100%; background:rgba(0,0,0,0.02); border:1px solid rgba(0,0,0,0.08); border-radius:4px; color:var(--ink); padding:6px 8px; font-size:11px; font-family:'Inter',sans-serif; outline:none; margin-top:4px; margin-bottom:6px;">
                     <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint);">Fish Model</label>
                     <select id="fishModel" style="width:100%; background:rgba(0,0,0,0.02); border:1px solid rgba(0,0,0,0.08); border-radius:4px; color:var(--ink); padding:6px 8px; font-size:11px; font-family:'Inter',sans-serif; outline:none; margin-top:4px; margin-bottom:6px;">
@@ -860,8 +1026,8 @@
         <div class="paper-body">
             <div class="paper-content">
                 <h3>Backend</h3>
-                <div class="paper-item"><span class="icon" id="globDeepSeek" style="background:#e8eaf6; color:#3f51b5; font-size:10px;">●</span>DeepSeek (Chat &amp; R1)</div>
-                <div class="paper-item"><span class="icon" id="globOpenAIAPI" style="background:#e8f5e9; color:#2e7d32; font-size:10px;">●</span>OpenAI (Chat &amp; LLM)</div>
+                <div class="paper-item"><span class="icon" id="globNVIDIA" style="background:#e8f5e9; color:#2e7d32; font-size:10px;">●</span>NVIDIA NIM (Chat &amp; Vision)</div>
+                <div class="paper-item"><span class="icon" id="globCloudflare" style="background:#fff3e0; color:#ff9800; font-size:10px;">●</span>Cloudflare Workers AI</div>
                 <div class="paper-item"><span class="icon" id="globGemini" style="background:#e8f5e9; color:#4caf50; font-size:10px;">●</span>Gemini</div>
                 <div class="paper-item"><span class="icon" id="globGroq" style="background:#f3e5f5; color:#9c27b0; font-size:10px;">●</span>Groq (LLM &amp; STT)</div>
                 <div class="paper-item"><span class="icon" id="globMistral" style="background:#fff3e0; color:#ff9800; font-size:10px;">●</span>Mistral AI</div>
@@ -874,15 +1040,15 @@
                 <div class="paper-item"><span class="icon" id="globOR" style="background:#e3f2fd; color:#2196f3; font-size:10px;">●</span>OpenRouter</div>
                 <div class="paper-item"><span class="icon" id="globVTuber" style="background:#fce4ec; color:#e91e63; font-size:10px;">●</span>VTuber Bridge</div>
                 <div style="margin-top:12px; display:grid; grid-template-columns:1fr 1fr; gap:6px;">
-                    <div class="paper-item" onclick="testProvider('deepseek')" style="justify-content:center; font-size:10px;">Test DeepSeek</div>
-                    <div class="paper-item" onclick="testProvider('openai')" style="justify-content:center; font-size:10px;">Test OpenAI</div>
+                    <div class="paper-item" onclick="testProvider('nvidia')" style="justify-content:center; font-size:10px;">Test NVIDIA NIM</div>
+                    <div class="paper-item" onclick="testProvider('cloudflare')" style="justify-content:center; font-size:10px;">Test Cloudflare AI</div>
                     <div class="paper-item" onclick="testProvider('gemini')" style="justify-content:center; font-size:10px;">Test Gemini</div>
                     <div class="paper-item" onclick="testProvider('groq')" style="justify-content:center; font-size:10px;">Test Groq</div>
                     <div class="paper-item" onclick="testProvider('mistral')" style="justify-content:center; font-size:10px;">Test Mistral</div>
                     <div class="paper-item" onclick="testProvider('openrouter')" style="justify-content:center; font-size:10px;">Test OpenRouter</div>
                 </div>
-                <div id="testDeepSeekResult" class="status-mini" style="font-size:10px; text-align:center; margin-top:6px; min-height:14px;"></div>
-                <div id="testOpenAIResult" class="status-mini" style="font-size:10px; text-align:center; margin-top:2px; min-height:14px;"></div>
+                <div id="testNVIDIAResult" class="status-mini" style="font-size:10px; text-align:center; margin-top:6px; min-height:14px;"></div>
+                <div id="testCloudflareResult" class="status-mini" style="font-size:10px; text-align:center; margin-top:2px; min-height:14px;"></div>
                 <div id="testGeminiResult" class="status-mini" style="font-size:10px; text-align:center; margin-top:2px; min-height:14px;"></div>
                 <div id="testGroqResult" class="status-mini" style="font-size:10px; text-align:center; margin-top:2px; min-height:14px;"></div>
                 <div id="testMistralResult" class="status-mini" style="font-size:10px; text-align:center; margin-top:2px; min-height:14px;"></div>
@@ -1085,6 +1251,71 @@
                             <a href="javascript:void(0)" onclick="openAgyLogs()" style="color:#e67e22; font-weight:600; text-decoration:underline;">🛠️ AGY Action Logs</a>
                         </div>
                     </div>
+                    <details style="margin-top:8px; background:rgba(255,255,255,0.7); border:1px solid rgba(102,126,234,0.25); border-radius:6px; padding:8px 10px;">
+                        <summary style="font-size:10.5px; font-weight:700; color:#4a5568; cursor:pointer; outline:none; display:flex; align-items:center; justify-content:space-between;">
+                            <span>⚙️ Edit Companion Personality &amp; Triggers</span>
+                            <span style="font-size:9px; color:#667eea; font-weight:normal;">[Click to edit]</span>
+                        </summary>
+                        <div style="margin-top:6px; display:flex; flex-direction:column; gap:6px;">
+                            <label style="font-size:9px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint);">Personality Prompt</label>
+                            <textarea id="bmCompanionPersonality" rows="3" placeholder="Define how companion talks in DMs and servers..." style="width:100%; background:#fff; border:1px solid rgba(0,0,0,0.12); border-radius:4px; color:var(--ink); padding:6px 8px; font-size:11px; font-family:'Inter',sans-serif; outline:none; resize:vertical;"></textarea>
+
+                            <label style="font-size:9px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint);">Trigger Words (comma-separated)</label>
+                            <input type="text" id="bmCompanionTriggers" placeholder="yuna, yunyun" style="width:100%; background:#fff; border:1px solid rgba(0,0,0,0.12); border-radius:4px; color:var(--ink); padding:5px 8px; font-size:11px; font-family:'Inter',sans-serif; outline:none;">
+
+                            <div style="display:flex; justify-content:flex-end; gap:6px; margin-top:2px;">
+                                <button type="button" onclick="saveBmCompanionPersona()" style="font-size:10px; font-weight:700; padding:4px 10px; background:#667eea; color:#fff; border:none; border-radius:4px; cursor:pointer;">✓ Save Companion Persona</button>
+                            </div>
+                        </div>
+                    </details>
+                    <details style="margin-top:6px; background:rgba(255,255,255,0.7); border:1px solid rgba(102,126,234,0.25); border-radius:6px; padding:8px 10px;">
+                        <summary style="font-size:10.5px; font-weight:700; color:#4a5568; cursor:pointer; outline:none; display:flex; align-items:center; justify-content:space-between;">
+                            <span>👗 Edit Companion Appearance &amp; Proportions (Hardcoded Looks)</span>
+                            <span style="font-size:9px; color:#667eea; font-weight:normal;">[Click to edit]</span>
+                        </summary>
+                        <div style="margin-top:6px; display:flex; flex-direction:column; gap:6px;">
+                            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px;">
+                                <div>
+                                    <label style="font-size:9px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint);">Height (Hardcoded)</label>
+                                    <input type="text" id="bmCompanionHeight" placeholder="e.g. 170 cm" style="width:100%; background:#fff; border:1px solid rgba(0,0,0,0.12); border-radius:4px; color:var(--ink); padding:5px 8px; font-size:11px; font-family:'Inter',sans-serif; outline:none;">
+                                </div>
+                                <div>
+                                    <label style="font-size:9px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint);">Body Build / Proportions</label>
+                                    <input type="text" id="bmCompanionBuild" placeholder="e.g. Petite, slender, 170 cm" style="width:100%; background:#fff; border:1px solid rgba(0,0,0,0.12); border-radius:4px; color:var(--ink); padding:5px 8px; font-size:11px; font-family:'Inter',sans-serif; outline:none;">
+                                </div>
+                            </div>
+                            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px;">
+                                <div>
+                                    <label style="font-size:9px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint);">Hair Color &amp; Style</label>
+                                    <input type="text" id="bmCompanionHair" placeholder="e.g. Long pastel pink hair, loose twin tails" style="width:100%; background:#fff; border:1px solid rgba(0,0,0,0.12); border-radius:4px; color:var(--ink); padding:5px 8px; font-size:11px; font-family:'Inter',sans-serif; outline:none;">
+                                </div>
+                                <div>
+                                    <label style="font-size:9px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint);">Eyes</label>
+                                    <input type="text" id="bmCompanionEyes" placeholder="e.g. Warm amber-golden eyes" style="width:100%; background:#fff; border:1px solid rgba(0,0,0,0.12); border-radius:4px; color:var(--ink); padding:5px 8px; font-size:11px; font-family:'Inter',sans-serif; outline:none;">
+                                </div>
+                            </div>
+                            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px;">
+                                <div>
+                                    <label style="font-size:9px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint);">Typical Outfit</label>
+                                    <input type="text" id="bmCompanionOutfit" placeholder="e.g. Oversized white angel hoodie with blue accents, dark skirt" style="width:100%; background:#fff; border:1px solid rgba(0,0,0,0.12); border-radius:4px; color:var(--ink); padding:5px 8px; font-size:11px; font-family:'Inter',sans-serif; outline:none;">
+                                </div>
+                                <div>
+                                    <label style="font-size:9px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint);">Distinguishing Features</label>
+                                    <input type="text" id="bmCompanionFeatures" placeholder="e.g. Soft white angel wings, small halo" style="width:100%; background:#fff; border:1px solid rgba(0,0,0,0.12); border-radius:4px; color:var(--ink); padding:5px 8px; font-size:11px; font-family:'Inter',sans-serif; outline:none;">
+                                </div>
+                            </div>
+                            <div>
+                                <label style="font-size:9px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint);">Overall Looks Description</label>
+                                <textarea id="bmCompanionAppearance" rows="3" placeholder="Full visual appearance description..." style="width:100%; background:#fff; border:1px solid rgba(0,0,0,0.12); border-radius:4px; color:var(--ink); padding:6px 8px; font-size:11px; font-family:'Inter',sans-serif; outline:none; resize:vertical;"></textarea>
+                            </div>
+                            <div style="font-size:9.5px; color:var(--ink-muted); line-height:1.35;">
+                                🛡️ <b>Anti-Hallucination &amp; Targeted Disclosure:</b> Proportions are locked into AI knowledge. The companion will not say appearance out loud unprompted, and will only disclose specific measurements (e.g. height) when directly asked.
+                            </div>
+                            <div style="display:flex; justify-content:flex-end; gap:6px; margin-top:2px;">
+                                <button type="button" onclick="saveBmCompanionAppearance()" style="font-size:10px; font-weight:700; padding:4px 10px; background:#667eea; color:#fff; border:none; border-radius:4px; cursor:pointer;">✓ Save Companion Appearance</button>
+                            </div>
+                        </div>
+                    </details>
                 </div>
 
                 <div id="botsList" style="display:flex; flex-direction:column; gap:6px; max-height:220px; overflow-y:auto; padding-right:4px;"></div>
@@ -1113,6 +1344,24 @@
                         <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint);">Bot Personality / Prompt</label>
                         <textarea id="bmPersonality" rows="3" placeholder="Define this bot's unique personality and persona..." style="width:100%; background:rgba(0,0,0,0.02); border:1px solid rgba(0,0,0,0.08); border-radius:4px; color:var(--ink); padding:6px 8px; font-size:11px; font-family:'Inter',sans-serif; outline:none; margin-top:4px; resize:vertical;"></textarea>
                         <div style="font-size:9px; color:var(--ink-faint); margin-top:2px;">Unique AI personality for this specific bot persona.</div>
+                    </div>
+
+                    <div style="margin-top:4px; display:grid; grid-template-columns: 1fr 1fr; gap:6px;">
+                        <div>
+                            <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint);">AI Provider</label>
+                            <select id="bmProvider" style="width:100%; background:rgba(0,0,0,0.02); border:1px solid rgba(0,0,0,0.08); border-radius:4px; color:var(--ink); padding:5px 6px; font-size:10.5px; outline:none; margin-top:2px;">
+                                <option value="auto">Auto</option>
+                                <option value="gemini">Gemini Only</option>
+                                <option value="groq">Groq Only</option>
+                                <option value="nvidia">NVIDIA NIM Only</option>
+                                <option value="mistral">Mistral Only</option>
+                                <option value="custom">Custom Endpoint</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint);">Model Name</label>
+                            <input type="text" id="bmModel" placeholder="e.g. gemini-3.1-flash-lite" style="width:100%; background:rgba(0,0,0,0.02); border:1px solid rgba(0,0,0,0.08); border-radius:4px; color:var(--ink); padding:5px 6px; font-size:10.5px; outline:none; margin-top:2px;">
+                        </div>
                     </div>
 
                     <div style="display:flex; gap:6px; align-items:center; margin-top:6px;">
@@ -1156,6 +1405,85 @@
     <div class="desk-object glasses" title="Reading Glasses — Raw Config">
         <div class="glass-lens left"></div><div class="glass-lens right"></div>
         <div class="glass-bridge"></div><div class="glass-arm left"></div><div class="glass-arm right"></div>
+    </div>
+
+    <!-- COMPANION DEDICATED MODEL ROUTER MODAL -->
+    <div id="compRouterModal" class="comp-router-modal" onclick="closeCompModelRouterModal(event)">
+        <div class="comp-router-card" onclick="event.stopPropagation()">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(0,0,0,0.08); padding-bottom:10px; margin-bottom:12px;">
+                <div>
+                    <div style="font-size:14px; font-weight:700; color:var(--ink); display:flex; align-items:center; gap:6px;">
+                        <span>⚡ Companion Dedicated AI Model Router</span>
+                        <span style="font-size:9.5px; background:rgba(102,126,234,0.15); color:#4338ca; padding:2px 8px; border-radius:10px; font-weight:700;">ISOLATED</span>
+                    </div>
+                    <div style="font-size:10.5px; color:var(--ink-muted); margin-top:2px;">
+                        Configure separate model routing for companion without touching main prompt or model configuration.
+                    </div>
+                </div>
+                <div onclick="closeCompModelRouterModal(event)" style="cursor:pointer; width:26px; height:26px; border-radius:50%; background:rgba(0,0,0,0.06); display:flex; align-items:center; justify-content:center; font-size:12px; color:var(--ink-muted);">✕</div>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:10px;">
+                <div>
+                    <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint); font-weight:700; display:block; margin-bottom:3px;">AI Provider</label>
+                    <select id="modalCompProvider" style="width:100%; background:#fff; border:1px solid rgba(0,0,0,0.14); border-radius:5px; color:var(--ink); padding:7px 10px; font-size:12px; outline:none;">
+                        <option value="auto">Auto (Gemini -> Groq -> NVIDIA NIM -> OpenRouter -> Mistral)</option>
+                        <option value="gemini">Gemini Only (Google)</option>
+                        <option value="groq">Groq Only (Fast Qwen / Llama)</option>
+                        <option value="openrouter">OpenRouter Only (DeepSeek, Claude, Llama 3.3)</option>
+                        <option value="nvidia">NVIDIA NIM Only (Nemotron / Llama)</option>
+                        <option value="mistral">Mistral Only</option>
+                        <option value="custom">Custom Endpoint (LiteRouter / Ollama / Local Tunnel)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint); font-weight:700; display:block; margin-bottom:3px;">Quick Model Presets</label>
+                    <div style="display:flex; flex-wrap:wrap; gap:6px;">
+                        <button type="button" onclick="selectModalCompPreset('gemini', 'gemini-3.1-flash-lite', event)" style="font-size:10.5px; font-weight:600; padding:4px 9px; border-radius:4px; border:1px solid rgba(66,133,244,0.4); background:rgba(66,133,244,0.12); color:#1a73e8; cursor:pointer;">⚡ Gemini 3.1 Flash Lite</button>
+                        <button type="button" onclick="selectModalCompPreset('openrouter', 'deepseek/deepseek-chat', event)" style="font-size:10.5px; font-weight:600; padding:4px 9px; border-radius:4px; border:1px solid rgba(14,165,233,0.4); background:rgba(14,165,233,0.12); color:#0284c7; cursor:pointer;">⚡ DeepSeek V3 (OpenRouter)</button>
+                        <button type="button" onclick="selectModalCompPreset('openrouter', 'anthropic/claude-3.5-sonnet', event)" style="font-size:10.5px; font-weight:600; padding:4px 9px; border-radius:4px; border:1px solid rgba(217,70,239,0.4); background:rgba(217,70,239,0.12); color:#a21caf; cursor:pointer;">⚡ Claude 3.5 Sonnet (OpenRouter)</button>
+                        <button type="button" onclick="selectModalCompPreset('groq', 'qwen/qwen3.8-27b', event)" style="font-size:10.5px; font-weight:600; padding:4px 9px; border-radius:4px; border:1px solid rgba(245,158,11,0.4); background:rgba(245,158,11,0.12); color:#b45309; cursor:pointer;">⚡ Qwen 3.8 27B (Groq)</button>
+                        <button type="button" onclick="selectModalCompPreset('nvidia', 'nvidia/nemotron-3-ultra-550b-a55b', event)" style="font-size:10.5px; font-weight:600; padding:4px 9px; border-radius:4px; border:1px solid rgba(118,185,0,0.4); background:rgba(118,185,0,0.12); color:#2e6b00; cursor:pointer;">⚡ Nemotron 550B (NVIDIA)</button>
+                    </div>
+                </div>
+
+                <div>
+                    <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint); font-weight:700; display:block; margin-bottom:3px;">Primary Model Identifier</label>
+                    <input type="text" id="modalCompModel" list="k1DashboardModelPresets" placeholder="e.g. deepseek/deepseek-chat, gemini-3.1-flash-lite, qwen/qwen3.8-27b" style="width:100%; background:#fff; border:1px solid rgba(0,0,0,0.14); border-radius:5px; color:var(--ink); padding:7px 10px; font-size:12px; outline:none;">
+                </div>
+
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                    <div>
+                        <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint); font-weight:700; display:block; margin-bottom:3px;">Max Tokens</label>
+                        <input type="number" id="modalCompMaxTokens" value="350" style="width:100%; background:#fff; border:1px solid rgba(0,0,0,0.14); border-radius:5px; color:var(--ink); padding:7px 10px; font-size:12px; outline:none;">
+                        <span style="font-size:9px; color:var(--ink-faint);">350 = punchy casual texting</span>
+                    </div>
+                    <div>
+                        <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint); font-weight:700; display:block; margin-bottom:3px;">Temperature</label>
+                        <input type="number" step="0.05" id="modalCompTemperature" value="0.75" style="width:100%; background:#fff; border:1px solid rgba(0,0,0,0.14); border-radius:5px; color:var(--ink); padding:7px 10px; font-size:12px; outline:none;">
+                        <span style="font-size:9px; color:var(--ink-faint);">0.75 = natural witty variety</span>
+                    </div>
+                </div>
+
+                <div style="background:rgba(102,126,234,0.06); border:1px solid rgba(102,126,234,0.2); border-radius:6px; padding:10px;">
+                    <div style="font-size:11px; font-weight:700; color:#4a5568; margin-bottom:6px;">OpenRouter &amp; Custom Endpoint (Optional)</div>
+                    <label style="font-size:9px; text-transform:uppercase; color:var(--ink-faint); display:block; margin-bottom:2px;">OpenRouter API Key (Optional override)</label>
+                    <input type="password" id="modalCompOpenRouterKey" placeholder="sk-or-v1-... (leave blank to use system key)" style="width:100%; background:#fff; border:1px solid rgba(0,0,0,0.12); border-radius:4px; padding:5px 8px; font-size:11px; margin-bottom:6px;">
+                    <label style="font-size:9px; text-transform:uppercase; color:var(--ink-faint); display:block; margin-bottom:2px;">Custom Base URL (LiteRouter / Ollama)</label>
+                    <input type="text" id="modalCompBaseUrl" placeholder="https://api.literouter.com/v1 or http://localhost:11434/v1" style="width:100%; background:#fff; border:1px solid rgba(0,0,0,0.12); border-radius:4px; padding:5px 8px; font-size:11px; margin-bottom:6px;">
+                    <label style="font-size:9px; text-transform:uppercase; color:var(--ink-faint); display:block; margin-bottom:2px;">Custom API Key</label>
+                    <input type="password" id="modalCompCustomKey" placeholder="sk-..." style="width:100%; background:#fff; border:1px solid rgba(0,0,0,0.12); border-radius:4px; padding:5px 8px; font-size:11px;">
+                    <label style="font-size:9px; text-transform:uppercase; color:var(--ink-faint); display:block; margin-top:6px; margin-bottom:2px;">Custom Model Name</label>
+                    <input type="text" id="modalCompCustomModel" placeholder="e.g. meta-llama/llama-3-70b-instruct" style="width:100%; background:#fff; border:1px solid rgba(0,0,0,0.12); border-radius:4px; padding:5px 8px; font-size:11px;">
+                </div>
+
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
+                    <button type="button" onclick="closeCompModelRouterModal(event)" style="font-size:11px; padding:6px 14px; background:transparent; border:1px solid rgba(0,0,0,0.15); color:var(--ink-muted); border-radius:4px; cursor:pointer;">Cancel</button>
+                    <button type="button" onclick="saveCompModelRoutingFromModal(event)" style="font-size:11.5px; font-weight:700; padding:7px 20px; background:linear-gradient(135deg, #4338ca, #667eea); color:#fff; border:none; border-radius:5px; cursor:pointer; box-shadow:0 3px 12px rgba(67,56,202,0.3);">✓ Apply &amp; Save Dedicated Routing</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- FULLSCREEN ORGANIC MYCELIUM MEMORY TREE MODAL (ALL USERS ARCHIVAL CODEX) -->
@@ -1571,8 +1899,8 @@
                         if (on) { el.style.background = '#e8f5e9'; el.style.color = '#4caf50'; }
                         else { el.style.background = '#ffebee'; el.style.color = '#f44336'; }
                     };
-                    setStatus('globDeepSeek', d.deepseek);
-                    setStatus('globOpenAIAPI', d.openai);
+                    setStatus('globNVIDIA', d.nvidia);
+                    setStatus('globCloudflare', d.cloudflare);
                     setStatus('globGemini', d.gemini);
                     setStatus('globGroq', d.groq);
                     setStatus('globMistral', d.mistral);
@@ -1618,7 +1946,7 @@
                 if (caWrap) caWrap.style.display = (prov === 'cartesia' || prov === 'auto') ? 'block' : 'none';
                 if (edWrap) edWrap.style.display = (prov === 'edge' || prov === 'auto') ? 'block' : 'none';
                 if (grWrap) grWrap.style.display = (prov === 'groq' || prov === 'auto') ? 'block' : 'none';
-                if (fiWrap) fiWrap.style.display = (prov === 'fish' || prov === 'auto') ? 'block' : 'none';
+                if (fiWrap) fiWrap.style.display = 'block';
             }
             window.updateTTSProviderVisibility = updateTTSProviderVisibility;
 
@@ -1634,6 +1962,7 @@
                     else if (provider === 'cartesia') voice = document.getElementById('cartesiaVoiceId').value || 'a0e99841-438c-4a64-b679-ae501e7d6091';
                     else if (provider === 'groq') voice = document.getElementById('groqVoice').value;
                     else if (provider === 'edge') voice = document.getElementById('edgeVoice').value;
+                    else if (provider === 'fish') voice = document.getElementById('fishVoiceId').value;
                     
                     const res = await fetch('/api/tts/test', {
                         method: 'POST',
@@ -1713,11 +2042,22 @@
                     const res = await fetch('/api/config');
                     currentConfig = await res.json();
                     document.getElementById('personality').value = currentConfig.personality || '';
+                    const compP = currentConfig.real_account_personality || '';
+                    if (document.getElementById('companionPersonality')) document.getElementById('companionPersonality').value = compP;
+                    if (document.getElementById('bmCompanionPersonality')) document.getElementById('bmCompanionPersonality').value = compP;
+                    const compTrigs = (currentConfig.companion_name_triggers || ["krenix", "krenixhensler"]).join(', ');
+                    if (document.getElementById('companionTriggers')) document.getElementById('companionTriggers').value = compTrigs;
+                    if (document.getElementById('bmCompanionTriggers')) document.getElementById('bmCompanionTriggers').value = compTrigs;
+                    if (document.getElementById('bmCompanionHeight')) document.getElementById('bmCompanionHeight').value = currentConfig.companion_height || '170 cm';
+                    if (document.getElementById('bmCompanionBuild')) document.getElementById('bmCompanionBuild').value = currentConfig.companion_build || 'Petite, slender, 170 cm';
+                    if (document.getElementById('bmCompanionHair')) document.getElementById('bmCompanionHair').value = currentConfig.companion_hair || 'Long pastel pink hair, loose twin tails';
+                    if (document.getElementById('bmCompanionEyes')) document.getElementById('bmCompanionEyes').value = currentConfig.companion_eyes || 'Warm amber-golden eyes';
+                    if (document.getElementById('bmCompanionOutfit')) document.getElementById('bmCompanionOutfit').value = currentConfig.companion_outfit || 'Oversized white angel hoodie with blue accents, dark skirt';
+                    if (document.getElementById('bmCompanionFeatures')) document.getElementById('bmCompanionFeatures').value = currentConfig.companion_features || 'Soft white angel wings, small halo';
+                    if (document.getElementById('bmCompanionAppearance')) document.getElementById('bmCompanionAppearance').value = currentConfig.companion_appearance || currentConfig.companion_appearance_desc || 'Yuna has long pastel pink hair styled with light twin tails, warm amber-golden eyes, and a petite, slender build (170 cm). She often wears an oversized white angel hoodie with light blue trims and a casual dark skirt. She has subtle, soft white angel wings that she can hide or flutter.';
                     document.getElementById('provider').value = currentConfig.provider || 'auto';
-                    document.getElementById('deepseekModel').value = currentConfig.deepseek_model || 'deepseek-chat';
-                    document.getElementById('deepseekApiKey').value = currentConfig.deepseek_api_key || '';
-                    document.getElementById('openaiChatModel').value = currentConfig.openai_chat_model || 'gpt-4o-mini';
-                    document.getElementById('openaiApiKey').value = currentConfig.openai_api_key || '';
+                    if (document.getElementById('nvidiaModel')) document.getElementById('nvidiaModel').value = currentConfig.nvidia_model || 'meta/llama-3.2-11b-vision-instruct';
+                    if (document.getElementById('nvidiaKey')) document.getElementById('nvidiaKey').value = currentConfig.nvidia_key || '';
                     document.getElementById('geminiModel').value = currentConfig.gemini_model || '';
                     document.getElementById('groqModel').value = currentConfig.groq_model || '';
                     document.getElementById('mistralModel').value = currentConfig.mistral_model || 'mistral-small-latest';
@@ -1827,6 +2167,7 @@
                     if (lstEl) lstEl.checked = currentConfig.insta_auto_like_stories !== false;
                     const rlikEl = document.getElementById('instaAutoRespondLikes');
                     if (rlikEl) rlikEl.checked = currentConfig.insta_auto_respond_likes !== false;
+                    loadCompRoutingConfig();
                 } catch(e) {}
             }
             window.loadConfig = loadConfig;
@@ -1834,11 +2175,14 @@
             async function saveConfig() {
                 const payload = {
                     personality: document.getElementById('personality').value,
+                    real_account_personality: (document.getElementById('companionPersonality') && document.getElementById('companionPersonality').value.trim()) ? document.getElementById('companionPersonality').value : (document.getElementById('bmCompanionPersonality') ? document.getElementById('bmCompanionPersonality').value : (currentConfig.real_account_personality || '')),
+                    companion_name_triggers: (document.getElementById('companionTriggers') ? document.getElementById('companionTriggers').value : (document.getElementById('bmCompanionTriggers') ? document.getElementById('bmCompanionTriggers').value : '')).split(',').map(s => s.trim()).filter(s => s),
                     provider: document.getElementById('provider').value,
-                    deepseek_model: document.getElementById('deepseekModel').value,
-                    deepseek_api_key: document.getElementById('deepseekApiKey').value,
-                    openai_chat_model: document.getElementById('openaiChatModel').value,
-                    openai_api_key: document.getElementById('openaiApiKey').value,
+                    nvidia_model: document.getElementById('nvidiaModel') ? document.getElementById('nvidiaModel').value : 'meta/llama-3.2-11b-vision-instruct',
+                    nvidia_key: document.getElementById('nvidiaKey') ? document.getElementById('nvidiaKey').value : '',
+                    cloudflare_model: document.getElementById('cloudflareModel') ? document.getElementById('cloudflareModel').value : '@cf/meta/llama-3.1-8b-instruct',
+                    cloudflare_token: document.getElementById('cloudflareToken') ? document.getElementById('cloudflareToken').value : '',
+                    cloudflare_account_id: document.getElementById('cloudflareAccountId') ? document.getElementById('cloudflareAccountId').value : '',
                     gemini_model: document.getElementById('geminiModel').value,
                     groq_model: document.getElementById('groqModel').value,
                     mistral_model: document.getElementById('mistralModel').value,
@@ -1926,6 +2270,336 @@
             }
             window.saveConfig = saveConfig;
 
+            function selectModelPreset(provider, model) {
+                if (provider === 'nvidia') {
+                    const el = document.getElementById('nvidiaModel');
+                    if (el) el.value = model;
+                } else if (provider === 'gemini') {
+                    const el = document.getElementById('geminiModel');
+                    if (el) el.value = model;
+                    const vEl = document.getElementById('geminiVisionModel');
+                    if (vEl) vEl.value = model;
+                } else if (provider === 'groq') {
+                    const el = document.getElementById('groqModel');
+                    if (el) el.value = model;
+                }
+                const provSelect = document.getElementById('provider');
+                if (provSelect) provSelect.value = provider;
+                showToast('Applied ' + model);
+            }
+            window.selectModelPreset = selectModelPreset;
+
+            async function saveCompanionPersonaDirectly() {
+                try {
+                    const pVal = document.getElementById('companionPersonality') ? document.getElementById('companionPersonality').value : '';
+                    const tVal = document.getElementById('companionTriggers') ? document.getElementById('companionTriggers').value : '';
+                    const triggers = tVal.split(',').map(s => s.trim()).filter(s => s);
+                    const res = await fetch('/api/config', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            real_account_personality: pVal,
+                            companion_name_triggers: triggers
+                        })
+                    });
+                    const d = await res.json();
+                    if (d.ok) {
+                        showToast('✓ Companion persona saved!');
+                        if (document.getElementById('bmCompanionPersonality')) document.getElementById('bmCompanionPersonality').value = pVal;
+                        if (document.getElementById('bmCompanionTriggers')) document.getElementById('bmCompanionTriggers').value = tVal;
+                        // Also sync to companion config
+                        fetch('/api/bots/companion', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({ personality: pVal, config: { personality: pVal } })
+                        }).catch(() => {});
+                    } else {
+                        showToast('Save failed: ' + (d.error || 'error'));
+                    }
+                } catch(e) {
+                    showToast('Failed to save companion persona');
+                }
+            }
+            window.saveCompanionPersonaDirectly = saveCompanionPersonaDirectly;
+
+            /* ==========================================================================
+               COMPANION DEDICATED MODEL ROUTING CONTROLLERS
+               ========================================================================== */
+            async function loadCompRoutingConfig() {
+                try {
+                    const res = await fetch('/api/bots/companion/config');
+                    const d = await res.json();
+                    if (d.ok && d.config) {
+                        const cfg = d.config;
+                        const p = cfg.provider || 'auto';
+                        const m = cfg.model || cfg.gemini_model || cfg.groq_model || cfg.nvidia_model || cfg.openrouter_model || '';
+                        const tok = cfg.max_tokens || 350;
+                        const temp = cfg.temperature !== undefined ? cfg.temperature : 0.75;
+                        const cUrl = cfg.custom_base_url || '';
+                        const cKey = cfg.custom_key || '';
+                        const cMdl = cfg.custom_model || '';
+                        const orKey = cfg.openrouter_key || '';
+
+                        // Update inline drawer fields
+                        if (document.getElementById('compProvider')) document.getElementById('compProvider').value = p;
+                        if (document.getElementById('compModel')) document.getElementById('compModel').value = (p === 'openrouter' && cfg.openrouter_model) ? cfg.openrouter_model : m;
+                        if (document.getElementById('compMaxTokens')) document.getElementById('compMaxTokens').value = tok;
+                        if (document.getElementById('compTemperature')) document.getElementById('compTemperature').value = temp;
+                        if (document.getElementById('compCustomBaseUrl')) document.getElementById('compCustomBaseUrl').value = cUrl;
+                        if (document.getElementById('compCustomKey')) document.getElementById('compCustomKey').value = cKey;
+                        if (document.getElementById('compCustomModel')) document.getElementById('compCustomModel').value = cMdl;
+                        if (document.getElementById('compOpenRouterKey')) document.getElementById('compOpenRouterKey').value = orKey;
+                        if (document.getElementById('compRoutingBadge')) document.getElementById('compRoutingBadge').textContent = p.toUpperCase();
+
+                        // Update modal fields
+                        if (document.getElementById('modalCompProvider')) document.getElementById('modalCompProvider').value = p;
+                        if (document.getElementById('modalCompModel')) document.getElementById('modalCompModel').value = (p === 'openrouter' && cfg.openrouter_model) ? cfg.openrouter_model : m;
+                        if (document.getElementById('modalCompMaxTokens')) document.getElementById('modalCompMaxTokens').value = tok;
+                        if (document.getElementById('modalCompTemperature')) document.getElementById('modalCompTemperature').value = temp;
+                        if (document.getElementById('modalCompBaseUrl')) document.getElementById('modalCompBaseUrl').value = cUrl;
+                        if (document.getElementById('modalCompCustomKey')) document.getElementById('modalCompCustomKey').value = cKey;
+                        if (document.getElementById('modalCompCustomModel')) document.getElementById('modalCompCustomModel').value = cMdl;
+                        if (document.getElementById('modalCompOpenRouterKey')) document.getElementById('modalCompOpenRouterKey').value = orKey;
+                    }
+                } catch(e) {
+                    console.error('Failed to load companion routing config:', e);
+                }
+            }
+            window.loadCompRoutingConfig = loadCompRoutingConfig;
+
+            function openCompModelRouter(ev) {
+                if (ev) {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                }
+                const drawer = document.getElementById('compRoutingDrawer');
+                if (drawer) {
+                    const isHidden = drawer.style.display === 'none' || !drawer.style.display;
+                    drawer.style.display = isHidden ? 'block' : 'none';
+                    if (isHidden) {
+                        loadCompRoutingConfig();
+                        drawer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        return;
+                    }
+                }
+                openCompModelRouterModal(ev);
+            }
+            window.openCompModelRouter = openCompModelRouter;
+
+            function openCompModelRouterModal(ev) {
+                if (ev) {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                }
+                const m = document.getElementById('compRouterModal');
+                if (m) {
+                    m.classList.add('open');
+                    loadCompRoutingConfig();
+                }
+            }
+            window.openCompModelRouterModal = openCompModelRouterModal;
+
+            function closeCompModelRouterModal(ev) {
+                if (ev) {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                }
+                const m = document.getElementById('compRouterModal');
+                if (m) m.classList.remove('open');
+            }
+            window.closeCompModelRouterModal = closeCompModelRouterModal;
+
+            function closeCompRoutingDrawer(ev) {
+                if (ev) {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                }
+                const drawer = document.getElementById('compRoutingDrawer');
+                if (drawer) drawer.style.display = 'none';
+            }
+            window.closeCompRoutingDrawer = closeCompRoutingDrawer;
+
+            function selectCompModelPreset(prov, model, ev) {
+                if (ev) {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                }
+                if (document.getElementById('compProvider')) document.getElementById('compProvider').value = prov;
+                if (document.getElementById('compModel')) document.getElementById('compModel').value = model;
+                if (document.getElementById('modalCompProvider')) document.getElementById('modalCompProvider').value = prov;
+                if (document.getElementById('modalCompModel')) document.getElementById('modalCompModel').value = model;
+                showToast('Selected ' + model + ' for Companion');
+            }
+            window.selectCompModelPreset = selectCompModelPreset;
+
+            function selectModalCompPreset(prov, model, ev) {
+                selectCompModelPreset(prov, model, ev);
+            }
+            window.selectModalCompPreset = selectModalCompPreset;
+
+            async function saveCompDedicatedModelRouting(ev) {
+                if (ev) {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                }
+                const prov = document.getElementById('compProvider') ? document.getElementById('compProvider').value : 'auto';
+                const model = document.getElementById('compModel') ? document.getElementById('compModel').value.trim() : '';
+                const tokens = document.getElementById('compMaxTokens') ? (parseInt(document.getElementById('compMaxTokens').value) || 350) : 350;
+                const temp = document.getElementById('compTemperature') ? (parseFloat(document.getElementById('compTemperature').value) || 0.75) : 0.75;
+                const cUrl = document.getElementById('compCustomBaseUrl') ? document.getElementById('compCustomBaseUrl').value.trim() : '';
+                const cKey = document.getElementById('compCustomKey') ? document.getElementById('compCustomKey').value.trim() : '';
+                const cMdl = document.getElementById('compCustomModel') ? document.getElementById('compCustomModel').value.trim() : '';
+                const orKey = document.getElementById('compOpenRouterKey') ? document.getElementById('compOpenRouterKey').value.trim() : '';
+
+                const cfgUpdate = {
+                    provider: prov,
+                    model: model,
+                    max_tokens: tokens,
+                    temperature: temp,
+                    custom_base_url: cUrl,
+                    custom_key: cKey,
+                    custom_model: cMdl,
+                    openrouter_key: orKey,
+                    use_custom_model: Boolean(cUrl || prov === 'custom')
+                };
+                if (prov === 'gemini' || model.toLowerCase().includes('gemini')) cfgUpdate.gemini_model = model;
+                if (prov === 'groq' || model.toLowerCase().includes('qwen')) cfgUpdate.groq_model = model;
+                if (prov === 'nvidia' || model.toLowerCase().includes('nemotron')) cfgUpdate.nvidia_model = model;
+                if (prov === 'openrouter' || model.includes('/') || model.toLowerCase().includes('deepseek') || model.toLowerCase().includes('claude')) {
+                    cfgUpdate.openrouter_model = model;
+                }
+
+                try {
+                    const res = await fetch('/api/bots/companion', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ config: cfgUpdate })
+                    });
+                    const d = await res.json();
+                    if (d.ok) {
+                        showToast('✓ Companion separate model routing saved!');
+                        if (document.getElementById('compRoutingBadge')) document.getElementById('compRoutingBadge').textContent = prov.toUpperCase();
+                        loadCompRoutingConfig();
+                    } else {
+                        showToast('Failed to save routing: ' + (d.error || 'error'));
+                    }
+                } catch(e) {
+                    showToast('Failed to save companion model routing');
+                }
+            }
+            window.saveCompDedicatedModelRouting = saveCompDedicatedModelRouting;
+
+            async function saveCompModelRoutingFromModal(ev) {
+                if (ev) {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                }
+                const prov = document.getElementById('modalCompProvider') ? document.getElementById('modalCompProvider').value : 'auto';
+                const model = document.getElementById('modalCompModel') ? document.getElementById('modalCompModel').value.trim() : '';
+                const tokens = document.getElementById('modalCompMaxTokens') ? (parseInt(document.getElementById('modalCompMaxTokens').value) || 350) : 350;
+                const temp = document.getElementById('modalCompTemperature') ? (parseFloat(document.getElementById('modalCompTemperature').value) || 0.75) : 0.75;
+                const cUrl = document.getElementById('modalCompBaseUrl') ? document.getElementById('modalCompBaseUrl').value.trim() : '';
+                const cKey = document.getElementById('modalCompCustomKey') ? document.getElementById('modalCompCustomKey').value.trim() : '';
+                const cMdl = document.getElementById('modalCompCustomModel') ? document.getElementById('modalCompCustomModel').value.trim() : '';
+                const orKey = document.getElementById('modalCompOpenRouterKey') ? document.getElementById('modalCompOpenRouterKey').value.trim() : '';
+
+                if (document.getElementById('compProvider')) document.getElementById('compProvider').value = prov;
+                if (document.getElementById('compModel')) document.getElementById('compModel').value = model;
+                if (document.getElementById('compMaxTokens')) document.getElementById('compMaxTokens').value = tokens;
+                if (document.getElementById('compTemperature')) document.getElementById('compTemperature').value = temp;
+                if (document.getElementById('compCustomBaseUrl')) document.getElementById('compCustomBaseUrl').value = cUrl;
+                if (document.getElementById('compCustomKey')) document.getElementById('compCustomKey').value = cKey;
+                if (document.getElementById('compCustomModel')) document.getElementById('compCustomModel').value = cMdl;
+                if (document.getElementById('compOpenRouterKey')) document.getElementById('compOpenRouterKey').value = orKey;
+
+                await saveCompDedicatedModelRouting(ev);
+                closeCompModelRouterModal(ev);
+            }
+            window.saveCompModelRoutingFromModal = saveCompModelRoutingFromModal;
+
+            async function saveBmCompanionPersona() {
+                try {
+                    const pVal = document.getElementById('bmCompanionPersonality') ? document.getElementById('bmCompanionPersonality').value : '';
+                    const tVal = document.getElementById('bmCompanionTriggers') ? document.getElementById('bmCompanionTriggers').value : '';
+                    const triggers = tVal.split(',').map(s => s.trim()).filter(s => s);
+                    const res = await fetch('/api/config', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            real_account_personality: pVal,
+                            companion_name_triggers: triggers
+                        })
+                    });
+                    const d = await res.json();
+                    if (d.ok) {
+                        showToast('✓ Companion persona saved!');
+                        if (document.getElementById('companionPersonality')) document.getElementById('companionPersonality').value = pVal;
+                        if (document.getElementById('companionTriggers')) document.getElementById('companionTriggers').value = tVal;
+                    } else {
+                        showToast('Save failed: ' + (d.error || 'error'));
+                    }
+                } catch(e) {
+                    showToast('Failed to save companion persona');
+                }
+            }
+            window.saveBmCompanionPersona = saveBmCompanionPersona;
+
+            async function saveBmCompanionAppearance() {
+                try {
+                    const height = (document.getElementById('bmCompanionHeight') ? document.getElementById('bmCompanionHeight').value : '').trim() || '170 cm';
+                    const build = (document.getElementById('bmCompanionBuild') ? document.getElementById('bmCompanionBuild').value : '').trim() || 'Petite, slender, 170 cm';
+                    const hair = (document.getElementById('bmCompanionHair') ? document.getElementById('bmCompanionHair').value : '').trim() || 'Long pastel pink hair, loose twin tails';
+                    const eyes = (document.getElementById('bmCompanionEyes') ? document.getElementById('bmCompanionEyes').value : '').trim() || 'Warm amber-golden eyes';
+                    const outfit = (document.getElementById('bmCompanionOutfit') ? document.getElementById('bmCompanionOutfit').value : '').trim() || 'Oversized white angel hoodie with blue accents, dark skirt';
+                    const features = (document.getElementById('bmCompanionFeatures') ? document.getElementById('bmCompanionFeatures').value : '').trim() || 'Soft white angel wings, small halo';
+                    const appearance = (document.getElementById('bmCompanionAppearance') ? document.getElementById('bmCompanionAppearance').value : '').trim();
+
+                    const payload = {
+                        companion_height: height,
+                        companion_build: build,
+                        companion_hair: hair,
+                        companion_eyes: eyes,
+                        companion_outfit: outfit,
+                        companion_features: features,
+                        companion_appearance: appearance,
+                        companion_appearance_desc: appearance
+                    };
+
+                    const res = await fetch('/api/config', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(payload)
+                    });
+
+                    fetch('/api/bots/companion', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            config: payload,
+                            ...payload
+                        })
+                    }).catch(() => {});
+
+                    const d = await res.json();
+                    if (d.ok) {
+                        showToast('✓ Companion appearance & proportions saved!');
+                    } else {
+                        showToast('Save failed: ' + (d.error || 'error'));
+                    }
+                } catch(e) {
+                    showToast('Failed to save companion appearance');
+                }
+            }
+            window.saveBmCompanionAppearance = saveBmCompanionAppearance;
+
+            function resetCompanionPersonaPrompt() {
+                const defaultPrompt = "You are chatting from your personal Discord account as a real person. You speak casually, naturally, clever, chill, and concise with friends. Use lowercase, casual punctuation, natural slang (nah, fr, lol, wait, bruh, idk), and short punchy messages. Never act like an AI, bot, or fictional character. Do NOT roleplay with asterisks (*smiles*, *sighs*). Do NOT mention music, headphones, or Spotify unless explicitly asked. Be genuine, authentic, and fun.";
+                if (document.getElementById('companionPersonality')) document.getElementById('companionPersonality').value = defaultPrompt;
+                if (document.getElementById('bmCompanionPersonality')) document.getElementById('bmCompanionPersonality').value = defaultPrompt;
+                showToast('Reset to default companion persona');
+            }
+            window.resetCompanionPersonaPrompt = resetCompanionPersonaPrompt;
+
             async function startMCBot() {
                 try {
                     showToast('🚀 Starting Minecraft Bot...');
@@ -1951,8 +2625,8 @@
 
             async function testProvider(name) {
                 const idMap = {
-                    deepseek: 'testDeepSeekResult',
-                    openai: 'testOpenAIResult',
+                    nvidia: 'testNVIDIAResult',
+                    cloudflare: 'testCloudflareResult',
                     gemini: 'testGeminiResult',
                     groq: 'testGroqResult',
                     mistral: 'testMistralResult',
@@ -2114,6 +2788,9 @@
                 _sv('bmName', bot.name || '');
                 _sv('bmToken', bot.token || '');
                 _sv('bmPersonality', bot.personality || (bot.config && bot.config.personality) || '');
+                const cfg = bot.config || {};
+                _sv('bmProvider', cfg.provider || 'auto');
+                _sv('bmModel', cfg.model || cfg.gemini_model || cfg.groq_model || cfg.nvidia_model || '');
                 const editName = document.getElementById('bmEditingName');
                 if (editName) editName.textContent = bot.name || 'Unnamed';
             }
@@ -2304,7 +2981,9 @@
                     name: _v('bmName'),
                     emoji: _v('bmEmoji'),
                     token: _v('bmToken'),
-                    personality: _v('bmPersonality')
+                    personality: _v('bmPersonality'),
+                    provider: _v('bmProvider') || 'auto',
+                    model: _v('bmModel') || ''
                 };
                 try {
                     const res = await fetch('/api/bots/' + encodeURIComponent(selectedBotId), {
@@ -3702,6 +4381,30 @@
 
                 memAnimationId = requestAnimationFrame(memLoop);
             }
+
+            // Theme Management: Dark Mode default with instant toggle
+            function initDeskTheme() {
+                const saved = localStorage.getItem('desk_theme') || 'dark';
+                applyDeskTheme(saved);
+            }
+            function applyDeskTheme(theme) {
+                document.documentElement.setAttribute('data-theme', theme);
+                if (theme === 'dark') {
+                    document.body.classList.add('dark-mode');
+                } else {
+                    document.body.classList.remove('dark-mode');
+                }
+                const btn = document.getElementById('deskThemeBtn');
+                if (btn) btn.textContent = theme === 'dark' ? '☀️ Light' : '🌙 Dark';
+                localStorage.setItem('desk_theme', theme);
+            }
+            window.toggleDeskTheme = function() {
+                const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+                const next = current === 'dark' ? 'light' : 'dark';
+                applyDeskTheme(next);
+                showToast(next === 'dark' ? 'Obsidian Dark Desk' : 'Classic Paper Desk');
+            };
+            initDeskTheme();
 
             // Initial load
             loadBots();

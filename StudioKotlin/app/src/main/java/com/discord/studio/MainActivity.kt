@@ -187,6 +187,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
         // High performance hardware acceleration
         webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+        webView.setBackgroundColor(ContextCompat.getColor(this, R.color.studio_bg))
 
         // Custom clients
         chromeClient = StudioWebChromeClient(this, progressBar, customViewContainer)
