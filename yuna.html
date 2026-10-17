@@ -1,0 +1,1524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Yuna</title>
+<script src="studio_android_bridge.js"></script>
+<style>
+/* ═══════════════════════════════════════════════════════════════════
+   YUNI COMPANION OS — HARDWARE ACCELERATED LAYER STACK PAGES
+   ═══════════════════════════════════════════════════════════════════ */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:root {
+  --bg-deep: #08090f;
+  --bg-card: #121524;
+  --bg-card-elevated: #181c30;
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-glow: rgba(255, 121, 198, 0.35);
+  
+  --yuna-pink: #ff79c6;
+  --yuna-purple: #bd93f9;
+  --yuna-cyan: #8be9fd;
+  --yuna-blue: #61afef;
+  --yuna-green: #2ecc71;
+  --yuna-red: #ff5555;
+  
+  --text-pure: #ffffff;
+  --text-primary: #f0f3ff;
+  --text-secondary: rgba(240, 243, 255, 0.72);
+  --text-muted: rgba(240, 243, 255, 0.45);
+  
+  --ios-spring: cubic-bezier(0.16, 1, 0.3, 1);
+  --ios-press: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--bg-deep);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+#viewportStage {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background-color: var(--bg-deep);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   TRUE 3D LAYER STACK PAGES (INSTANT, RELIABLE CSS TRANSITIONS)
+   ═══════════════════════════════════════════════════════════════════ */
+.page {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: var(--bg-deep); /* CRITICAL: 100% OPAQUE */
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: max(16px, env(safe-area-inset-top)) 18px max(24px, env(safe-area-inset-bottom)) 18px;
+  
+  /* Initial off-screen state (to the right) */
+  transform: translate3d(100%, 0, 0);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: transform 0.36s var(--ios-spring), opacity 0.36s ease, visibility 0.36s;
+  will-change: transform, opacity;
+  z-index: 10;
+}
+
+/* Active Page in Viewport */
+.page.page-active {
+  transform: translate3d(0, 0, 0) !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+  z-index: 20 !important;
+}
+
+/* Background / Parent Page in Stack (Receded to the left) */
+.page.page-receded {
+  transform: translate3d(-26%, 0, 0) !important;
+  opacity: 0.45 !important;
+  visibility: visible !important;
+  pointer-events: none !important;
+  z-index: 10 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   TACTILE PRESS PHYSICS
+   ═══════════════════════════════════════════════════════════════════ */
+button, .touchable {
+  cursor: pointer;
+  border: none;
+  outline: none;
+  background: none;
+  color: inherit;
+  font-family: inherit;
+  transition: transform 0.28s var(--ios-spring), opacity 0.2s ease;
+}
+
+button:active, .touchable:active {
+  transform: scale(0.92) !important;
+  transition: transform 0.08s var(--ios-press) !important;
+  opacity: 0.85;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PAGE 1: HOME HUB (DYNAMIC ISLAND + HERO + 4 BENTO BUTTONS)
+   ═══════════════════════════════════════════════════════════════════ */
+#page-home {
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.home-top-bar {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.island-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-card-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.online-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--yuna-green);
+  box-shadow: 0 0 8px var(--yuna-green);
+  animation: pulseDot 2s infinite ease-in-out;
+}
+
+@keyframes pulseDot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.3); opacity: 0.7; }
+}
+
+/* Yuna Hero Presence Card */
+.yuna-hero-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(160deg, #181d33 0%, #111424 100%);
+  border: 1px solid var(--border-subtle);
+  border-radius: 28px;
+  padding: 22px 20px;
+  text-align: center;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+.hero-avatar-ring {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  padding: 3px;
+  background: linear-gradient(135deg, var(--yuna-pink) 0%, var(--yuna-purple) 50%, var(--yuna-cyan) 100%);
+  box-shadow: 0 8px 24px var(--border-glow);
+  margin-bottom: 12px;
+}
+
+.hero-avatar-art {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: #1c152d url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%23221936'/%3E%3Ccircle cx='50' cy='38' r='20' fill='%23ff79c6'/%3E%3Cpath d='M20 86c0-16 14-28 30-28s30 12 30 28' fill='%23bd93f9'/%3E%3C/svg%3E") center/cover no-repeat;
+}
+
+.hero-name {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: var(--text-pure);
+  margin-bottom: 4px;
+}
+
+.hero-bubble {
+  font-size: 14px;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 6px 14px;
+  margin-top: 6px;
+  display: inline-block;
+  max-width: 90%;
+}
+
+/* 4 LARGE SQUARE BENTO BUTTONS (2x2 GRID) */
+.bento-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  width: 100%;
+}
+
+.bento-tile {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: linear-gradient(145deg, #161a2b 0%, #101321 100%);
+  border: 1px solid var(--border-subtle);
+  border-radius: 24px;
+  padding: 16px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.1);
+}
+
+.bento-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+}
+
+.badge-chat   { background: linear-gradient(135deg, #ff79c6 0%, #bd93f9 100%); color: #fff; }
+.badge-call   { background: linear-gradient(135deg, #8be9fd 0%, #2ecc71 100%); color: #111; }
+.badge-control{ background: linear-gradient(135deg, #61afef 0%, #bd93f9 100%); color: #fff; }
+.badge-soul   { background: linear-gradient(135deg, #bd93f9 0%, #ff79c6 100%); color: #fff; }
+
+.bento-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bento-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-pure);
+}
+
+.bento-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PAGE TOP NAV BAR
+   ═══════════════════════════════════════════════════════════════════ */
+.top-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 16px;
+  flex-shrink: 0;
+}
+
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--yuna-pink);
+  background: rgba(255, 121, 198, 0.1);
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 121, 198, 0.25);
+}
+
+.page-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-pure);
+}
+
+.action-icon-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-card-elevated);
+  border: 1px solid var(--border-subtle);
+  font-size: 16px;
+  color: var(--text-primary);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PAGE 2: CHAT ARENA
+   ═══════════════════════════════════════════════════════════════════ */
+#page-chat {
+  padding-bottom: 12px;
+}
+
+.chat-stream {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-right: 4px;
+  margin-bottom: 12px;
+}
+
+.chat-bubble {
+  max-width: 84%;
+  padding: 12px 16px;
+  border-radius: 18px;
+  font-size: 15px;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.bubble-yuna {
+  align-self: flex-start;
+  background: var(--bg-card-elevated);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  border-bottom-left-radius: 4px;
+}
+
+.bubble-user {
+  align-self: flex-end;
+  background: linear-gradient(135deg, #bd93f9 0%, #ff79c6 100%);
+  color: #ffffff;
+  border-bottom-right-radius: 4px;
+  box-shadow: 0 4px 14px rgba(255, 121, 198, 0.35);
+}
+
+.chat-composer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-card-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 26px;
+  padding: 6px 12px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+.composer-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-pure);
+  font-size: 15px;
+  font-family: inherit;
+  padding: 8px 4px;
+}
+
+.composer-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-pure);
+}
+
+.btn-send-active {
+  background: linear-gradient(135deg, var(--yuna-pink) 0%, var(--yuna-purple) 100%);
+  box-shadow: 0 4px 12px var(--border-glow);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PAGE 3: LIVE VOICE CALL STAGE
+   ═══════════════════════════════════════════════════════════════════ */
+#page-call {
+  justify-content: space-between;
+  align-items: center;
+}
+
+.call-stage {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+
+.call-sphere {
+  width: 130px;
+  height: 130px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #ff79c6 0%, #7045af 65%, #151624 100%);
+  box-shadow: 0 0 35px rgba(255, 121, 198, 0.4), inset 0 2px 4px rgba(255, 255, 255, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 42px;
+  transition: transform 0.15s ease-out;
+}
+
+.call-canvas {
+  width: 100%;
+  max-width: 280px;
+  height: 48px;
+}
+
+.call-subtitles {
+  width: 100%;
+  background: var(--bg-card-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 20px;
+  padding: 16px;
+  min-height: 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: center;
+}
+
+.speaker-tag {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--yuna-pink);
+  letter-spacing: 0.5px;
+}
+
+.subtitle-body {
+  font-size: 16px;
+  line-height: 1.4;
+  color: var(--text-pure);
+}
+
+.call-docks {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  width: 100%;
+  padding-top: 14px;
+}
+
+.call-dock-btn {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  background: var(--bg-card-elevated);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-pure);
+}
+
+.call-dock-btn.muted {
+  background: rgba(255, 85, 85, 0.2);
+  border-color: var(--yuna-red);
+  color: var(--yuna-red);
+}
+
+.btn-end-call {
+  background: linear-gradient(135deg, #ff5555 0%, #c0392b 100%);
+  color: #fff;
+  box-shadow: 0 6px 20px rgba(255, 85, 85, 0.4);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PAGE 4: CLUSTER CONTROL
+   ═══════════════════════════════════════════════════════════════════ */
+.ctrl-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.group-title {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-muted);
+}
+
+.vitals-2col {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.vital-box {
+  background: var(--bg-card-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  padding: 12px;
+}
+
+.v-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.v-val {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-pure);
+  margin-top: 2px;
+}
+
+.actions-row {
+  display: flex;
+  gap: 10px;
+}
+
+.ctrl-btn {
+  flex: 1;
+  padding: 14px;
+  border-radius: 16px;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  background: var(--bg-card-elevated);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+}
+
+.btn-restart-accent {
+  background: linear-gradient(135deg, rgba(255, 85, 85, 0.15) 0%, rgba(255, 85, 85, 0.05) 100%);
+  border-color: rgba(255, 85, 85, 0.35);
+  color: #ff7777;
+}
+
+.console-terminal {
+  background: #06070a;
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  padding: 12px;
+  font-family: ui-monospace, Menlo, Monaco, "Cascadia Mono", monospace;
+  font-size: 12px;
+  color: #98c379;
+  height: 160px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PAGE 5: SOUL & PERSONA
+   ═══════════════════════════════════════════════════════════════════ */
+.soul-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.soul-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.soul-input-area {
+  width: 100%;
+  height: 130px;
+  background: var(--bg-card-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  padding: 12px;
+  color: var(--text-pure);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.4;
+  outline: none;
+  resize: none;
+}
+
+.soul-dropdown {
+  width: 100%;
+  padding: 12px 14px;
+  background: var(--bg-card-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  color: var(--text-pure);
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+}
+
+.save-soul-btn {
+  width: 100%;
+  padding: 14px;
+  border-radius: 16px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffffff;
+  background: linear-gradient(135deg, var(--yuna-pink) 0%, var(--yuna-purple) 100%);
+  box-shadow: 0 6px 20px var(--border-glow);
+}
+
+/* Notification Toast */
+.toast-pill {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(30px);
+  background: rgba(20, 24, 38, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: var(--text-pure);
+  padding: 10px 20px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 500;
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.3s var(--ios-spring), opacity 0.3s ease;
+  z-index: 1000;
+}
+.toast-pill.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+</style>
+</head>
+
+<body>
+<div id="viewportStage">
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       PAGE 1: HOME HUB (DYNAMIC ISLAND + HERO + 4 BENTO BUTTONS)
+       ═══════════════════════════════════════════════════════════════ -->
+  <section class="page page-active" id="page-home">
+    <!-- Top Dynamic Status Pill -->
+    <div class="home-top-bar">
+      <div class="island-status-pill touchable" onclick="navigatePush('control')">
+        <span class="online-dot"></span>
+        <span>🌸 Yuna • Companion OS</span>
+      </div>
+    </div>
+
+    <!-- Yuna Hero Presence Card -->
+    <div class="yuna-hero-card">
+      <div class="hero-avatar-ring touchable" onclick="startVoiceCall()">
+        <div class="hero-avatar-art"></div>
+      </div>
+      <h1 class="hero-name">Yuna</h1>
+      <div class="hero-bubble" id="heroBubble">"Always by your side."</div>
+    </div>
+
+    <!-- 4 LARGE SQUARE BENTO BUTTONS -->
+    <div class="bento-grid">
+      <!-- Tile 1: Chat -->
+      <div class="bento-tile touchable" onclick="navigatePush('chat')">
+        <div class="bento-icon badge-chat">💬</div>
+        <div class="bento-info">
+          <div class="bento-title">Chat</div>
+          <div class="bento-sub">Text & dialogue</div>
+        </div>
+      </div>
+
+      <!-- Tile 2: Voice Call -->
+      <div class="bento-tile touchable" onclick="startVoiceCall()">
+        <div class="bento-icon badge-call">📞</div>
+        <div class="bento-info">
+          <div class="bento-title">Voice Call</div>
+          <div class="bento-sub">Real-time speech</div>
+        </div>
+      </div>
+
+      <!-- Tile 3: Cluster Control -->
+      <div class="bento-tile touchable" onclick="navigatePush('control')">
+        <div class="bento-icon badge-control">🎛️</div>
+        <div class="bento-info">
+          <div class="bento-title">Cluster</div>
+          <div class="bento-sub">Health & restart</div>
+        </div>
+      </div>
+
+      <!-- Tile 4: Soul & Mind -->
+      <div class="bento-tile touchable" onclick="navigatePush('soul')">
+        <div class="bento-icon badge-soul">🧠</div>
+        <div class="bento-info">
+          <div class="bento-title">Soul</div>
+          <div class="bento-sub">Directives & voice</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       PAGE 2: CHAT ARENA
+       ═══════════════════════════════════════════════════════════════ -->
+  <section class="page" id="page-chat">
+    <div class="top-nav">
+      <button class="back-btn touchable" onclick="navigatePop()">← Home</button>
+      <div class="page-title">Chat Arena</div>
+      <button class="action-icon-btn touchable" onclick="startVoiceCall()" title="Call Yuna">📞</button>
+    </div>
+
+    <div class="chat-stream" id="chatStream">
+      <div class="chat-bubble bubble-yuna">
+        Hello! I'm Yuna. How's your day going?
+      </div>
+    </div>
+
+    <div class="chat-composer">
+      <input type="text" id="chatInput" class="composer-input" placeholder="Message Yuna..." autocomplete="off">
+      <button class="composer-btn touchable" id="chatMicBtn" onclick="triggerDictation()" title="Voice input">🎙️</button>
+      <button class="composer-btn touchable btn-send-active" id="chatSendBtn" onclick="sendChatMessage()" title="Send">➤</button>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       PAGE 3: LIVE VOICE CALL STAGE
+       ═══════════════════════════════════════════════════════════════ -->
+  <section class="page" id="page-call">
+    <div class="top-nav">
+      <button class="back-btn touchable" onclick="endVoiceCall(); navigatePop();">← Home</button>
+      <div class="page-title">Voice Stage</div>
+      <div class="island-status-pill" style="padding: 4px 10px; font-size: 11px;">
+        <span class="online-dot"></span>
+        <span id="callStatusText">Listening</span>
+      </div>
+    </div>
+
+    <div class="call-stage">
+      <div class="call-sphere" id="callSphere">🌸</div>
+      <canvas id="callCanvas" class="call-canvas" width="280" height="48"></canvas>
+      <div class="call-subtitles">
+        <div class="speaker-tag" id="subSpeaker">Yuna</div>
+        <div class="subtitle-body" id="subBody">I'm listening. Speak anytime!</div>
+      </div>
+    </div>
+
+    <div class="call-docks">
+      <button class="call-dock-btn touchable" id="btnToggleMic" onclick="toggleCallMic()" title="Mute Mic">🎙️</button>
+      <button class="call-dock-btn btn-end-call touchable" onclick="endVoiceCall(); navigatePop();" title="End Call">📵</button>
+      <button class="call-dock-btn touchable" id="btnToggleSpeaker" onclick="toggleCallSpeaker()" title="Mute Speaker">🔊</button>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       PAGE 4: CLUSTER CONTROL
+       ═══════════════════════════════════════════════════════════════ -->
+  <section class="page" id="page-control">
+    <div class="top-nav">
+      <button class="back-btn touchable" onclick="navigatePop()">← Home</button>
+      <div class="page-title">Cluster Control</div>
+      <button class="action-icon-btn touchable" onclick="loadClusterVitals()" title="Refresh">🔄</button>
+    </div>
+
+    <div class="ctrl-group">
+      <div class="group-title">Server Health & Metrics</div>
+      <div class="vitals-2col">
+        <div class="vital-box">
+          <div class="v-label">Active Entity</div>
+          <div class="v-val">Yuna (bot_ek0ldel3)</div>
+        </div>
+        <div class="vital-box">
+          <div class="v-label">Endpoint</div>
+          <div class="v-val">127.0.0.1:5000</div>
+        </div>
+        <div class="vital-box">
+          <div class="v-label">Status</div>
+          <div class="v-val" style="color: var(--yuna-green);" id="vitalStatus">Running</div>
+        </div>
+        <div class="vital-box">
+          <div class="v-label">Uptime</div>
+          <div class="v-val" id="vitalUptime">Active</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <div class="group-title">Quick Actions</div>
+      <div class="actions-row">
+        <button class="ctrl-btn btn-restart-accent touchable" onclick="triggerRestart()">⚡ Hard Restart</button>
+        <button class="ctrl-btn touchable" onclick="clearChatHistory()">🗑️ Clear Chat</button>
+      </div>
+    </div>
+
+    <div class="ctrl-group" style="flex: 1;">
+      <div class="group-title">Cluster Console Log</div>
+      <div class="console-terminal" id="consoleBox">[System] Yuna Companion OS online.
+[Network] Connected to 127.0.0.1:5000.</div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       PAGE 5: SOUL & PERSONA
+       ═══════════════════════════════════════════════════════════════ -->
+  <section class="page" id="page-soul">
+    <div class="top-nav">
+      <button class="back-btn touchable" onclick="navigatePop()">← Home</button>
+      <div class="page-title">Soul & Mind</div>
+      <div style="width: 36px;"></div>
+    </div>
+
+    <div class="soul-field">
+      <label class="soul-label">Persona Directives & Instructions</label>
+      <textarea id="soulDirectives" class="soul-input-area" placeholder="Define how Yuna speaks, behaves, and remembers..."></textarea>
+    </div>
+
+    <div class="soul-field">
+      <label class="soul-label">Voice Synthesis Engine</label>
+      <select id="soulVoiceEngine" class="soul-dropdown">
+        <option value="android">Native Android TTS (Low Latency)</option>
+        <option value="edge">Edge Neural TTS (Natural Cloud Voice)</option>
+        <option value="groq">Groq High-Speed TTS</option>
+        <option value="webspeech">Browser WebSpeech Fallback</option>
+      </select>
+    </div>
+
+    <div class="soul-field" style="margin-top: 10px;">
+      <button class="save-soul-btn touchable" onclick="saveSoulConfig()">Save Soul Settings</button>
+    </div>
+  </section>
+
+</div>
+
+<div class="toast-pill" id="toastPill">Notification</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   3D LAYER STACK NAVIGATION ENGINE (GUARANTEED TRANSITIONS)
+   ═══════════════════════════════════════════════════════════════════ */
+let pageStack = ['home'];
+let isNavigating = false;
+
+function showToast(msg) {
+  const t = document.getElementById('toastPill');
+  if (!t) return;
+  t.innerText = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+function navigatePush(targetPage) {
+  const currentId = pageStack[pageStack.length - 1];
+  if (isNavigating || targetPage === currentId) return;
+
+  const currentEl = document.getElementById('page-' + currentId);
+  const targetEl = document.getElementById('page-' + targetPage);
+  if (!targetEl || !currentEl) return;
+
+  if (window.haptic) window.haptic('tick');
+
+  isNavigating = true;
+  pageStack.push(targetPage);
+
+  // Transition parent page to receded left position
+  currentEl.classList.remove('page-active');
+  currentEl.classList.add('page-receded');
+
+  // Transition target page into viewport from right
+  targetEl.classList.remove('page-receded');
+  targetEl.classList.add('page-active');
+
+  setTimeout(() => {
+    isNavigating = false;
+    onPageOpened(targetPage);
+  }, 380);
+
+  try {
+    history.pushState({ page: targetPage }, '', '#' + targetPage);
+  } catch(e) {}
+}
+
+function navigatePop() {
+  if (isNavigating || pageStack.length <= 1) return;
+
+  const poppedId = pageStack.pop();
+  const prevId = pageStack[pageStack.length - 1];
+
+  const poppedEl = document.getElementById('page-' + poppedId);
+  const prevEl = document.getElementById('page-' + prevId);
+  if (!poppedEl || !prevEl) return;
+
+  if (window.haptic) window.haptic('tick');
+
+  isNavigating = true;
+
+  // Slide current page off to the right
+  poppedEl.classList.remove('page-active', 'page-receded');
+
+  // Restore previous page from receded left to active
+  prevEl.classList.remove('page-receded');
+  prevEl.classList.add('page-active');
+
+  setTimeout(() => {
+    isNavigating = false;
+    onPageOpened(prevId);
+  }, 380);
+}
+
+// Android Hardware Back Button integration
+window.addEventListener('popstate', () => {
+  if (pageStack.length > 1) {
+    navigatePop();
+  }
+});
+
+// Left Edge Swipe to Go Back
+let touchStartX = 0;
+let touchStartY = 0;
+window.addEventListener('touchstart', (e) => {
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+}, { passive: true });
+
+window.addEventListener('touchend', (e) => {
+  if (pageStack.length <= 1) return;
+  const deltaX = e.changedTouches[0].clientX - touchStartX;
+  const deltaY = Math.abs(e.changedTouches[0].clientY - touchStartY);
+  if (touchStartX < 50 && deltaX > 75 && deltaY < 80) {
+    navigatePop();
+  }
+}, { passive: true });
+
+function onPageOpened(pageId) {
+  if (pageId === 'control') loadClusterVitals();
+  if (pageId === 'soul') loadSoulConfig();
+  if (pageId === 'chat') {
+    const input = document.getElementById('chatInput');
+    if (input) setTimeout(() => input.focus(), 250);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PAGE 1: HOME THOUGHT CYCLE
+   ═══════════════════════════════════════════════════════════════════ */
+const thoughts = [
+  '"Always by your side."',
+  '"Ready to chat or voice call anytime!"',
+  '"Cluster status is healthy and nominal."',
+  '"Need help with anything today?"'
+];
+let tIdx = 0;
+setInterval(() => {
+  tIdx = (tIdx + 1) % thoughts.length;
+  const el = document.getElementById('heroBubble');
+  if (el) el.innerText = thoughts[tIdx];
+}, 7000);
+
+/* ═══════════════════════════════════════════════════════════════════
+   PAGE 2: CHAT ARENA
+   ═══════════════════════════════════════════════════════════════════ */
+const chatInput = document.getElementById('chatInput');
+chatInput?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    sendChatMessage();
+  }
+});
+
+async function sendChatMessage() {
+  const input = document.getElementById('chatInput');
+  const text = input?.value?.trim();
+  if (!text) return;
+
+  input.value = '';
+  appendChatBubble('user', text);
+
+  const placeholderId = 'typing_' + Date.now();
+  appendChatBubble('yuna', '...', placeholderId);
+
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: text,
+        bot_id: 'bot_ek0ldel3'
+      })
+    });
+    const data = await res.json();
+    const reply = data.reply || (data.ok ? "I'm listening!" : "Couldn't reach Yuna.");
+    updateChatBubble(placeholderId, reply);
+  } catch(e) {
+    updateChatBubble(placeholderId, "Connection error: Unable to reach cluster.");
+  }
+}
+
+function appendChatBubble(role, text, id = null) {
+  const box = document.getElementById('chatStream');
+  if (!box) return;
+  const bubble = document.createElement('div');
+  bubble.className = `chat-bubble bubble-${role}`;
+  if (id) bubble.id = id;
+  bubble.innerText = text;
+  box.appendChild(bubble);
+  box.scrollTop = box.scrollHeight;
+}
+
+function updateChatBubble(id, text) {
+  const bubble = document.getElementById(id);
+  if (bubble) {
+    bubble.innerText = text;
+    const box = document.getElementById('chatStream');
+    if (box) box.scrollTop = box.scrollHeight;
+  }
+}
+
+function triggerDictation() {
+  if (window.triggerNativeVoiceInput && window.triggerNativeVoiceInput()) {
+    showToast('Listening via Android...');
+    return;
+  }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (SR) {
+    const r = new SR();
+    r.lang = 'en-US';
+    r.onresult = (e) => {
+      const txt = e.results[0][0].transcript;
+      const input = document.getElementById('chatInput');
+      if (input && txt) input.value = (input.value ? input.value + ' ' : '') + txt;
+    };
+    r.start();
+    showToast('Listening...');
+  } else {
+    showToast('Speech recognition unavailable');
+  }
+}
+
+function clearChatHistory() {
+  const box = document.getElementById('chatStream');
+  if (box) {
+    box.innerHTML = '<div class="chat-bubble bubble-yuna">Chat history cleared. How can I help you?</div>';
+    showToast('Chat history cleared');
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PAGE 3: LIVE VOICE CALL STAGE & HIGH-PERFORMANCE VAD PIPELINE
+   ═══════════════════════════════════════════════════════════════════ */
+let isCallActive = false;
+let isMicMuted = false;
+let isSpeakerMuted = false;
+let audioContext = null;
+let mediaStream = null;
+let micAnalyser = null;
+let micAudioData = null;
+let mediaRecorder = null;
+let preRollBuffer = [];
+let speechTurnChunks = [];
+
+let vadAnimId = null;
+let noiseFloor = 0.008;
+let isUserSpeaking = false;
+let speechStartTime = 0;
+let lastSpeechTime = 0;
+let liveTranscript = '';
+let isTurnRunning = false;
+let isBotSpeaking = false;
+let activeAudioPlayer = null;
+
+async function startVoiceCall() {
+  navigatePush('call');
+  if (isCallActive) return;
+
+  isCallActive = true;
+  preRollBuffer = [];
+  speechTurnChunks = [];
+  document.getElementById('callStatusText').innerText = 'Connecting...';
+  document.getElementById('subSpeaker').innerText = 'Yuna';
+  document.getElementById('subBody').innerText = "Connecting to audio stream...";
+
+  try {
+    mediaStream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+    });
+
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const source = audioContext.createMediaStreamSource(mediaStream);
+    micAnalyser = audioContext.createAnalyser();
+    micAnalyser.fftSize = 128;
+    micAudioData = new Uint8Array(micAnalyser.frequencyBinCount);
+    source.connect(micAnalyser);
+
+    // Setup MediaRecorder with rolling pre-roll chunk buffer
+    try {
+      mediaRecorder = new MediaRecorder(mediaStream);
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          if (!isUserSpeaking) {
+            // Keep only last 3 slices (~600ms) as pre-roll buffer
+            preRollBuffer.push(e.data);
+            if (preRollBuffer.length > 3) preRollBuffer.shift();
+          } else {
+            // Actively collecting speech for this specific turn
+            speechTurnChunks.push(e.data);
+          }
+        }
+      };
+      mediaRecorder.start(200); // 200ms slice
+    } catch(e) {}
+
+    setupSTTEngines();
+    startVisualizerLoop();
+
+    document.getElementById('callStatusText').innerText = 'Listening';
+    document.getElementById('subBody').innerText = "I'm listening. Speak anytime!";
+  } catch(err) {
+    console.error("Mic error:", err);
+    document.getElementById('callStatusText').innerText = 'Mic Blocked';
+    document.getElementById('subBody').innerText = "Microphone access was denied. Please allow microphone permissions.";
+  }
+}
+
+function setupSTTEngines() {
+  window.addEventListener('native_speech_result', onNativeSpeechResult);
+
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (SR) {
+    try {
+      const recognizer = new SR();
+      recognizer.continuous = true;
+      recognizer.interimResults = true;
+      recognizer.lang = 'en-US';
+      recognizer.onresult = (e) => {
+        let interim = '';
+        let finalPart = '';
+        for (let i = 0; i < e.results.length; i++) {
+          if (e.results[i].isFinal) finalPart += e.results[i][0].transcript + ' ';
+          else interim += e.results[i][0].transcript;
+        }
+        const text = (finalPart + ' ' + interim).trim();
+        if (text) {
+          liveTranscript = text;
+          lastSpeechTime = Date.now();
+          document.getElementById('callStatusText').innerText = 'Hearing you...';
+          document.getElementById('subSpeaker').innerText = 'You';
+          document.getElementById('subBody').innerText = text;
+        }
+      };
+      recognizer.start();
+    } catch(e) {}
+  }
+}
+
+function onNativeSpeechResult(e) {
+  const text = e.detail;
+  if (text) {
+    liveTranscript = text;
+    lastSpeechTime = Date.now();
+    document.getElementById('callStatusText').innerText = 'Hearing you...';
+    document.getElementById('subSpeaker').innerText = 'You';
+    document.getElementById('subBody').innerText = text;
+  }
+}
+
+function endVoiceCall() {
+  isCallActive = false;
+  if (vadAnimId) {
+    cancelAnimationFrame(vadAnimId);
+    vadAnimId = null;
+  }
+  if (mediaStream) {
+    mediaStream.getTracks().forEach(t => t.stop());
+    mediaStream = null;
+  }
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    try { mediaRecorder.stop(); } catch(e){}
+  }
+  if (audioContext) {
+    try { audioContext.close(); } catch(e){}
+    audioContext = null;
+  }
+  if (activeAudioPlayer) {
+    try { activeAudioPlayer.pause(); } catch(e){}
+    activeAudioPlayer = null;
+  }
+  if (window.speechSynthesis) {
+    window.speechSynthesis.cancel();
+  }
+  window.removeEventListener('native_speech_result', onNativeSpeechResult);
+}
+
+function startVisualizerLoop() {
+  const canvas = document.getElementById('callCanvas');
+  const ctx = canvas?.getContext('2d');
+
+  function loop() {
+    if (!isCallActive) return;
+    vadAnimId = requestAnimationFrame(loop);
+
+    let rms = 0;
+    if (micAnalyser && micAudioData) {
+      micAnalyser.getByteFrequencyData(micAudioData);
+      let sum = 0;
+      for (let i = 0; i < micAudioData.length; i++) sum += micAudioData[i];
+      rms = (sum / micAudioData.length) / 255.0;
+    }
+
+    if (ctx && canvas) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const bars = 16;
+      const w = 4;
+      const gap = 8;
+      const startX = (canvas.width - (bars * (w + gap))) / 2;
+      for (let i = 0; i < bars; i++) {
+        const val = micAudioData ? micAudioData[i * 2] / 255.0 : 0.05;
+        const h = Math.max(4, val * 38);
+        const x = startX + i * (w + gap);
+        const y = (canvas.height - h) / 2;
+        ctx.fillStyle = isBotSpeaking ? '#bd93f9' : '#ff79c6';
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(x, y, w, h, 2);
+        else ctx.rect(x, y, w, h);
+        ctx.fill();
+      }
+    }
+
+    const sphere = document.getElementById('callSphere');
+    if (sphere) {
+      const scale = isBotSpeaking ? 1.08 + Math.sin(Date.now() / 150) * 0.04 : 1.0 + rms * 0.25;
+      sphere.style.transform = `scale(${scale})`;
+    }
+
+    evaluateVAD(rms);
+  }
+  loop();
+}
+
+function evaluateVAD(rms) {
+  if (!isCallActive || isMicMuted || isTurnRunning) return;
+  const now = Date.now();
+
+  // Noise floor calibration (strictly frozen during speech)
+  if (rms < noiseFloor) {
+    noiseFloor = Math.max(0.003, noiseFloor * 0.9 + rms * 0.1);
+  } else if (!isUserSpeaking && rms < 0.02) {
+    noiseFloor = Math.min(0.018, noiseFloor * 0.99 + rms * 0.01);
+  }
+
+  const threshold = Math.max(0.016, noiseFloor * 1.6 + 0.006);
+  const isSpeakingNow = rms > threshold;
+
+  // Instant barge-in: user talking interrupts bot reply
+  if (isSpeakingNow && isBotSpeaking) {
+    interruptBot();
+    return;
+  }
+
+  if (isSpeakingNow) {
+    if (!isUserSpeaking) {
+      isUserSpeaking = true;
+      speechStartTime = now;
+      // Initialize speech turn with pre-roll chunks
+      speechTurnChunks = [...preRollBuffer];
+      preRollBuffer = [];
+      document.getElementById('callStatusText').innerText = 'Hearing you...';
+    }
+    lastSpeechTime = now;
+  } else if (isUserSpeaking) {
+    const silence = now - lastSpeechTime;
+    // 1000ms conversational silence hangover
+    if (silence >= 1000) {
+      isUserSpeaking = false;
+      const text = liveTranscript.trim();
+      liveTranscript = '';
+      if (text) {
+        speechTurnChunks = [];
+        processVoiceTurn(text);
+      } else {
+        // Transcribe only this specific utterance's chunks (1-3 seconds)
+        transcribeTurnAudio();
+      }
+    }
+  }
+}
+
+function interruptBot() {
+  if (activeAudioPlayer) {
+    try { activeAudioPlayer.pause(); } catch(e){}
+    activeAudioPlayer = null;
+  }
+  if (window.speechSynthesis) {
+    window.speechSynthesis.cancel();
+  }
+  isBotSpeaking = false;
+  isTurnRunning = false;
+  document.getElementById('callStatusText').innerText = 'Listening';
+}
+
+async function transcribeTurnAudio() {
+  if (speechTurnChunks.length === 0) {
+    document.getElementById('callStatusText').innerText = 'Listening';
+    return;
+  }
+  const chunksToTranscribe = [...speechTurnChunks];
+  speechTurnChunks = [];
+
+  const blob = new Blob(chunksToTranscribe, { type: 'audio/webm' });
+  const reader = new FileReader();
+  reader.onloadend = async () => {
+    try {
+      const b64 = reader.result;
+      const res = await fetch('/api/stt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ audio: b64, filename: 'utterance.webm' })
+      });
+      const data = await res.json();
+      if (data.ok && data.text) {
+        processVoiceTurn(data.text);
+      } else {
+        document.getElementById('callStatusText').innerText = 'Listening';
+      }
+    } catch(e) {
+      document.getElementById('callStatusText').innerText = 'Listening';
+    }
+  };
+  reader.readAsDataURL(blob);
+}
+
+async function processVoiceTurn(text) {
+  if (isTurnRunning || !text) return;
+  isTurnRunning = true;
+  document.getElementById('callStatusText').innerText = 'Thinking...';
+  document.getElementById('subSpeaker').innerText = 'You';
+  document.getElementById('subBody').innerText = text;
+
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: text,
+        bot_id: 'bot_ek0ldel3',
+        system_prompt: "You are Yuna in a live interactive voice call. Reply in 1 to 2 spoken sentences without any markdown, stage directions, or roleplay brackets."
+      })
+    });
+    const data = await res.json();
+    let reply = data.reply || "I hear you!";
+    reply = reply.replace(/\[[^\]]+\]/g, '').replace(/\*[^*]+\*/g, '').replace(/\([^)]+\)/g, '').trim();
+    speakVoiceReply(reply);
+  } catch(e) {
+    isTurnRunning = false;
+    document.getElementById('callStatusText').innerText = 'Listening';
+  }
+}
+
+async function speakVoiceReply(text) {
+  if (isSpeakerMuted) {
+    isTurnRunning = false;
+    document.getElementById('callStatusText').innerText = 'Listening';
+    return;
+  }
+
+  isBotSpeaking = true;
+  document.getElementById('callStatusText').innerText = 'Yuna Speaking...';
+  document.getElementById('subSpeaker').innerText = 'Yuna';
+  document.getElementById('subBody').innerText = text;
+
+  const onComplete = () => {
+    isBotSpeaking = false;
+    isTurnRunning = false;
+    document.getElementById('callStatusText').innerText = 'Listening';
+  };
+
+  if (window.speakWithAndroidTTS && window.speakWithAndroidTTS(text)) {
+    setTimeout(onComplete, Math.max(1500, text.length * 65));
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: text, provider: 'auto' })
+    });
+    if (res.ok) {
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      activeAudioPlayer = new Audio(url);
+      activeAudioPlayer.onended = () => {
+        URL.revokeObjectURL(url);
+        onComplete();
+      };
+      activeAudioPlayer.onerror = () => onComplete();
+      activeAudioPlayer.play();
+      return;
+    }
+  } catch(e) {}
+
+  if (window.speechSynthesis) {
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.onend = onComplete;
+    utter.onerror = onComplete;
+    window.speechSynthesis.speak(utter);
+    return;
+  }
+
+  onComplete();
+}
+
+function toggleCallMic() {
+  isMicMuted = !isMicMuted;
+  const btn = document.getElementById('btnToggleMic');
+  if (btn) {
+    btn.classList.toggle('muted', isMicMuted);
+    btn.innerText = isMicMuted ? '🔇' : '🎙️';
+  }
+  showToast(isMicMuted ? 'Mic Muted' : 'Mic Active');
+}
+
+function toggleCallSpeaker() {
+  isSpeakerMuted = !isSpeakerMuted;
+  const btn = document.getElementById('btnToggleSpeaker');
+  if (btn) {
+    btn.classList.toggle('muted', isSpeakerMuted);
+    btn.innerText = isSpeakerMuted ? '🔈' : '🔊';
+  }
+  showToast(isSpeakerMuted ? 'Speaker Muted' : 'Speaker Active');
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PAGE 4: CLUSTER CONTROL
+   ═══════════════════════════════════════════════════════════════════ */
+async function loadClusterVitals() {
+  try {
+    const res = await fetch('/api/bots');
+    if (res.ok) {
+      const data = await res.json();
+      document.getElementById('vitalStatus').innerText = 'Online';
+      document.getElementById('vitalStatus').style.color = 'var(--yuna-green)';
+      appendLog('[Vitals] Bot Cluster online. Active: ' + (data.active_id || 'Yuna'));
+      showToast('Vitals updated');
+    }
+  } catch(e) {
+    appendLog('[Error] Could not reach /api/bots');
+  }
+}
+
+async function triggerRestart() {
+  if (!confirm('Hard restart Yuna cluster now?')) return;
+  appendLog('[Restart] Sending restart signal to cluster...');
+  showToast('Restarting cluster...');
+  try {
+    await fetch('/api/restart', { method: 'POST' });
+    appendLog('[Restart] Signal acknowledged. Reconnecting in 3s...');
+    setTimeout(loadClusterVitals, 3000);
+  } catch(e) {
+    appendLog('[Restart] Signal sent.');
+  }
+}
+
+function appendLog(line) {
+  const box = document.getElementById('consoleBox');
+  if (box) {
+    const time = new Date().toLocaleTimeString();
+    box.innerText += `\n[${time}] ${line}`;
+    box.scrollTop = box.scrollHeight;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PAGE 5: SOUL & PERSONA
+   ═══════════════════════════════════════════════════════════════════ */
+async function loadSoulConfig() {
+  try {
+    const res = await fetch('/api/bots/bot_ek0ldel3/config');
+    if (res.ok) {
+      const data = await res.json();
+      const cfg = data.config || {};
+      const el = document.getElementById('soulDirectives');
+      if (el && cfg.system_prompt) el.value = cfg.system_prompt;
+      showToast('Soul config loaded');
+    }
+  } catch(e) {}
+}
+
+async function saveSoulConfig() {
+  const prompt = document.getElementById('soulDirectives')?.value || '';
+  const voice = document.getElementById('soulVoiceEngine')?.value || 'android';
+
+  try {
+    await fetch('/api/bots/bot_ek0ldel3/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ system_prompt: prompt, tts_provider: voice })
+    });
+    showToast('Soul directives saved!');
+    appendLog('[Soul] Directives and voice saved successfully.');
+  } catch(e) {
+    showToast('Saved locally');
+  }
+}
+</script>
+</body>
+</html>
