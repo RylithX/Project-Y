@@ -4328,17 +4328,15 @@ async function setActiveBotPersona(botId) {
 window.setActiveBotPersona = setActiveBotPersona;
 
 function openStudioChatWithBot(botId) {
-  if (typeof allBotsList !== 'undefined' && allBotsList) {
-    const found = allBotsList.find(b => b.id === botId);
-    if (found) {
-      selectBot(found);
-      switchView('chat');
-      return;
-    }
-  }
-  switchView('chat');
+  startChatWith(botId);
 }
 window.openStudioChatWithBot = openStudioChatWithBot;
+
+function selectBot(botOrId) {
+  const bid = (botOrId && typeof botOrId === 'object') ? botOrId.id : botOrId;
+  startChatWith(bid);
+}
+window.selectBot = selectBot;
 
 async function toggleCompanionWorkerUI() {
   try {
@@ -4658,6 +4656,8 @@ let activeSessionId = 'sess_default';
 let activeHeldMsgIndex = null;
 let holdTimer = null;
 let attachedImageData = null;
+let activeInspectedNode = null;
+let watchTogetherVideoInfo = null;
 
 // User Profile Data
 let userPfp = localStorage.getItem('bot_saas_user_pfp') || null;
@@ -6863,20 +6863,25 @@ loadServerBots();
 
 /* CHAT ARENA LOGIC */
 async function startChatWith(botId) {
-  activePersona = allBotsList.find(b => b.id === botId) || allBotsList[0];
-  const isCompanion = activePersona.id === 'companion' || activePersona.is_companion;
+  if (typeof allBotsList !== 'undefined' && Array.isArray(allBotsList) && allBotsList.length > 0) {
+    activePersona = allBotsList.find(b => b.id === botId) || allBotsList[0];
+  }
+  if (!activePersona) {
+    activePersona = { id: botId || 'companion', name: (botId === 'companion' ? 'Companion' : (botId || 'Assistant')), role: 'Companion' };
+  }
+  const isCompanion = !!(activePersona && (activePersona.id === 'companion' || activePersona.is_companion || (activePersona.name && (activePersona.name.toLowerCase().includes('k-1') || activePersona.name.toLowerCase().includes('companion')))));
 
   const compBtn = $('compDedicatedRouterHeaderBtn');
   if (compBtn) compBtn.style.display = isCompanion ? 'inline-flex' : 'none';
 
   if ($('charName')) {
-    $('charName').innerHTML = isK1
+    $('charName').innerHTML = isCompanion
       ? `<span style="color:#ff79c6;">🎀 ${escapeHtml(activePersona.name)}</span> <span style="font-size:9.5px; opacity:0.85; font-weight:normal; background:rgba(255,121,198,0.18); color:#ff79c6; padding:2px 7px; border-radius:4px; margin-left:6px; letter-spacing:0.5px;">COMPANION ROOM</span>`
       : escapeHtml(activePersona.name);
   }
 
   // Atomically sync active bot switch to backend (only for standalone main bots, not companion room)
-  if (!isCompanion) {
+  if (!isCompanion && activePersona.id) {
     try {
       fetch('/api/bots/switch', {
         method: 'POST',
@@ -6886,56 +6891,70 @@ async function startChatWith(botId) {
     } catch(e) {}
   }
 
-  try {
-    fetch('/api/bots/' + encodeURIComponent(activePersona.id) + '/config')
-      .then(r => r.json())
-      .then(d => {
-        if (d && d.ok && d.config) {
-          activePersona.config = d.config;
-          if (d.personality) {
-            activePersona.personality = d.personality;
-            activePersona.prompt = d.personality;
+  if (activePersona.id) {
+    try {
+      fetch('/api/bots/' + encodeURIComponent(activePersona.id) + '/config')
+        .then(r => r.json())
+        .then(d => {
+          if (d && d.ok && d.config) {
+            activePersona.config = d.config;
+            if (d.personality) {
+              activePersona.personality = d.personality;
+              activePersona.prompt = d.personality;
+            }
+            if (d.config.tts_provider) activePersona.tts_provider = d.config.tts_provider;
+            if (d.config.fish_voice_id) activePersona.fish_voice_id = d.config.fish_voice_id;
           }
-          if (d.config.tts_provider) activePersona.tts_provider = d.config.tts_provider;
-          if (d.config.fish_voice_id) activePersona.fish_voice_id = d.config.fish_voice_id;
-        }
-      }).catch(() => {});
-  } catch(e) {}
-
-  // Set active session for this bot
-  activeSessionId = localStorage.getItem(`bot_saas_active_session_${activePersona.id}`);
-  if(!activeSessionId) {
-    activeSessionId = 'sess_' + activePersona.id + '_' + Date.now();
-    localStorage.setItem(`bot_saas_active_session_${activePersona.id}`, activeSessionId);
+        }).catch(() => {});
+    } catch(e) {}
   }
 
-  if(!chatMessages[activePersona.id]) {
-    let greeting = activePersona.greeting || ("*looks up and smiles* Hello, I am " + activePersona.name + ". What would you like to talk about?");
-    chatMessages[activePersona.id] = [{ role: "assistant", text: greeting }];
+  // Set active session for this bot
+  const botKey = activePersona.id || 'default';
+  activeSessionId = localStorage.getItem(`bot_saas_active_session_${botKey}`);
+  if(!activeSessionId) {
+    activeSessionId = 'sess_' + botKey + '_' + Date.now();
+    localStorage.setItem(`bot_saas_active_session_${botKey}`, activeSessionId);
+  }
+
+  if (typeof chatMessages !== 'undefined') {
+    if(!chatMessages[botKey]) {
+      let greeting = activePersona.greeting || ("*looks up and smiles* Hello, I am " + (activePersona.name || 'Assistant') + ". What would you like to talk about?");
+      chatMessages[botKey] = [{ role: "assistant", text: greeting }];
+    }
   }
 
   // Close any open memory inspection panels
-  closeMemDetail();
-  closeMemMiniWindow();
+  if (typeof closeMemDetail === 'function') {
+    try { closeMemDetail(); } catch(e) {}
+  }
+  if (typeof closeMemMiniWindow === 'function') {
+    try { closeMemMiniWindow(); } catch(e) {}
+  }
   activeInspectedNode = null;
 
   // Sync active companion into Theater HUD
   if ($('theaterBotBadge')) {
-    if (watchTogetherVideoInfo && watchTogetherVideoInfo.title) {
+    if (typeof watchTogetherVideoInfo !== 'undefined' && watchTogetherVideoInfo && watchTogetherVideoInfo.title) {
       $('theaterBotBadge').innerText = `Co-Watching with ${activePersona.name}: ${watchTogetherVideoInfo.title}`;
     } else {
       $('theaterBotBadge').innerText = `Co-Watching with ${activePersona.name}`;
     }
   }
-  if ($('theaterReactionText')) {
-    typewriteText('theaterReactionText', `*settles in beside you* Ready to watch and listen together!`);
+  if ($('theaterReactionText') && typeof typewriteText === 'function') {
+    try {
+      typewriteText('theaterReactionText', `*settles in beside you* Ready to watch and listen together!`);
+    } catch(e) {}
   }
 
   activeHeldMsgIndex = null;
-  removeAttachedImage();
-  switchView('chat');
-  renderChatBox();
+  if (typeof removeAttachedImage === 'function') {
+    try { removeAttachedImage(); } catch(e) {}
+  }
+  if (typeof switchView === 'function') switchView('chat');
+  if (typeof renderChatBox === 'function') renderChatBox();
 }
+window.startChatWith = startChatWith;
 
 function renderChatBox() {
   const box = $('chatBox');
@@ -7695,7 +7714,7 @@ let memNodes = [];
 let memConnections = [];
 let memAnimationId = null;
 
-let activeInspectedNode = null;
+activeInspectedNode = null;
 let memGrowthProgress = 0;
 let memGrowthStartTime = 0;
 let memThemeAccent = '#e85d5d';
@@ -10542,7 +10561,7 @@ function typewriteText(elementId, text, speed = 16, onComplete = null) {
    WATCH TOGETHER THEATER: BULLETPROOF VIDEO LOADER & PLAYBACK SYNC
    -------------------------------------------------------------------------- */
 let watchTogetherCurrentVideo = null;
-let watchTogetherVideoInfo = null;
+watchTogetherVideoInfo = null;
 let watchTogetherChimeInterval = null;
 let theaterFrameClipBuffer = [];
 let theaterBufferInterval = null;
@@ -12749,6 +12768,8 @@ async function sendShowdownCoachMessage(e) {
   }
 }
 window.sendShowdownCoachMessage = sendShowdownCoachMessage;
+
+
 
 // Immediate Bootstrap of Studio Suite & Characters Matrix
 function bootstrapStudioSuite() {
