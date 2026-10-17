@@ -1,18 +1,12 @@
 
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Bot Control — Drafting Desk</title>
     <script>
     (function() {
-      // Early Theme Bootstrap to prevent light mode flash
-      try {
-        const savedTheme = localStorage.getItem('desk_theme') || 'dark';
-        document.documentElement.setAttribute('data-theme', savedTheme);
-      } catch(e) {}
-
       const isAndroidApp = window.location.hostname === 'appassets.androidplatform.net' || window.location.protocol === 'file:';
       if (isAndroidApp) {
         const originalFetch = window.fetch;
@@ -36,80 +30,67 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        :root, :root[data-theme="light"] {
-            --bg: #e8e8e4; --bg-warm: #e2e2dc; --paper: rgba(252, 252, 248, 0.96); --paper-solid: #fafaf6;
-            --paper-header: #f5f5f0; --paper-sidebar: #f0f0ea; --paper-code: #fdfdf9;
-            --paper-border: rgba(0, 0, 0, 0.08); --input-bg: rgba(0, 0, 0, 0.03); --input-border: rgba(0, 0, 0, 0.12);
-            --ink: #2a2a2a; --ink-muted: #6b6b6b; --ink-faint: #9a9a9a; --accent-sage: #6b8a6b;
-            --accent-steel: #506a85; --accent-clay: #966e52; --accent-gold: #a67c38;
-            --grid: rgba(100, 130, 100, 0.10); --shadow-soft: rgba(0,0,0,0.08);
-            --shadow-medium: rgba(0,0,0,0.14); --shadow-deep: rgba(0,0,0,0.22);
-            --backdrop-bg: rgba(230, 230, 224, 0.7);
+        :root {
+            --bg: #e8e8e4; --bg-warm: #e2e2dc; --paper: rgba(252, 252, 248, 0.78); --paper-solid: #fafaf6;
+            --ink: #2a2a2a; --ink-muted: #6b6b6b; --ink-faint: #9a9a9a; --accent-sage: #8a9a8a;
+            --accent-steel: #7a8a9a; --accent-clay: #b8a898; --accent-gold: #c4a882;
+            --grid: rgba(100, 130, 100, 0.08); --shadow-soft: rgba(0,0,0,0.06);
+            --shadow-medium: rgba(0,0,0,0.10); --shadow-deep: rgba(0,0,0,0.18);
             --transition-smooth: cubic-bezier(0.25, 0.46, 0.45, 0.94);
             --transition-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
             --transition-dramatic: cubic-bezier(0.16, 1, 0.3, 1);
         }
-        :root[data-theme="dark"] {
-            --bg: #0d1117; --bg-warm: #131722; --paper: rgba(22, 27, 39, 0.96); --paper-solid: #161b26;
-            --paper-header: #1c2230; --paper-sidebar: #131822; --paper-code: #141824;
-            --paper-border: rgba(255, 255, 255, 0.10); --input-bg: rgba(255, 255, 255, 0.04); --input-border: rgba(255, 255, 255, 0.14);
-            --ink: #f0f3f8; --ink-muted: #a5b0c2; --ink-faint: #737f94; --accent-sage: #56d364;
-            --accent-steel: #58a6ff; --accent-clay: #bc8cff; --accent-gold: #e3b341;
-            --grid: rgba(255, 255, 255, 0.06); --shadow-soft: rgba(0,0,0,0.35);
-            --shadow-medium: rgba(0,0,0,0.55); --shadow-deep: rgba(0,0,0,0.85);
-            --backdrop-bg: rgba(5, 8, 15, 0.78);
-        }
-        body { width: 100vw; height: 100vh; overflow: hidden; background: var(--bg); color: var(--ink); font-family: 'Inter', -apple-system, system-ui, sans-serif; position: relative; will-change: auto; transition: background 0.25s ease, color 0.25s ease; }
-        .desk-surface { position: fixed; inset: 0; pointer-events: none; z-index: 1; opacity: 0.4; background-image: linear-gradient(90deg, var(--grid) 1px, transparent 1px), linear-gradient(0deg, var(--grid) 1px, transparent 1px); background-size: 40px 40px; }
+        body { width: 100vw; height: 100vh; overflow: hidden; background: var(--bg); font-family: 'Inter', system-ui, sans-serif; position: relative; touch-action: none; will-change: auto; }
+        .desk-surface { position: fixed; inset: 0; pointer-events: none; z-index: 1; opacity: 0.3; background-image: linear-gradient(90deg, var(--grid) 1px, transparent 1px), linear-gradient(0deg, var(--grid) 1px, transparent 1px); background-size: 40px 40px; }
         .desk-vignette { position: fixed; inset: 0; pointer-events: none; z-index: 2; }
-        .editor-desk { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(82vw, 960px); height: min(72vh, 640px); background: var(--paper-solid); border-radius: 8px; box-shadow: 0 8px 32px var(--shadow-medium); z-index: 10; display: flex; flex-direction: column; overflow: hidden; transition: transform 0.35s ease, box-shadow 0.35s ease, background 0.25s ease; border: 1px solid var(--paper-border); will-change: transform; }
-        .editor-desk.pushed { transform: translate(-50%, -50%) scale(0.95); box-shadow: 0 2px 8px var(--shadow-soft); }
-        .editor-header { height: 44px; background: var(--paper-header); display: flex; align-items: center; padding: 0 16px; gap: 10px; border-bottom: 1px solid var(--paper-border); transition: background 0.25s ease; flex-shrink: 0; }
+        .editor-desk { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(82vw, 960px); height: min(72vh, 640px); background: var(--paper-solid); border-radius: 6px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); z-index: 10; display: flex; flex-direction: column; overflow: hidden; transition: transform 0.35s ease, box-shadow 0.35s ease; border: 1px solid rgba(0,0,0,0.06); will-change: transform; }
+        .editor-desk.pushed { transform: translate(-50%, -50%) scale(0.95); box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+        .editor-header { height: 44px; background: #f5f5f0; display: flex; align-items: center; padding: 0 18px; gap: 10px; border-bottom: 1px solid rgba(0,0,0,0.06); }
         .editor-dot { width: 10px; height: 10px; border-radius: 50%; }
-        .dot-red { background: #e06c75; } .dot-yellow { background: #e5c07b; } .dot-green { background: #98c379; }
-        .editor-title { margin-left: 6px; color: var(--ink-muted); font-size: 12px; font-weight: 600; letter-spacing: 0.3px; font-family: 'JetBrains Mono', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .dot-red { background: #d4a5a5; } .dot-yellow { background: #d4c4a5; } .dot-green { background: #a5c4a5; }
+        .editor-title { margin-left: 10px; color: var(--ink-muted); font-size: 12px; font-weight: 500; letter-spacing: 0.3px; font-family: 'JetBrains Mono', monospace; }
         .editor-body { flex: 1; display: flex; overflow: hidden; }
-        .editor-sidebar { width: 48px; background: var(--paper-sidebar); display: flex; flex-direction: column; align-items: center; padding-top: 14px; gap: 6px; border-right: 1px solid var(--paper-border); transition: background 0.25s ease; flex-shrink: 0; }
-        .sidebar-icon { width: 32px; height: 32px; border-radius: 7px; display: flex; align-items: center; justify-content: center; color: var(--ink-faint); font-size: 14px; cursor: pointer; transition: background 0.2s ease, transform 0.2s ease, color 0.2s ease; position: relative; }
-        .sidebar-icon:hover, .sidebar-icon.active { background: rgba(138, 154, 138, 0.22); color: var(--accent-sage); }
+        .editor-sidebar { width: 48px; background: #f0f0ea; display: flex; flex-direction: column; align-items: center; padding-top: 14px; gap: 6px; border-right: 1px solid rgba(0,0,0,0.05); }
+        .sidebar-icon { width: 32px; height: 32px; border-radius: 7px; display: flex; align-items: center; justify-content: center; color: var(--ink-faint); font-size: 14px; cursor: pointer; transition: background 0.2s ease, transform 0.2s ease; position: relative; }
+        .sidebar-icon:hover, .sidebar-icon.active { background: rgba(138, 154, 138, 0.15); color: var(--accent-sage); }
         .sidebar-icon.active::before { content: ''; position: absolute; left: -8px; top: 50%; transform: translateY(-50%); width: 3px; height: 16px; background: var(--accent-sage); border-radius: 0 2px 2px 0; }
-        .editor-code { flex: 1; padding: 20px 22px; font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 13px; line-height: 1.7; color: var(--ink); overflow-y: auto; background: var(--paper-code); transition: background 0.25s ease; }
-        .paper { position: fixed; background: var(--paper); border-radius: 8px; box-shadow: 0 6px 26px var(--shadow-medium); cursor: pointer; z-index: 20; transition: transform 0.3s ease, opacity 0.3s ease, background 0.25s ease; overflow: hidden; user-select: none; border: 1px solid var(--paper-border); will-change: transform; color: var(--ink); }
-        .paper-header { height: 38px; background: var(--paper-header); border-bottom: 1px solid var(--paper-border); display: flex; align-items: center; padding: 0 16px; font-size: 11px; font-weight: 600; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 1.5px; position: relative; z-index: 2; font-family: 'Inter', sans-serif; transition: background 0.25s ease; }
-        .paper-body { padding: 16px; opacity: 0; transition: opacity 0.2s ease 0.1s; position: relative; z-index: 2; height: calc(100% - 38px); overflow-y: auto; overflow-x: hidden; color: var(--ink); }
+        .editor-code { flex: 1; padding: 22px 24px; font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 13px; line-height: 1.7; color: var(--ink); overflow-y: auto; background: #fdfdf9; }
+        .paper { position: fixed; background: rgba(252, 252, 248, 0.96); border-radius: 6px; box-shadow: 0 4px 20px rgba(0,0,0,0.12); cursor: pointer; z-index: 20; transition: transform 0.3s ease, opacity 0.3s ease; overflow: hidden; user-select: none; border: 1px solid rgba(0,0,0,0.08); will-change: transform; }
+        .paper-header { height: 38px; background: #f2f2ec; border-bottom: 1px solid rgba(0,0,0,0.06); display: flex; align-items: center; padding: 0 16px; font-size: 11px; font-weight: 600; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 1.5px; position: relative; z-index: 2; font-family: 'Inter', sans-serif; }
+        .paper-body { padding: 16px; opacity: 0; transition: opacity 0.2s ease 0.1s; position: relative; z-index: 2; height: calc(100% - 38px); overflow-y: auto; overflow-x: hidden; }
         .paper.open .paper-body { opacity: 1; }
         .paper-top { top: 0; left: 50%; transform: translateX(-50%) translateY(-75%); width: 320px; height: 340px; }
         .paper-top:hover { transform: translateX(-50%) translateY(-55%); }
         .paper-top.pulled { transform: translateX(-50%) translateY(-25%); }
-        .paper-top.open { transform: translateX(-50%) translateY(24px); box-shadow: 0 16px 48px var(--shadow-deep); z-index: 100; }
+        .paper-top.open { transform: translateX(-50%) translateY(24px); box-shadow: 0 16px 48px rgba(0,0,0,0.2); z-index: 100; background: #fcfcf8; }
         .paper-bottom { bottom: 0; left: 50%; transform: translateX(-50%) translateY(85%); width: 340px; height: 280px; }
         .paper-bottom:hover { transform: translateX(-50%) translateY(65%); }
         .paper-bottom.pulled { transform: translateX(-50%) translateY(35%); }
-        .paper-bottom.open { transform: translateX(-50%) translateY(-24px); box-shadow: 0 -16px 48px rgba(0,0,0,0.2); z-index: 100; background: var(--paper-solid); }
+        .paper-bottom.open { transform: translateX(-50%) translateY(-24px); box-shadow: 0 -16px 48px rgba(0,0,0,0.2); z-index: 100; background: #fcfcf8; }
         .paper-left { left: 0; top: 50%; transform: translateY(-50%) translateX(-88%); width: 290px; height: 420px; }
         .paper-left:hover { transform: translateY(-50%) translateX(-68%); }
         .paper-left.pulled { transform: translateY(-50%) translateX(-38%); }
-        .paper-left.open { transform: translateY(-50%) translateX(24px); box-shadow: 16px 8px 48px rgba(0,0,0,0.2); z-index: 100; background: var(--paper-solid); }
+        .paper-left.open { transform: translateY(-50%) translateX(24px); box-shadow: 16px 8px 48px rgba(0,0,0,0.2); z-index: 100; background: #fcfcf8; }
         .paper-right { right: 0; top: 50%; transform: translateY(-50%) translateX(88%); width: 310px; height: 530px; }
         .paper-right:hover { transform: translateY(-50%) translateX(68%); }
         .paper-right.pulled { transform: translateY(-50%) translateX(38%); }
-        .paper-right.open { transform: translateY(-50%) translateX(-24px); box-shadow: -16px 8px 48px rgba(0,0,0,0.2); z-index: 100; background: var(--paper-solid); }
+        .paper-right.open { transform: translateY(-50%) translateX(-24px); box-shadow: -16px 8px 48px rgba(0,0,0,0.2); z-index: 100; background: #fcfcf8; }
         .paper-tl { top: 0; left: 0; transform: translate(-72%, -72%); width: 240px; height: 240px; }
         .paper-tl:hover { transform: translate(-52%, -52%); }
         .paper-tl.pulled { transform: translate(-32%, -32%); }
-        .paper-tl.open { transform: translate(24px, 24px); box-shadow: 16px 16px 48px rgba(0,0,0,0.2); z-index: 100; background: var(--paper-solid); }
+        .paper-tl.open { transform: translate(24px, 24px); box-shadow: 16px 16px 48px rgba(0,0,0,0.2); z-index: 100; background: #fcfcf8; }
         .paper-tr { top: 0; right: 0; transform: translate(72%, -72%); width: 230px; height: 260px; }
         .paper-tr:hover { transform: translate(52%, -52%); }
         .paper-tr.pulled { transform: translate(32%, -32%); }
-        .paper-tr.open { transform: translate(-24px, 24px); box-shadow: -16px 16px 48px rgba(0,0,0,0.2); z-index: 100; background: var(--paper-solid); }
+        .paper-tr.open { transform: translate(-24px, 24px); box-shadow: -16px 16px 48px rgba(0,0,0,0.2); z-index: 100; background: #fcfcf8; }
         .paper-bl { bottom: 0; left: 0; transform: translate(-72%, 72%); width: 260px; height: 220px; }
         .paper-bl:hover { transform: translate(-52%, 52%); }
         .paper-bl.pulled { transform: translate(-32%, 32%); }
-        .paper-bl.open { transform: translate(24px, -24px); box-shadow: 16px -16px 48px rgba(0,0,0,0.2); z-index: 100; background: var(--paper-solid); }
+        .paper-bl.open { transform: translate(24px, -24px); box-shadow: 16px -16px 48px rgba(0,0,0,0.2); z-index: 100; background: #fcfcf8; }
         .paper-br { bottom: 0; right: 0; transform: translate(72%, 72%); width: 240px; height: 240px; }
         .paper-br:hover { transform: translate(52%, 52%); }
         .paper-br.pulled { transform: translate(32%, 32%); }
-        .paper-br.open { transform: translate(-24px, -24px); box-shadow: -16px -16px 48px rgba(0,0,0,0.2); z-index: 100; background: var(--paper-solid); }
+        .paper-br.open { transform: translate(-24px, -24px); box-shadow: -16px -16px 48px rgba(0,0,0,0.2); z-index: 100; background: #fcfcf8; }
         /* Centered overlay modal papers: Bot Manager, Social, Personality */
         .paper-bm, .paper-social, .paper-personality {
             top: 50%;
@@ -133,7 +114,7 @@
             transform: translate(-50%, -50%) scale(1);
             box-shadow: 0 24px 56px rgba(0,0,0,0.25);
             z-index: 100;
-            background: var(--paper-solid);
+            background: #fcfcf8;
         }
         .paper-bm { width: 380px; height: 520px; max-width: 92vw; max-height: 85vh; }
         .paper-social { width: 440px; height: 560px; max-width: 92vw; max-height: 85vh; }
@@ -190,13 +171,12 @@
         .glass-bridge { position: absolute; top: 7px; left: 30px; width: 12px; height: 1.5px; background: #777; }
         .glass-arm { position: absolute; top: 5px; width: 18px; height: 1.5px; background: #777; }
         .glass-arm.left { left: -16px; transform: rotate(-18deg); } .glass-arm.right { right: -16px; transform: rotate(18deg); }
-        .backdrop { position: fixed; inset: 0; background: var(--backdrop-bg); opacity: 0; pointer-events: none; transition: opacity 0.3s ease; z-index: 90; }
+        .backdrop { position: fixed; inset: 0; background: rgba(230, 230, 224, 0.7); opacity: 0; pointer-events: none; transition: opacity 0.3s ease; z-index: 90; }
         .backdrop.active { opacity: 1; pointer-events: all; }
         .toast { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%) translateY(16px); background: rgba(42, 42, 42, 0.9); color: #f0f0e8; padding: 12px 28px; border-radius: 6px; font-size: 12px; font-weight: 500; box-shadow: 0 8px 32px rgba(0,0,0,0.15); z-index: 200; opacity: 0; transition: opacity 0.3s ease, transform 0.3s ease; pointer-events: none; white-space: nowrap; letter-spacing: 0.3px; font-family: 'Inter', sans-serif; }
         @media (max-width: 768px) {
-            .editor-desk { width: 95vw; height: 75vh; }
-            .mobile-desk-tabs { display: flex !important; }
-            .paper-top, .paper-bottom { width: 260px; height: 300px; } .paper-left, .paper-right { width: 240px; height: 340px; } .paper-tl, .paper-tr, .paper-bl, .paper-br { width: 180px; height: 180px; } .paper-bm, .paper-social, .paper-personality { width: 94vw; height: 86vh; }
+            .editor-desk { width: 90vw; height: 58vh; }
+            .paper-top, .paper-bottom { width: 240px; height: 280px; } .paper-left, .paper-right { width: 220px; height: 320px; } .paper-tl, .paper-tr, .paper-bl, .paper-br { width: 160px; height: 160px; } .paper-bm, .paper-social, .paper-personality { width: 92vw; height: 82vh; }
             .pencil { width: 110px; } .pencil-body { width: 90px; } .ruler { width: 160px; } .ruler-body { width: 160px; } .compass { width: 55px; height: 75px; } .compass-leg { height: 55px; }
             .polaroid { display: none; }
         }
@@ -419,6 +399,7 @@
             background: linear-gradient(135deg, transparent 50%, #818cf8 50%);
             border-bottom-right-radius: 10px;
         }
+    
         /* ==========================================================================
            COMPANION DEDICATED MODEL ROUTER MODAL
            ========================================================================== */
@@ -454,20 +435,7 @@
                 <a href="/social" style="text-decoration:none; font-size:11px; font-weight:600; color:var(--accent-steel); background:rgba(122,138,154,0.14); padding:4px 10px; border-radius:4px; border:1px solid rgba(122,138,154,0.3); display:inline-flex; align-items:center; gap:4px;" title="Open Social Hub">Social Hub ↗</a>
                 <a href="/studio" style="text-decoration:none; font-size:11px; font-weight:600; color:var(--accent-sage); background:rgba(138,154,138,0.12); padding:4px 10px; border-radius:4px; border:1px solid rgba(138,154,138,0.3); display:inline-flex; align-items:center; gap:4px;" title="Open Persona Studio">Studio ↗</a>
                 <a href="/yuna" style="text-decoration:none; font-size:11px; font-weight:700; color:#ff79c6; background:rgba(255,121,198,0.14); padding:4px 10px; border-radius:4px; border:1px solid rgba(255,121,198,0.35); display:inline-flex; align-items:center; gap:4px;" title="Open Yuna Companion App">🌸 Yuna App ↗</a>
-                <button id="deskThemeBtn" onclick="toggleDeskTheme()" style="text-decoration:none; font-size:11px; font-weight:600; color:var(--ink-muted); background:var(--input-bg); padding:4px 8px; border-radius:4px; border:1px solid var(--paper-border); cursor:pointer;" title="Toggle Dark/Light Mode">🌓 Theme</button>
             </div>
-        </div>
-        <!-- MOBILE TOUCH QUICK BAR -->
-        <div class="mobile-desk-tabs" style="display:none; padding:6px 10px; gap:6px; background:var(--paper-header); border-bottom:1px solid var(--paper-border); overflow-x:auto; -webkit-overflow-scrolling:touch;">
-            <button onclick="openPaperByClass('paper-left')" style="font-size:11px; padding:4px 8px; background:var(--input-bg); border:1px solid var(--paper-border); border-radius:4px; color:var(--ink); white-space:nowrap; cursor:pointer;">📁 Status</button>
-            <button onclick="openPaperByClass('paper-bm')" style="font-size:11px; padding:4px 8px; background:var(--input-bg); border:1px solid var(--paper-border); border-radius:4px; color:var(--ink); white-space:nowrap; cursor:pointer;">🤖 Bots</button>
-            <button onclick="openMemoryTreeModal()" style="font-size:11px; padding:4px 8px; background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.3); border-radius:4px; color:var(--ink); white-space:nowrap; cursor:pointer;">🧠 Memory</button>
-            <button onclick="openPaperByClass('paper-personality')" style="font-size:11px; padding:4px 8px; background:var(--input-bg); border:1px solid var(--paper-border); border-radius:4px; color:var(--ink); white-space:nowrap; cursor:pointer;">🎭 Persona</button>
-            <button onclick="openPaperByClass('paper-social')" style="font-size:11px; padding:4px 8px; background:var(--input-bg); border:1px solid var(--paper-border); border-radius:4px; color:var(--ink); white-space:nowrap; cursor:pointer;">📸 Social</button>
-            <button onclick="openPaperByClass('paper-tr')" style="font-size:11px; padding:4px 8px; background:var(--input-bg); border:1px solid var(--paper-border); border-radius:4px; color:var(--ink); white-space:nowrap; cursor:pointer;">⚡ AI Status</button>
-            <button onclick="openPaperByClass('paper-right')" style="font-size:11px; padding:4px 8px; background:var(--input-bg); border:1px solid var(--paper-border); border-radius:4px; color:var(--ink); white-space:nowrap; cursor:pointer;">🔧 Config</button>
-            <a href="/yuna" style="font-size:11px; padding:4px 8px; background:rgba(255,121,198,0.15); border:1px solid rgba(255,121,198,0.35); border-radius:4px; color:#ff79c6; white-space:nowrap; text-decoration:none;">🌸 Yuna App ↗</a>
-            <a href="/studio" style="font-size:11px; padding:4px 8px; background:var(--input-bg); border:1px solid var(--paper-border); border-radius:4px; color:var(--ink); white-space:nowrap; text-decoration:none;">Studio ↗</a>
         </div>
         <div class="editor-body">
             <div class="editor-sidebar">
@@ -485,15 +453,13 @@
                     <div style="font-family:'Playfair Display',serif; font-size:32px; color:var(--ink); margin-bottom:10px; letter-spacing:-0.5px;">Bot Control</div>
                     <div style="width:100%; max-width:420px; margin-top:8px;">
                     <div style="font-size:10px; text-transform:uppercase; letter-spacing:1px; color:var(--ink-faint); margin-bottom:6px;">Running Bots</div>
-                    <div id="center-bots" style="display:flex; flex-direction:column; gap:6px;">
-                        <div style="color:var(--ink-muted); font-size:11.5px; padding:8px 12px; background:var(--input-bg); border-radius:6px; border:1px solid var(--paper-border);">⚡ Connecting to bot cluster...</div>
-                    </div>
+                    <div id="center-bots" style="display:flex; flex-direction:column; gap:6px;"></div>
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px;">
-                        <div style="background:var(--input-bg); border-radius:6px; padding:12px; border:1px solid var(--paper-border);">
+                        <div style="background:rgba(0,0,0,0.02); border-radius:6px; padding:14px; border:1px solid rgba(0,0,0,0.04);">
                             <div style="font-size:10px; text-transform:uppercase; letter-spacing:1px; color:var(--ink-faint); margin-bottom:4px;">Uptime</div>
                             <div style="font-size:17px; font-weight:600; color:var(--ink);" id="center-uptime">--</div>
                         </div>
-                        <div style="background:var(--input-bg); border-radius:6px; padding:12px; border:1px solid var(--paper-border);">
+                        <div style="background:rgba(0,0,0,0.02); border-radius:6px; padding:14px; border:1px solid rgba(0,0,0,0.04);">
                             <div style="font-size:10px; text-transform:uppercase; letter-spacing:1px; color:var(--ink-faint); margin-bottom:4px;">Contexts</div>
                             <div style="font-size:17px; font-weight:600; color:var(--ink);" id="center-contexts">0</div>
                         </div>
@@ -4381,30 +4347,6 @@
 
                 memAnimationId = requestAnimationFrame(memLoop);
             }
-
-            // Theme Management: Dark Mode default with instant toggle
-            function initDeskTheme() {
-                const saved = localStorage.getItem('desk_theme') || 'dark';
-                applyDeskTheme(saved);
-            }
-            function applyDeskTheme(theme) {
-                document.documentElement.setAttribute('data-theme', theme);
-                if (theme === 'dark') {
-                    document.body.classList.add('dark-mode');
-                } else {
-                    document.body.classList.remove('dark-mode');
-                }
-                const btn = document.getElementById('deskThemeBtn');
-                if (btn) btn.textContent = theme === 'dark' ? '☀️ Light' : '🌙 Dark';
-                localStorage.setItem('desk_theme', theme);
-            }
-            window.toggleDeskTheme = function() {
-                const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
-                const next = current === 'dark' ? 'light' : 'dark';
-                applyDeskTheme(next);
-                showToast(next === 'dark' ? 'Obsidian Dark Desk' : 'Classic Paper Desk');
-            };
-            initDeskTheme();
 
             // Initial load
             loadBots();
