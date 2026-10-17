@@ -666,17 +666,22 @@
                 <h3>Models &amp; API Keys</h3>
                 <div style="margin-top:2px; margin-bottom:8px; display:flex; flex-wrap:wrap; gap:5px; align-items:center;">
                     <span style="font-size:9px; text-transform:uppercase; color:var(--ink-faint); font-weight:700;">Quick Presets:</span>
-                    <button type="button" onclick="selectModelPreset('nvidia', 'nvidia/nemotron-3-ultra-550b-a55b')" style="font-size:9.5px; font-weight:600; padding:3px 7px; border-radius:4px; border:1px solid rgba(118,185,0,0.4); background:rgba(118,185,0,0.12); color:#2e6b00; cursor:pointer;">⚡ Nemotron 550B</button>
-                    <button type="button" onclick="selectModelPreset('gemini', 'gemini-3.1-flash-lite')" style="font-size:9.5px; font-weight:600; padding:3px 7px; border-radius:4px; border:1px solid rgba(66,133,244,0.4); background:rgba(66,133,244,0.12); color:#1a73e8; cursor:pointer;">⚡ Gemini 3.1 Flash Lite</button>
-                    <button type="button" onclick="selectModelPreset('gemini', 'gemini-3.5-flash-lite')" style="font-size:9.5px; font-weight:600; padding:3px 7px; border-radius:4px; border:1px solid rgba(66,133,244,0.4); background:rgba(66,133,244,0.12); color:#1a73e8; cursor:pointer;">⚡ Gemini 3.5 Flash Lite</button>
-                    <button type="button" onclick="selectModelPreset('groq', 'qwen/qwen3.8-27b')" style="font-size:9.5px; font-weight:600; padding:3px 7px; border-radius:4px; border:1px solid rgba(245,158,11,0.4); background:rgba(245,158,11,0.12); color:#b45309; cursor:pointer;">⚡ Qwen 3.8 27B</button>
+                    <button type="button" class="model-preset-btn" data-provider="gemini" data-model="gemini-3.1-flash-lite" onclick="selectModelPreset('gemini', 'gemini-3.1-flash-lite', this)" style="font-size:9.5px; font-weight:600; padding:3px 7px; border-radius:4px; border:1px solid rgba(66,133,244,0.4); background:rgba(66,133,244,0.12); color:#1a73e8; cursor:pointer;">⚡ Gemini 3.1 Flash</button>
+                    <button type="button" class="model-preset-btn" data-provider="gemini" data-model="gemini-3.7-flash" onclick="selectModelPreset('gemini', 'gemini-3.7-flash', this)" style="font-size:9.5px; font-weight:600; padding:3px 7px; border-radius:4px; border:1px solid rgba(66,133,244,0.4); background:rgba(66,133,244,0.12); color:#1a73e8; cursor:pointer;">⚡ Gemini 3.7 Flash</button>
+                    <button type="button" class="model-preset-btn" data-provider="nvidia" data-model="meta/llama-3.2-11b-vision-instruct" onclick="selectModelPreset('nvidia', 'meta/llama-3.2-11b-vision-instruct', this)" style="font-size:9.5px; font-weight:600; padding:3px 7px; border-radius:4px; border:1px solid rgba(118,185,0,0.4); background:rgba(118,185,0,0.12); color:#2e6b00; cursor:pointer;">⚡ NVIDIA Llama 3.2</button>
+                    <button type="button" class="model-preset-btn" data-provider="nvidia" data-model="nvidia/nemotron-3-ultra-550b-a55b" onclick="selectModelPreset('nvidia', 'nvidia/nemotron-3-ultra-550b-a55b', this)" style="font-size:9.5px; font-weight:600; padding:3px 7px; border-radius:4px; border:1px solid rgba(118,185,0,0.4); background:rgba(118,185,0,0.12); color:#2e6b00; cursor:pointer;">⚡ Nemotron 550B</button>
+                    <button type="button" class="model-preset-btn" data-provider="groq" data-model="qwen/qwen3.8-27b" onclick="selectModelPreset('groq', 'qwen/qwen3.8-27b', this)" style="font-size:9.5px; font-weight:600; padding:3px 7px; border-radius:4px; border:1px solid rgba(245,158,11,0.4); background:rgba(245,158,11,0.12); color:#b45309; cursor:pointer;">⚡ Groq Qwen 27B</button>
+                    <button type="button" class="model-preset-btn" data-provider="groq" data-model="openai/gpt-oss-120b" onclick="selectModelPreset('groq', 'openai/gpt-oss-120b', this)" style="font-size:9.5px; font-weight:600; padding:3px 7px; border-radius:4px; border:1px solid rgba(245,158,11,0.4); background:rgba(245,158,11,0.12); color:#b45309; cursor:pointer;">⚡ Groq GPT-OSS 120B</button>
+                    <button type="button" class="model-preset-btn" data-provider="mistral" data-model="mistral-small-latest" onclick="selectModelPreset('mistral', 'mistral-small-latest', this)" style="font-size:9.5px; font-weight:600; padding:3px 7px; border-radius:4px; border:1px solid rgba(255,112,67,0.4); background:rgba(255,112,67,0.12); color:#c84c17; cursor:pointer;">⚡ Mistral Small</button>
+                    <button type="button" class="model-preset-btn" data-provider="auto" data-model="auto" onclick="selectModelPreset('auto', 'auto', this)" style="font-size:9.5px; font-weight:600; padding:3px 7px; border-radius:4px; border:1px solid rgba(138,154,138,0.5); background:rgba(138,154,138,0.15); color:var(--accent-sage, #5c6e5c); cursor:pointer;">⚡ Auto Fallback</button>
                 </div>
                 <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint);">NVIDIA NIM Model</label>
-                <input type="text" id="nvidiaModel" list="nvidiaModelList" placeholder="e.g. nvidia/nemotron-3-ultra-550b-a55b (Recommended)" style="width:100%; background:rgba(0,0,0,0.02); border:1px solid rgba(0,0,0,0.08); border-radius:4px; color:var(--ink); padding:6px 8px; font-size:11px; font-family:'Inter',sans-serif; outline:none; margin-top:4px; margin-bottom:6px;">
+                <input type="text" id="nvidiaModel" list="nvidiaModelList" placeholder="e.g. meta/llama-3.2-11b-vision-instruct (Recommended)" style="width:100%; background:rgba(0,0,0,0.02); border:1px solid rgba(0,0,0,0.08); border-radius:4px; color:var(--ink); padding:6px 8px; font-size:11px; font-family:'Inter',sans-serif; outline:none; margin-top:4px; margin-bottom:6px;">
                 <datalist id="nvidiaModelList">
-                    <option value="nvidia/nemotron-3-ultra-550b-a55b">Nemotron 3 Ultra 550B A55B (Ultra Flagship - Fast NIM - Recommended)</option>
-                    <option value="nvidia/nemotron-3-super-120b-a12b">Nemotron 3 Super 120B (High Intelligence)</option>
-                    <option value="nvidia/nemotron-3.5-lightning-30b-a3b">Nemotron 3.5 Lightning 30B (Fast Reasoning)</option>
+                    <option value="meta/llama-3.2-11b-vision-instruct">Llama 3.2 11B Vision (Fast, Multimodal - Recommended)</option>
+                    <option value="nvidia/nemotron-3-ultra-550b-a55b">Nemotron 3 Ultra 550B A55B (Ultra Flagship NIM)</option>
+                    <option value="nvidia/nemotron-3-super-120b-a12b">Nemotron 3 Super 120B</option>
+                    <option value="nvidia/nemotron-3.5-lightning-30b-a3b">Nemotron 3.5 Lightning 30B</option>
                     <option value="qwen/qwen3.8-27b">Qwen 3.8 27B (NVIDIA NIM)</option>
                     <option value="meta/llama-3.2-11b-vision-instruct">Llama 3.2 11B Vision (Multimodal)</option>
                 </datalist>
@@ -712,7 +717,15 @@
                     <option value="gemma-4-31b-it">Gemma 4 31B Instruct</option>
                 </datalist>
                 <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint);">Groq</label>
-                <input type="text" id="groqModel" placeholder="e.g. llama-3.3-70b-versatile" style="width:100%; background:rgba(0,0,0,0.02); border:1px solid rgba(0,0,0,0.08); border-radius:4px; color:var(--ink); padding:6px 8px; font-size:11px; font-family:'Inter',sans-serif; outline:none; margin-top:4px; margin-bottom:6px;">
+                <input type="text" id="groqModel" list="groqModelList" placeholder="e.g. qwen/qwen3.8-27b or openai/gpt-oss-120b" style="width:100%; background:rgba(0,0,0,0.02); border:1px solid rgba(0,0,0,0.08); border-radius:4px; color:var(--ink); padding:6px 8px; font-size:11px; font-family:'Inter',sans-serif; outline:none; margin-top:4px; margin-bottom:6px;">
+                <datalist id="groqModelList">
+                    <option value="qwen/qwen3.8-27b">Qwen 3.8 27B (Fast, High Intelligence - Recommended)</option>
+                    <option value="openai/gpt-oss-120b">GPT-OSS 120B (High Capacity)</option>
+                    <option value="openai/gpt-oss-20b">GPT-OSS 20B (Ultra Fast)</option>
+                    <option value="allam-2-7b">Allam 2 7B</option>
+                    <option value="llama-3.3-70b-versatile">Llama 3.3 70B Versatile</option>
+                    <option value="llama-3.1-8b-instant">Llama 3.1 8B Instant</option>
+                </datalist>
                 <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint);">Mistral</label>
                 <input type="text" id="mistralModel" list="mistralModelList" placeholder="e.g. mistral-small-latest (Recommended)" style="width:100%; background:rgba(0,0,0,0.02); border:1px solid rgba(0,0,0,0.08); border-radius:4px; color:var(--ink); padding:6px 8px; font-size:11px; font-family:'Inter',sans-serif; outline:none; margin-top:4px; margin-bottom:6px;">
                 <datalist id="mistralModelList">
@@ -1318,15 +1331,27 @@
                             <select id="bmProvider" style="width:100%; background:rgba(0,0,0,0.02); border:1px solid rgba(0,0,0,0.08); border-radius:4px; color:var(--ink); padding:5px 6px; font-size:10.5px; outline:none; margin-top:2px;">
                                 <option value="auto">Auto</option>
                                 <option value="gemini">Gemini Only</option>
-                                <option value="groq">Groq Only</option>
                                 <option value="nvidia">NVIDIA NIM Only</option>
+                                <option value="groq">Groq Only</option>
+                                <option value="cloudflare">Cloudflare Workers AI</option>
                                 <option value="mistral">Mistral Only</option>
+                                <option value="openrouter">OpenRouter Only</option>
                                 <option value="custom">Custom Endpoint</option>
                             </select>
                         </div>
                         <div>
                             <label style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-faint);">Model Name</label>
-                            <input type="text" id="bmModel" placeholder="e.g. gemini-3.1-flash-lite" style="width:100%; background:rgba(0,0,0,0.02); border:1px solid rgba(0,0,0,0.08); border-radius:4px; color:var(--ink); padding:5px 6px; font-size:10.5px; outline:none; margin-top:2px;">
+                            <input type="text" id="bmModel" list="bmModelList" placeholder="e.g. gemini-3.1-flash-lite" style="width:100%; background:rgba(0,0,0,0.02); border:1px solid rgba(0,0,0,0.08); border-radius:4px; color:var(--ink); padding:5px 6px; font-size:10.5px; outline:none; margin-top:2px;">
+                            <datalist id="bmModelList">
+                                <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite (Google)</option>
+                                <option value="gemini-3.7-flash">Gemini 3.7 Flash (Google)</option>
+                                <option value="meta/llama-3.2-11b-vision-instruct">Llama 3.2 11B Vision (NVIDIA NIM)</option>
+                                <option value="nvidia/nemotron-3-ultra-550b-a55b">Nemotron 3 Ultra 550B (NVIDIA NIM)</option>
+                                <option value="qwen/qwen3.8-27b">Qwen 3.8 27B (Groq)</option>
+                                <option value="openai/gpt-oss-120b">GPT-OSS 120B (Groq)</option>
+                                <option value="mistral-small-latest">Mistral Small (Mistral)</option>
+                                <option value="@cf/meta/llama-3.1-8b-instruct">Llama 3.1 8B (Cloudflare)</option>
+                            </datalist>
                         </div>
                     </div>
 
@@ -2024,15 +2049,18 @@
                     document.getElementById('provider').value = currentConfig.provider || 'auto';
                     if (document.getElementById('nvidiaModel')) document.getElementById('nvidiaModel').value = currentConfig.nvidia_model || 'meta/llama-3.2-11b-vision-instruct';
                     if (document.getElementById('nvidiaKey')) document.getElementById('nvidiaKey').value = currentConfig.nvidia_key || '';
-                    document.getElementById('geminiModel').value = currentConfig.gemini_model || '';
-                    document.getElementById('groqModel').value = currentConfig.groq_model || '';
+                    if (document.getElementById('cloudflareModel')) document.getElementById('cloudflareModel').value = currentConfig.cloudflare_model || '@cf/meta/llama-3.1-8b-instruct';
+                    if (document.getElementById('cloudflareToken')) document.getElementById('cloudflareToken').value = currentConfig.cloudflare_token || '';
+                    if (document.getElementById('cloudflareAccountId')) document.getElementById('cloudflareAccountId').value = currentConfig.cloudflare_account_id || '';
+                    document.getElementById('geminiModel').value = currentConfig.gemini_model || 'gemini-3.1-flash-lite';
+                    document.getElementById('groqModel').value = currentConfig.groq_model || 'qwen/qwen3.8-27b';
                     document.getElementById('mistralModel').value = currentConfig.mistral_model || 'mistral-small-latest';
                     document.getElementById('model').value = currentConfig.model || '';
                     document.getElementById('useCustom').checked = !!currentConfig.use_custom_model;
                     document.getElementById('customModel').value = currentConfig.custom_model || '';
                     document.getElementById('visionProvider').value = currentConfig.vision_provider || 'openrouter';
                     document.getElementById('visionModel').value = currentConfig.vision_model || '';
-                    document.getElementById('geminiVisionModel').value = currentConfig.gemini_vision_model || 'gemini-2.0-flash';
+                    document.getElementById('geminiVisionModel').value = currentConfig.gemini_vision_model || 'gemini-3.1-flash-lite';
                     document.getElementById('maxTokens').value = currentConfig.max_tokens || 800;
                     document.getElementById('temperature').value = currentConfig.temperature || 0.7;
                     document.getElementById('topP').value = currentConfig.top_p || 1.0;
@@ -2138,12 +2166,28 @@
             }
             window.loadConfig = loadConfig;
 
-            async function saveConfig() {
+            async function saveConfig(silent = false) {
+                const prov = document.getElementById('provider').value;
+                let effModel = document.getElementById('model').value;
+                if (document.getElementById('useCustom').checked && document.getElementById('customModel').value.trim()) {
+                    effModel = document.getElementById('customModel').value.trim();
+                } else if (prov === 'gemini' && document.getElementById('geminiModel') && document.getElementById('geminiModel').value.trim()) {
+                    effModel = document.getElementById('geminiModel').value.trim();
+                } else if (prov === 'groq' && document.getElementById('groqModel') && document.getElementById('groqModel').value.trim()) {
+                    effModel = document.getElementById('groqModel').value.trim();
+                } else if (prov === 'nvidia' && document.getElementById('nvidiaModel') && document.getElementById('nvidiaModel').value.trim()) {
+                    effModel = document.getElementById('nvidiaModel').value.trim();
+                } else if (prov === 'mistral' && document.getElementById('mistralModel') && document.getElementById('mistralModel').value.trim()) {
+                    effModel = document.getElementById('mistralModel').value.trim();
+                } else if (prov === 'cloudflare' && document.getElementById('cloudflareModel') && document.getElementById('cloudflareModel').value.trim()) {
+                    effModel = document.getElementById('cloudflareModel').value.trim();
+                }
+
                 const payload = {
                     personality: document.getElementById('personality').value,
                     real_account_personality: (document.getElementById('companionPersonality') && document.getElementById('companionPersonality').value.trim()) ? document.getElementById('companionPersonality').value : (document.getElementById('bmCompanionPersonality') ? document.getElementById('bmCompanionPersonality').value : (currentConfig.real_account_personality || '')),
                     companion_name_triggers: (document.getElementById('companionTriggers') ? document.getElementById('companionTriggers').value : (document.getElementById('bmCompanionTriggers') ? document.getElementById('bmCompanionTriggers').value : '')).split(',').map(s => s.trim()).filter(s => s),
-                    provider: document.getElementById('provider').value,
+                    provider: prov,
                     nvidia_model: document.getElementById('nvidiaModel') ? document.getElementById('nvidiaModel').value : 'meta/llama-3.2-11b-vision-instruct',
                     nvidia_key: document.getElementById('nvidiaKey') ? document.getElementById('nvidiaKey').value : '',
                     cloudflare_model: document.getElementById('cloudflareModel') ? document.getElementById('cloudflareModel').value : '@cf/meta/llama-3.1-8b-instruct',
@@ -2152,7 +2196,7 @@
                     gemini_model: document.getElementById('geminiModel').value,
                     groq_model: document.getElementById('groqModel').value,
                     mistral_model: document.getElementById('mistralModel').value,
-                    model: document.getElementById('model').value,
+                    model: effModel,
                     use_custom_model: document.getElementById('useCustom').checked,
                     custom_model: document.getElementById('customModel').value,
                     vision_provider: document.getElementById('visionProvider').value,
@@ -2227,31 +2271,61 @@
                 };
                 const res = await fetch('/api/config', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
                 const data = await res.json();
-                showStatus('saveStatus', data.ok ? 'Saved!' : 'Error: ' + data.error, data.ok);
-                if (data.ok) {
-                    currentConfig = Object.assign({}, currentConfig, payload);
-                    loadRaw();
-                    showToast('✅ Settings applied to active bot');
+                if (!silent) {
+                    showStatus('saveStatus', data.ok ? 'Saved!' : 'Error: ' + data.error, data.ok);
+                    if (data.ok) {
+                        currentConfig = Object.assign({}, currentConfig, payload);
+                        loadRaw();
+                        showToast('✅ Settings applied to active bot');
+                    }
+                } else {
+                    if (data.ok) {
+                        currentConfig = Object.assign({}, currentConfig, payload);
+                        loadRaw();
+                    }
                 }
             }
             window.saveConfig = saveConfig;
 
-            function selectModelPreset(provider, model) {
-                if (provider === 'nvidia') {
-                    const el = document.getElementById('nvidiaModel');
-                    if (el) el.value = model;
-                } else if (provider === 'gemini') {
-                    const el = document.getElementById('geminiModel');
-                    if (el) el.value = model;
-                    const vEl = document.getElementById('geminiVisionModel');
-                    if (vEl) vEl.value = model;
-                } else if (provider === 'groq') {
-                    const el = document.getElementById('groqModel');
-                    if (el) el.value = model;
-                }
+            function selectModelPreset(provider, model, btnEl) {
                 const provSelect = document.getElementById('provider');
                 if (provSelect) provSelect.value = provider;
-                showToast('Applied ' + model);
+
+                if (provider === 'nvidia') {
+                    const el = document.getElementById('nvidiaModel');
+                    if (el && model !== 'auto') el.value = model;
+                } else if (provider === 'gemini') {
+                    const el = document.getElementById('geminiModel');
+                    if (el && model !== 'auto') el.value = model;
+                    const vEl = document.getElementById('geminiVisionModel');
+                    if (vEl && model !== 'auto') vEl.value = model;
+                } else if (provider === 'groq') {
+                    const el = document.getElementById('groqModel');
+                    if (el && model !== 'auto') el.value = model;
+                } else if (provider === 'mistral') {
+                    const el = document.getElementById('mistralModel');
+                    if (el && model !== 'auto') el.value = model;
+                } else if (provider === 'cloudflare') {
+                    const el = document.getElementById('cloudflareModel');
+                    if (el && model !== 'auto') el.value = model;
+                } else if (provider === 'openrouter') {
+                    const el = document.getElementById('model');
+                    if (el && model !== 'auto') el.value = model;
+                }
+
+                if (model && model !== 'auto') {
+                    const mSelect = document.getElementById('model');
+                    if (mSelect) mSelect.value = model;
+                }
+
+                document.querySelectorAll('.model-preset-btn').forEach(btn => {
+                    const isMatch = (btn === btnEl) || (btn.dataset.provider === provider && (provider === 'auto' || btn.dataset.model === model));
+                    btn.style.boxShadow = isMatch ? '0 0 0 2px var(--accent-sage, #8a9a8a)' : 'none';
+                    btn.style.fontWeight = isMatch ? '700' : '600';
+                });
+
+                saveConfig(true);
+                showToast('✅ Applied & saved: ' + (model === 'auto' ? 'Auto Fallback' : model));
             }
             window.selectModelPreset = selectModelPreset;
 
@@ -2755,8 +2829,15 @@
                 _sv('bmToken', bot.token || '');
                 _sv('bmPersonality', bot.personality || (bot.config && bot.config.personality) || '');
                 const cfg = bot.config || {};
-                _sv('bmProvider', cfg.provider || 'auto');
-                _sv('bmModel', cfg.model || cfg.gemini_model || cfg.groq_model || cfg.nvidia_model || '');
+                const curProv = cfg.provider || 'auto';
+                _sv('bmProvider', curProv);
+                const curM = (curProv === 'gemini' ? cfg.gemini_model :
+                             curProv === 'groq' ? cfg.groq_model :
+                             curProv === 'nvidia' ? cfg.nvidia_model :
+                             curProv === 'mistral' ? cfg.mistral_model :
+                             curProv === 'cloudflare' ? cfg.cloudflare_model : '')
+                            || cfg.model || cfg.gemini_model || cfg.groq_model || cfg.nvidia_model || '';
+                _sv('bmModel', curM);
                 const editName = document.getElementById('bmEditingName');
                 if (editName) editName.textContent = bot.name || 'Unnamed';
             }
@@ -2943,13 +3024,20 @@
             function _c(id) { const el = document.getElementById(id); return el ? el.checked : false; }
             async function saveSelectedBot(silent) {
                 if (!selectedBotId) { if (!silent) showBMStatus('Pick a bot first', false); return false; }
+                const p = _v('bmProvider') || 'auto';
+                const m = (_v('bmModel') || '').trim();
                 const payload = {
                     name: _v('bmName'),
                     emoji: _v('bmEmoji'),
                     token: _v('bmToken'),
                     personality: _v('bmPersonality'),
-                    provider: _v('bmProvider') || 'auto',
-                    model: _v('bmModel') || ''
+                    provider: p,
+                    model: m,
+                    gemini_model: (p === 'gemini' && m) ? m : undefined,
+                    groq_model: (p === 'groq' && m) ? m : undefined,
+                    nvidia_model: (p === 'nvidia' && m) ? m : undefined,
+                    mistral_model: (p === 'mistral' && m) ? m : undefined,
+                    cloudflare_model: (p === 'cloudflare' && m) ? m : undefined
                 };
                 try {
                     const res = await fetch('/api/bots/' + encodeURIComponent(selectedBotId), {
@@ -2960,6 +3048,7 @@
                     if (d.ok) {
                         if (!silent) showBMStatus('Saved!', true);
                         await loadBots();
+                        if (typeof loadConfig === 'function') await loadConfig();
                         return true;
                     } else {
                         if (!silent) showBMStatus('Error: ' + d.error, false);

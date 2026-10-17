@@ -5359,8 +5359,18 @@ def apply_bot_to_config(bot, save_to_disk=False):
         if not new_cfg.get("personality") and cfg.get("prompt"):
             new_cfg["personality"] = cfg.get("prompt")
         eff_m = str(new_cfg.get("custom_model") if new_cfg.get("use_custom_model") else (new_cfg.get("model") or "")).strip()
-        if "gemini" in eff_m.lower():
-            new_cfg["gemini_model"] = eff_m
+        prov = str(new_cfg.get("provider") or "auto").lower()
+        if eff_m and eff_m not in ("default", "auto", "openrouter/free"):
+            if prov == "gemini" or "gemini" in eff_m.lower() or any(k in eff_m.lower() for k in ("flash-lite", "3.1-flash", "3.5-flash", "3.7-flash", "gemma")):
+                new_cfg["gemini_model"] = eff_m
+            elif prov == "groq" or any(k in eff_m.lower() for k in ("qwen", "groq", "compound", "gpt-oss", "allam", "llama")):
+                new_cfg["groq_model"] = eff_m
+            elif prov == "nvidia" or any(k in eff_m.lower() for k in ("nemotron", "nvidia", "a55b", "550b", "120b", "a12b", "llama-3.2")):
+                new_cfg["nvidia_model"] = eff_m
+            elif prov == "cloudflare" or eff_m.startswith("@cf/") or "cloudflare" in eff_m.lower():
+                new_cfg["cloudflare_model"] = eff_m
+            elif prov == "mistral" or any(k in eff_m.lower() for k in ("mistral", "codestral", "pixtral", "ministral")):
+                new_cfg["mistral_model"] = eff_m
 
     # 3. Dedicated Instagram fallback: only for Yuna
     bot_name = (bot.get("name") or "").lower()
@@ -7075,7 +7085,7 @@ async def safe_typing(channel):
 # ─── GEMINI ─────────────────────────────────────────────
 def normalize_gemini_model(model_name: str) -> list:
     """Normalizes user-provided Gemini model name and returns prioritized candidates to try."""
-    working_defaults = ["gemini-3.1-flash-lite", "gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-flash-lite-latest", "gemini-3-flash-preview"]
+    working_defaults = ["gemini-3.1-flash-lite", "gemini-3.7-flash", "gemini-2.5-flash", "gemini-3.5-flash-lite", "gemini-flash-lite-latest", "gemini-3-flash-preview"]
     if not model_name or not str(model_name).strip():
         return list(working_defaults)
     
@@ -7089,9 +7099,9 @@ def normalize_gemini_model(model_name: str) -> list:
         return list(working_defaults)
 
     candidates = []
-    # Avoid non-existent or deprecated models that return 404 on Google API
+    # Avoid decommissioned older preview/legacy models that return 404 on Google API
     deprecated = [
-        "gemini-2.0-flash", "gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro",
+        "gemini-1.5-flash", "gemini-1.5-pro",
         "gemini-2.0-flash-exp", "gemini-1.5-flash-8b"
     ]
     if cleaned not in deprecated:
@@ -7550,16 +7560,10 @@ async def ask_groq(history: list, prompt: str, system_msg: str = None, model: st
         remaining = int(groq_blocked_until - time.time())
         return f"Groq rate limited. Retry in {remaining}s.", True
 
-    valid_groq_models = ["qwen/qwen3.8-27b", "groq/compound-mini", "groq/compound", "openai/gpt-oss-120b", "openai/gpt-oss-20b", "allam-2-7b"]
-    req_m = (model or "").strip()
-    if not req_m or (req_m not in valid_groq_models and not any(k in req_m.lower() for k in ["qwen", "groq", "compound", "gpt-oss", "allam"])):
-        cfg_m = config.get("groq_model") or ""
-        if cfg_m in valid_groq_models or any(k in cfg_m.lower() for k in ["qwen", "groq", "compound", "gpt-oss", "allam"]):
-            req_m = cfg_m
-        else:
-            req_m = "qwen/qwen3.8-27b"
-    models_to_try = [req_m]
-    for fb in valid_groq_models:
+    fallback_groq_models = ["qwen/qwen3.8-27b", "openai/gpt-oss-120b", "openai/gpt-oss-20b", "llama-3.3-70b-versatile", "allam-2-7b"]
+    req_m = (model or config.get("groq_model") or "qwen/qwen3.8-27b").strip()
+    models_to_try = [req_m] if req_m else []
+    for fb in fallback_groq_models:
         if fb not in models_to_try:
             models_to_try.append(fb)
 
@@ -8115,7 +8119,7 @@ async def ask_nvidia(
     )
 
     candidates = [chosen_model]
-    for fb in ["nvidia/nemotron-3-ultra-550b-a55b", "nvidia/nemotron-3-super-120b-a12b"]:
+    for fb in ["meta/llama-3.2-11b-vision-instruct", "nvidia/nemotron-3-ultra-550b-a55b"]:
         if fb not in candidates:
             candidates.append(fb)
 
@@ -9270,28 +9274,34 @@ async def ask_ai(channel_id, prompt: str, user_id=None, user_name=None, guild=No
         eff_custom_model = cfg_model
 
     target_gemini_model = (
-        (custom_model if ("gemini" in str(custom_model).lower() or any(k in str(custom_model).lower() for k in ("flash-lite", "3.1-flash", "3.5-flash"))) and "/" not in str(custom_model) else None)
-        or (eff_cfg.get("model") if ("gemini" in str(eff_cfg.get("model")).lower() or any(k in str(eff_cfg.get("model")).lower() for k in ("flash-lite", "3.1-flash", "3.5-flash"))) and "/" not in str(eff_cfg.get("model")) else None)
+        (custom_model if (provider == "gemini" or "gemini" in str(custom_model).lower() or any(k in str(custom_model).lower() for k in ("flash-lite", "3.1-flash", "3.5-flash", "3.7-flash", "gemma"))) and "/" not in str(custom_model) else None)
+        or (eff_cfg.get("model") if (provider == "gemini" or "gemini" in str(eff_cfg.get("model")).lower() or any(k in str(eff_cfg.get("model")).lower() for k in ("flash-lite", "3.1-flash", "3.5-flash", "3.7-flash", "gemma"))) and "/" not in str(eff_cfg.get("model")) else None)
         or eff_cfg.get("gemini_model")
         or "gemini-3.1-flash-lite"
     )
     target_groq_model = (
-        (custom_model if any(k in str(custom_model).lower() for k in ("qwen", "groq", "compound", "gpt-oss")) else None)
-        or (eff_cfg.get("model") if any(k in str(eff_cfg.get("model")).lower() for k in ("qwen", "groq", "compound", "gpt-oss")) else None)
+        (custom_model if provider == "groq" or any(k in str(custom_model).lower() for k in ("qwen", "groq", "compound", "gpt-oss", "allam", "llama")) else None)
+        or (eff_cfg.get("model") if provider == "groq" or any(k in str(eff_cfg.get("model")).lower() for k in ("qwen", "groq", "compound", "gpt-oss", "allam", "llama")) else None)
         or eff_cfg.get("groq_model")
         or "qwen/qwen3.8-27b"
     )
     target_nvidia_model = normalize_nvidia_model(
-        (custom_model if any(k in str(custom_model).lower() for k in ("nemotron", "nvidia", "a55b", "550b", "120b", "a12b")) else None)
-        or (eff_cfg.get("model") if any(k in str(eff_cfg.get("model")).lower() for k in ("nemotron", "nvidia", "a55b", "550b", "120b", "a12b")) else None)
+        (custom_model if provider == "nvidia" or any(k in str(custom_model).lower() for k in ("nemotron", "nvidia", "a55b", "550b", "120b", "a12b", "llama-3.2")) else None)
+        or (eff_cfg.get("model") if provider == "nvidia" or any(k in str(eff_cfg.get("model")).lower() for k in ("nemotron", "nvidia", "a55b", "550b", "120b", "a12b", "llama-3.2")) else None)
         or eff_cfg.get("nvidia_model")
-        or "nvidia/nemotron-3-ultra-550b-a55b"
+        or "meta/llama-3.2-11b-vision-instruct"
     )
     target_mistral_model = (
-        (custom_model if any(k in str(custom_model).lower() for k in ("mistral", "codestral")) else None)
-        or (eff_cfg.get("model") if any(k in str(eff_cfg.get("model")).lower() for k in ("mistral", "codestral")) else None)
+        (custom_model if provider == "mistral" or any(k in str(custom_model).lower() for k in ("mistral", "codestral", "pixtral", "ministral")) else None)
+        or (eff_cfg.get("model") if provider == "mistral" or any(k in str(eff_cfg.get("model")).lower() for k in ("mistral", "codestral", "pixtral", "ministral")) else None)
         or eff_cfg.get("mistral_model")
-        or "ministral-8b-latest"
+        or "mistral-small-latest"
+    )
+    target_cloudflare_model = (
+        (custom_model if provider == "cloudflare" or str(custom_model).startswith("@cf/") else None)
+        or (eff_cfg.get("model") if provider == "cloudflare" or str(eff_cfg.get("model")).startswith("@cf/") else None)
+        or eff_cfg.get("cloudflare_model")
+        or "@cf/meta/llama-3.1-8b-instruct"
     )
 
     is_custom_requested = (
@@ -9371,7 +9381,7 @@ async def ask_ai(channel_id, prompt: str, user_id=None, user_name=None, guild=No
         elif provider == "cloudflare" and "cloudflare" not in tried_providers:
             tried_providers.add("cloudflare")
             if get_cloudflare_token() and time.time() >= cloudflare_blocked_until:
-                reply, err = await ask_cloudflare(ctx, active_prompt, system_msg=system_msg, model=eff_custom_model or None)
+                reply, err = await ask_cloudflare(ctx, active_prompt, system_msg=system_msg, model=target_cloudflare_model)
             else:
                 err = True
                 reply = "Cloudflare Workers AI key not configured or on rate limit cooldown."
@@ -9424,7 +9434,7 @@ async def ask_ai(channel_id, prompt: str, user_id=None, user_name=None, guild=No
 
     # 5. Cloudflare Workers AI
     if "cloudflare" not in tried_providers and get_cloudflare_token() and time.time() >= cloudflare_blocked_until:
-        reply, err = await ask_cloudflare(ctx, active_prompt, system_msg=system_msg)
+        reply, err = await ask_cloudflare(ctx, active_prompt, system_msg=system_msg, model=target_cloudflare_model)
         if not err and reply:
             reply = await _handle_reactive_search(prompt, reply)
             save_ctx(reply)
@@ -15330,6 +15340,20 @@ def api_bots_update(bot_id):
             for direct_key in ["personality", "prompt", "provider", "gemini_model", "groq_model", "nvidia_model", "mistral_model", "openrouter_model", "openrouter_key", "cloudflare_model", "model", "custom_model", "custom_base_url", "custom_key", "use_custom_model", "temperature", "max_tokens", "top_p", "frequency_penalty", "presence_penalty", "max_context", "vision_provider", "gemini_vision_model", "video_watching_model", "fish_voice_id", "auto_search", "user_memory_enabled", "open_chat_enabled", "auto_stt", "greeting", "role", "privacy", "model_slots", "fallback_provider", "fallback_model", "companion_appearance", "companion_appearance_desc", "companion_height", "companion_build", "companion_hair", "companion_eyes", "companion_outfit", "companion_features", "appearance", "appearance_desc", "appearance_height", "appearance_build", "appearance_hair", "appearance_eyes", "appearance_outfit", "appearance_features"]:
                 if direct_key in data:
                     current_cfg[direct_key] = data[direct_key]
+            if "model" in data or "provider" in data:
+                req_prov = str(data.get("provider") or current_cfg.get("provider") or "auto").lower()
+                req_model = str(data.get("model") or current_cfg.get("model") or "").strip()
+                if req_model and req_model not in ("default", "auto", "openrouter/free"):
+                    if req_prov == "gemini" or "gemini" in req_model.lower():
+                        current_cfg["gemini_model"] = req_model
+                    elif req_prov == "groq":
+                        current_cfg["groq_model"] = req_model
+                    elif req_prov == "nvidia":
+                        current_cfg["nvidia_model"] = req_model
+                    elif req_prov == "cloudflare":
+                        current_cfg["cloudflare_model"] = req_model
+                    elif req_prov == "mistral":
+                        current_cfg["mistral_model"] = req_model
             if "personality" in data or "prompt" in data:
                 new_p = data.get("personality") or data.get("prompt") or ""
                 target["personality"] = new_p
@@ -15424,8 +15448,30 @@ def api_config():
                         target_bot["personality"] = data["personality"]
                     else:
                         config["personality"] = data["personality"]
-                        target_bot["config"]["personality"] = data["personality"]
-                        target_bot["personality"] = data["personality"]
+                if "model" in data or "provider" in data:
+                    req_prov = str(data.get("provider") or config.get("provider") or "auto").lower()
+                    req_model = str(data.get("model") or config.get("model") or "").strip()
+                    if req_model and req_model not in ("default", "auto", "openrouter/free"):
+                        if req_prov == "gemini" or "gemini" in req_model.lower():
+                            config["gemini_model"] = req_model
+                            if target_bot and isinstance(target_bot.get("config"), dict):
+                                target_bot["config"]["gemini_model"] = req_model
+                        elif req_prov == "groq":
+                            config["groq_model"] = req_model
+                            if target_bot and isinstance(target_bot.get("config"), dict):
+                                target_bot["config"]["groq_model"] = req_model
+                        elif req_prov == "nvidia":
+                            config["nvidia_model"] = req_model
+                            if target_bot and isinstance(target_bot.get("config"), dict):
+                                target_bot["config"]["nvidia_model"] = req_model
+                        elif req_prov == "cloudflare":
+                            config["cloudflare_model"] = req_model
+                            if target_bot and isinstance(target_bot.get("config"), dict):
+                                target_bot["config"]["cloudflare_model"] = req_model
+                        elif req_prov == "mistral":
+                            config["mistral_model"] = req_model
+                            if target_bot and isinstance(target_bot.get("config"), dict):
+                                target_bot["config"]["mistral_model"] = req_model
                 save_config(config)
                 save_bots(bots_state)
             print(f"[CONFIG] Updated from dashboard: {len(data)} fields saved and applied.")
